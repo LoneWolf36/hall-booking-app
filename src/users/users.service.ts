@@ -1,42 +1,38 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service'; // Assuming Prisma service exists
+import { PrismaService } from '../prisma/prisma.service';
+import { ValidationService } from '../common/services/validation.service';
 import { CreateUserDto, UserRole } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto, AdminUserResponseDto } from './dto/user-response.dto';
 import { User } from '@prisma/client';
+import { ERROR_MESSAGES } from '../common/constants/app.constants';
 
 /**
- * Users Service - Core business logic for user management
+ * Users Service - Refactored to use centralized validation
  * 
- * Key Features:
- * 1. Phone-based user upsert (create or update)
- * 2. Duplicate phone number handling
- * 3. Role-based access control
- * 4. Multi-tenant support
- * 5. Input validation and sanitization
+ * Now uses:
+ * - ValidationService for consistent field validation
+ * - Centralized constants from app.constants.ts
+ * - Eliminates duplicate validation logic
  */
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly validationService: ValidationService,
+  ) {}
 
   /**
-   * Upsert user by phone number - Core functionality
-   * 
-   * Business Logic:
-   * 1. If phone exists in tenant -> Update existing user
-   * 2. If phone doesn't exist -> Create new user  
-   * 3. Always return consistent user object
-   * 4. Handle race conditions with proper error handling
-   * 
-   * @param tenantId - Multi-tenant isolation
-   * @param userData - User creation/update data
-   * @returns User object (created or updated)
+   * Upsert user by phone number using centralized validation
    */
   async upsertUserByPhone(
     tenantId: string,
     userData: CreateUserDto,
   ): Promise<UserResponseDto> {
     try {
+      // Validate input fields using centralized validation
+      this.validateUserInput(userData);
+      
       // Normalize phone number for consistent storage
       const normalizedPhone = this.normalizePhoneNumber(userData.phone);
       
@@ -52,10 +48,8 @@ export class UsersService {
           },
         },
         update: {
-          // Update only provided fields (partial update)
           name: userData.name,
           email: userData.email || null,
-          // Role can only be updated by admins (enforced at controller level)
           ...(userData.role && { role: userData.role }),
         },
         create: {
@@ -79,7 +73,6 @@ export class UsersService {
 
   /**
    * Find user by phone number within tenant
-   * Used for authentication and user lookup
    */
   async findByPhone(
     tenantId: string,
@@ -117,8 +110,7 @@ export class UsersService {
   }
 
   /**
-   * Update existing user
-   * Validates user exists and handles phone number changes carefully
+   * Update existing user using centralized validation
    */
   async updateUser(
     tenantId: string,
@@ -128,7 +120,18 @@ export class UsersService {
     // Verify user exists in tenant
     const existingUser = await this.findById(tenantId, userId);
     if (!existingUser) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(ERROR_MESSAGES.USER_NOT_FOUND);
+    }
+    
+    // Validate input fields using centralized validation
+    if (updateData.name) {
+      this.validationService.validateCustomerName(updateData.name);
+    }
+    if (updateData.email) {
+      this.validationService.validateEmail(updateData.email);
+    }
+    if (updateData.phone) {
+      this.validationService.validatePhoneNumber(updateData.phone);
     }
     
     try {
@@ -147,7 +150,7 @@ export class UsersService {
           where: {
             tenantId,
             phone: normalizedPhone,
-            id: { not: userId }, // Exclude current user
+            id: { not: userId },
           },
         });
         
@@ -174,7 +177,6 @@ export class UsersService {
 
   /**
    * List users for admin interface
-   * Supports pagination and filtering
    */
   async findAllUsers(
     tenantId: string,
@@ -231,9 +233,16 @@ export class UsersService {
   // ========================================
 
   /**
+   * Validate user input using centralized ValidationService
+   */
+  private validateUserInput(userData: CreateUserDto): void {
+    this.validationService.validateCustomerName(userData.name);
+    this.validationService.validatePhoneNumber(userData.phone);
+    this.validationService.validateEmail(userData.email);
+  }
+
+  /**
    * Normalize phone number for consistent storage
-   * Removes spaces, dashes, parentheses
-   * Ensures consistent format: +91XXXXXXXXXX
    */
   private normalizePhoneNumber(phone: string): string {
     // Remove all non-digit characters except +
@@ -249,7 +258,6 @@ export class UsersService {
 
   /**
    * Validate tenant exists
-   * Prevents orphaned users
    */
   private async validateTenantExists(tenantId: string): Promise<void> {
     const tenant = await this.prisma.tenant.findUnique({
@@ -263,14 +271,13 @@ export class UsersService {
 
   /**
    * Convert Prisma User to public UserResponseDto
-   * Removes sensitive fields and handles null email
    */
   private toUserResponse(user: User): UserResponseDto {
     return {
       id: user.id,
       name: user.name,
       phone: user.phone,
-      email: user.email ?? undefined, // Convert null to undefined
+      email: user.email ?? undefined,
       role: user.role,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
@@ -279,7 +286,6 @@ export class UsersService {
 
   /**
    * Convert Prisma User to admin UserResponseDto
-   * Includes additional fields for admin view
    */
   private toAdminUserResponse(user: User): AdminUserResponseDto {
     return {
@@ -288,15 +294,3 @@ export class UsersService {
     };
   }
 }
-
-/**
- * Service Design Principles:
- * 
- * 1. **Single Responsibility**: Each method has one clear purpose
- * 2. **Error Handling**: Proper exception throwing with meaningful messages
- * 3. **Data Validation**: Input sanitization and normalization
- * 4. **Multi-tenant Safety**: All operations scoped to tenantId
- * 5. **Atomic Operations**: Using Prisma transactions where needed
- * 6. **Performance**: Efficient queries with proper indexing
- * 7. **Security**: No sensitive data in responses
- */
