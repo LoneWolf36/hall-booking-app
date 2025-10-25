@@ -5,9 +5,10 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { RedisModule } from './redis/redis.module';
 import { HealthModule } from './health/health.module';
-// New modules
+// Core modules
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
+import { BookingsModule } from './bookings/bookings.module';
 // Filters, Interceptors, and Pipes
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -26,17 +27,20 @@ import { EnvironmentVariables } from './config/env.validation';
       },
       envFilePath: ['.env.local', '.env'],
     }),
-    // Core infrastructure
-    PrismaModule, // Database connection (global)
-    RedisModule,  // Caching and session management
-    HealthModule, // Application health checks
+    // Core infrastructure modules
+    PrismaModule,     // Database connection (global)
+    RedisModule,      // Caching and session management
+    HealthModule,     // Application health checks
     
-    // Business modules
-    UsersModule,  // User management service
+    // Business logic modules
+    UsersModule,      // User management service  ✅ Complete
+    BookingsModule,   // Booking management service ✅ Complete
     // Future modules:
-    // VenuesModule,   // Venue management
-    // BookingsModule, // Booking management 
-    // PaymentsModule, // Payment processing
+    // VenuesModule,      // Venue management
+    // PaymentsModule,    // Payment processing (Razorpay integration)
+    // NotificationsModule, // Email/SMS/WhatsApp notifications
+    // AdminModule,       // Admin dashboard APIs
+    // ReportsModule,     // Analytics and reporting
   ],
   controllers: [AppController],
   providers: [
@@ -59,10 +63,26 @@ import { EnvironmentVariables } from './config/env.validation';
 export class AppModule {}
 
 /**
- * Module Integration Strategy:
+ * Application Architecture Overview:
  * 
- * 1. **Infrastructure First**: PrismaModule, RedisModule, ConfigModule
- * 2. **Business Logic**: UsersModule, future booking/payment modules
- * 3. **Cross-cutting**: Health checks, logging, validation
- * 4. **Global Services**: Configuration, database, caching
+ * 📊 **Infrastructure Layer**:
+ * - PrismaModule: PostgreSQL with exclusion constraints
+ * - RedisModule: Caching and atomic counters
+ * - ConfigModule: Environment configuration
+ * - HealthModule: Application monitoring
+ * 
+ * 🏢 **Business Logic Layer**:
+ * - UsersModule: Phone-based user management
+ * - BookingsModule: Core booking with double-booking prevention
+ * 
+ * 🔧 **Cross-cutting Concerns**:
+ * - GlobalExceptionFilter: Consistent error handling
+ * - LoggingInterceptor: Request/response logging
+ * - CustomValidationPipe: Input validation
+ * 
+ * 🚀 **Scalability Design**:
+ * - Modular architecture for easy feature addition
+ * - Multi-tenant ready with row-level security
+ * - Microservices-ready module boundaries
+ * - Clean dependency injection for testing
  */
