@@ -11,7 +11,8 @@ import { Observable, from } from 'rxjs';
 import { switchMap, tap } from 'rxjs/operators';
 import { CacheService } from '../services/cache.service';
 import { CACHE_CONSTANTS, CACHE_PREFIXES, VALIDATION_CONSTANTS } from '../constants/app.constants';
-import * as uuid from 'uuid';
+
+import { validate as validateUUID } from 'uuid';
 
 /**
  * Idempotency Interceptor - Refactored to use centralized services
@@ -92,8 +93,8 @@ export class IdempotencyInterceptor implements NestInterceptor {
       throw new BadRequestException('X-Idempotency-Key must be a string');
     }
 
-    // Validate UUID format
-    if (!uuid.validate(idempotencyKey)) {
+    // Validate UUID format (fixes import issue)
+    if (!validateUUID(idempotencyKey)) {
       throw new BadRequestException('X-Idempotency-Key must be a valid UUID');
     }
 
