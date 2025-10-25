@@ -223,10 +223,8 @@ export class BookingNumberService {
   public async resetSequence(tenantId: string, year: number): Promise<void> {
     const cacheKey = `${CACHE_PREFIXES.BOOKING_SEQUENCE}:${tenantId}:${year}`;
     
-    // Use CacheService's invalidation method if available, or direct key deletion
     try {
-      // For now, we'll set to 0 since we don't have a delete method in CacheService
-      await this.cacheService.set(cacheKey, 0, 1); // 1 second TTL to effectively delete
+      await this.cacheService.delete(cacheKey);
       this.logger.log(`Reset booking sequence for tenant ${tenantId}, year ${year}`);
     } catch (error) {
       this.logger.warn('Failed to reset sequence', error);
