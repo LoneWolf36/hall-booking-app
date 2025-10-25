@@ -10,7 +10,7 @@ import {
 import { Observable, from } from 'rxjs';
 import { switchMap, tap } from 'rxjs/operators';
 import { RedisService } from '../../redis/redis.service';
-import { v4 as uuidv4, validate as validateUUID } from 'uuid';
+import * as uuid from 'uuid';
 
 /**
  * Idempotency Interceptor - Prevents duplicate request processing
@@ -102,7 +102,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
     }
 
     // Validate UUID format
-    if (!validateUUID(idempotencyKey)) {
+    if (!uuid.validate(idempotencyKey)) {
       throw new BadRequestException('X-Idempotency-Key must be a valid UUID');
     }
 
