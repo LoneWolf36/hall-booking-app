@@ -58,8 +58,8 @@ export class UsersController {
   @Post()
   @HttpCode(HttpStatus.OK) // 200 for both create/update (upsert pattern)
   async upsertUser(
-    @Body(ValidationPipe) createUserDto: CreateUserDto,
     @Request() req: any, // Future: Extract from JWT token
+    @Body(ValidationPipe) createUserDto: CreateUserDto,
   ): Promise<{
     success: boolean;
     data: UserResponseDto;
@@ -98,8 +98,8 @@ export class UsersController {
    */
   @Get('phone/:phone')
   async findByPhone(
-    @Param('phone') phone: string,
     @Request() req: any,
+    @Param('phone') phone: string,
   ): Promise<{
     success: boolean;
     data: UserResponseDto | null;
@@ -128,8 +128,8 @@ export class UsersController {
    */
   @Get(':id')
   async findById(
-    @Param('id', ParseUUIDPipe) id: string,
     @Request() req: any,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<{
     success: boolean;
     data: UserResponseDto | null;
@@ -164,9 +164,9 @@ export class UsersController {
    */
   @Patch(':id')
   async updateUser(
+    @Request() req: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Body(ValidationPipe) updateUserDto: UpdateUserDto,
-    @Request() req: any,
   ): Promise<{
     success: boolean;
     data: UserResponseDto;
@@ -210,10 +210,10 @@ export class UsersController {
   // @UseGuards(JwtAuthGuard, RolesGuard) // Future: Add authentication
   // @Roles(UserRole.ADMIN) // Future: Admin only access
   async findAll(
+    @Request() req: any,
     @Query('role') role?: UserRole,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-    @Request() req: any,
   ): Promise<{
     success: boolean;
     data: AdminUserResponseDto[];
@@ -231,8 +231,8 @@ export class UsersController {
     }
 
     // Pagination setup
-    const pageNum = parseInt(page) || 1;
-    const pageSize = Math.min(parseInt(limit) || 20, 100); // Max 100 items per page
+    const pageNum = parseInt(page ?? '1', 10) || 1;
+    const pageSize = Math.min(parseInt(limit ?? '20', 10) || 20, 100); // Max 100 items per page
     const skip = (pageNum - 1) * pageSize;
     
     const result = await this.usersService.findAllUsers(tenantId, {
@@ -263,9 +263,9 @@ export class UsersController {
    */
   @Get(':id/validate-role/:role')
   async validateRole(
+    @Request() req: any,
     @Param('id', ParseUUIDPipe) id: string,
     @Param('role') role: UserRole,
-    @Request() req: any,
   ): Promise<{
     success: boolean;
     data: { hasRole: boolean };
