@@ -6,18 +6,19 @@ import { UsersModule } from '../users/users.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
 import { ErrorHandlerService } from '../common/services/error-handler.service';
+import { CacheService } from '../common/services/cache.service';
+import { ValidationService } from '../common/services/validation.service';
 import { VenueBookingsController } from './controllers/venue-bookings.controller';
 import { AvailabilityService } from './services/availability.service';
 
-
 /**
- * Bookings Module - Complete booking management with dependencies
+ * Refactored Bookings Module - Uses centralized services
  * 
- * Teaching Points:
- * 1. Module dependency injection and organization
- * 2. Service composition and separation of concerns
- * 3. Cross-module dependencies and imports
- * 4. Provider registration patterns
+ * Key Changes:
+ * 1. Added CacheService for centralized caching
+ * 2. Added ValidationService for centralized validation
+ * 3. Maintains clean separation of concerns
+ * 4. Reduces code duplication across services
  */
 @Module({
   imports: [
@@ -35,40 +36,40 @@ import { AvailabilityService } from './services/availability.service';
     BookingsService,
     
     // Specialized services
-    BookingNumberService,    // Atomic sequence generation
-    ErrorHandlerService,     // Centralized error handling
+    BookingNumberService,     // Atomic sequence generation
+    AvailabilityService,      // Booking availability checks
     
-    // Note: RedisService and PrismaService are provided by their modules
-    // UsersService is provided by UsersModule
-    AvailabilityService,     // Booking availability checks
+    // Centralized services (eliminates duplication)
+    ErrorHandlerService,      // Centralized error handling
+    CacheService,             // Centralized caching operations
+    ValidationService,        // Centralized validation logic
   ],
   exports: [
     // Export services that other modules might need
     BookingsService,
     BookingNumberService,
+    AvailabilityService,
+    CacheService,
+    ValidationService,
   ],
 })
 export class BookingsModule {
   /**
-   * Module Architecture Notes:
+   * Refactored Module Architecture:
    * 
-   * 1. **Layered Dependencies**:
-   *    - Controller → Service (business logic)
-   *    - Service → Repository (data access via Prisma)
-   *    - Service → External Services (Redis, Users)
+   * 1. **Centralized Services**:
+   *    - CacheService: Unified caching across all booking operations
+   *    - ValidationService: Consistent validation rules
+   *    - ErrorHandlerService: Standardized error handling
    * 
-   * 2. **Service Composition**:
-   *    - BookingsService: Core business logic
-   *    - BookingNumberService: Specialized sequence generation
-   *    - ErrorHandlerService: Cross-cutting error handling
+   * 2. **Eliminated Duplication**:
+   *    - Removed duplicate caching methods from BookingsService
+   *    - Consolidated validation logic in ValidationService
+   *    - Single source of truth for availability checking
    * 
-   * 3. **Cross-Module Integration**:
-   *    - UsersModule: Customer upsert functionality
-   *    - RedisModule: Caching and atomic operations
-   *    - PrismaModule: Database access patterns
-   * 
-   * 4. **Exports Strategy**:
-   *    - Export services that other modules need
-   *    - Keep internal services private when possible
+   * 3. **Improved Maintainability**:
+   *    - Changes to validation rules happen in one place
+   *    - Caching behavior is consistent across services
+   *    - Error handling follows standard patterns
    */
 }
