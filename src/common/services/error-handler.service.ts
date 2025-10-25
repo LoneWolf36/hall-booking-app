@@ -1,29 +1,19 @@
 import { Injectable, Logger, ConflictException, BadRequestException } from '@nestjs/common';
+import { ValidationService } from './validation.service';
 
 /**
  * Error Handler Service - Centralized error processing for database constraints
  * 
- * Teaching Points:
- * 1. Why centralized error handling improves maintainability
- * 2. How to map database-specific errors to business errors
- * 3. Proper logging strategies for debugging
- * 4. Error message internationalization preparation
- * 
- * Key Database Error Codes:
- * - 23P01: PostgreSQL exclusion constraint violation (our double-booking prevention)
- * - P2002: Prisma unique constraint violation
- * - 23505: PostgreSQL unique constraint violation
- * - 23503: Foreign key constraint violation
+ * Refactored to eliminate duplicate utility methods by using ValidationService
  */
 @Injectable()
 export class ErrorHandlerService {
   private readonly logger = new Logger(ErrorHandlerService.name);
 
+  constructor(private readonly validationService: ValidationService) {}
+
   /**
    * Handle booking-specific database errors with context
-   * 
-   * This method transforms low-level database errors into business-friendly messages
-   * that clients can understand and act upon.
    */
   handleBookingError(error: any, context: {
     operation: 'create' | 'update' | 'delete';
@@ -82,9 +72,6 @@ export class ErrorHandlerService {
 
   /**
    * Handle exclusion constraint violations (our double-booking prevention)
-   * 
-   * Teaching: This is the heart of our double-booking prevention system.
-   * The exclusion constraint prevents overlapping time ranges at the database level.
    */
   private handleExclusionConstraintViolation(error: any, context: any): ConflictException {
     const { venueId, startTs, endTs } = context;
@@ -94,7 +81,7 @@ export class ErrorHandlerService {
     
     if (constraintName === 'no_booking_overlap') {
       const timeRange = startTs && endTs 
-        ? ` for ${this.formatDateRange(startTs, endTs)}`
+        ? ` for ${this.validationService.formatDateRange(startTs, endTs)}`
         : '';
       
       return new ConflictException({
@@ -201,27 +188,8 @@ export class ErrorHandlerService {
    * Extract constraint name from PostgreSQL error message
    */
   private extractConstraintName(message: string): string | null {
-    const matches = message.match(/constraint "([^"]+)"/);
+    const matches = message.match(/constraint "([^"]+)"/); 
     return matches ? matches[1] : null;
-  }
-
-  /**
-   * Format date range for human-readable error messages
-   */
-  private formatDateRange(startTs: Date, endTs: Date): string {
-    const formatOptions: Intl.DateTimeFormatOptions = {
-      timeZone: 'Asia/Kolkata',
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    };
-    
-    const start = startTs.toLocaleDateString('en-IN', formatOptions);
-    const end = endTs.toLocaleDateString('en-IN', formatOptions);
-    
-    return `${start} to ${end}`;
   }
 
   /**
@@ -243,25 +211,3 @@ export class ErrorHandlerService {
     return error.message || 'An unexpected error occurred';
   }
 }
-
-/**
- * Teaching Notes on Database Error Handling:
- * 
- * 1. **Error Code Mapping**: Each database has specific error codes.
- *    PostgreSQL uses numeric codes (23P01), Prisma uses alphanumeric (P2002).
- * 
- * 2. **Context Matters**: The same error code can mean different things
- *    in different contexts. That's why we pass operation context.
- * 
- * 3. **User Experience**: Transform technical errors into actionable messages.
- *    Instead of "23P01 exclusion constraint violation", say "Time slot unavailable".
- * 
- * 4. **Logging Strategy**: Log technical details for developers,
- *    return business-friendly messages to users.
- * 
- * 5. **Internationalization**: Structure errors as objects to support
- *    multiple languages in the future.
- * 
- * 6. **Graceful Degradation**: Always provide a fallback error message
- *    for unexpected cases.
- */
