@@ -3,18 +3,23 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { createLoggerConfig } from './config/logging.config';
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: createLoggerConfig(),
   });
-  // Global prefix for all routes
-  app.setGlobalPrefix('api/v1');
+
+  // Global API prefix
+  const apiPrefix = 'api/v1';
+  app.setGlobalPrefix(apiPrefix);
+
   // Enable CORS for frontend
   app.enableCors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     credentials: true,
   });
-  // Swagger documentation
+
+  // Swagger documentation - mount under the same api prefix for consistency
   const config = new DocumentBuilder()
     .setTitle('Hall Booking API')
     .setDescription('API for Parbhani hall booking system')
@@ -22,13 +27,16 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup(`${apiPrefix.replace(/\/$/, '')}/docs`, app, document);
+
   const port = process.env.PORT || 3000;
   await app.listen(port);
+
   const logger = new Logger('Bootstrap');
-  logger.log(`🚀 Application is running on: http://localhost:${port}/api/v1`);
-  logger.log(`📚 Swagger docs available at: http://localhost:${port}/api/docs`);
+  logger.log(`🚀 Application is running on: http://localhost:${port}/${apiPrefix}`);
+  logger.log(`📚 Swagger docs available at: http://localhost:${port}/${apiPrefix}/docs`);
 }
+
 bootstrap().catch((error) => {
   console.error('Failed to start application:', error);
   process.exit(1);
