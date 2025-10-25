@@ -15,6 +15,7 @@ import {
   BadRequestException,
   Headers,
 } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiHeader } from '@nestjs/swagger';
 import { BookingsService } from './bookings.service';
 import {
   CreateBookingDto,
@@ -25,18 +26,18 @@ import {
   AvailabilityResponseDto,
   CreateBookingResponseDto,
 } from './dto/booking-response.dto';
+import { RequireIdempotency, OptionalIdempotency } from '../common/decorators/idempotent.decorator';
 
 /**
  * Bookings Controller - REST API endpoints for booking management
  * 
- * API Design Principles:
- * 1. RESTful routes with proper HTTP methods
- * 2. Comprehensive input validation
- * 3. Consistent response formats
- * 4. Proper error handling
- * 5. Tenant isolation
- * 6. Idempotency support
+ * Enhanced with idempotency support for production reliability:
+ * - Critical operations require idempotency keys
+ * - Optional idempotency for query operations
+ * - Automatic duplicate request handling
+ * - Swagger documentation integration
  */
+@ApiTags('Bookings')
 @Controller('api/v1/bookings')
 @UseInterceptors(ClassSerializerInterceptor)
 export class BookingsController {
@@ -45,32 +46,40 @@ export class BookingsController {
   /**
    * POST /api/v1/bookings - Create new booking
    * 
-   * This is the core booking creation endpoint:
-   * - Supports both existing and new customers
-   * - Handles exclusion constraint violations gracefully
-   * - Generates sequential booking numbers
-   * - Provides idempotency protection
+   * CRITICAL OPERATION - Requires idempotency key to prevent duplicate bookings
+   * This is essential for payment processing and avoiding double-bookings
    * 
-   * Headers Required:
-   * - X-Tenant-Id: Tenant identifier
-   * - X-Idempotency-Key: (Optional) Prevents duplicate bookings
-   * 
-   * Example Request:
-   * {
-   *   "venueId": "venue-uuid",
-   *   "customer": {
-   *     "name": "Rahul Sharma", 
-   *     "phone": "+919876543210",
-   *     "email": "rahul@example.com"
-   *   },
-   *   "startTs": "2025-12-25T04:30:00.000Z",
-   *   "endTs": "2025-12-25T20:30:00.000Z",
-   *   "eventType": "wedding",
-   *   "guestCount": 300
-   * }
+   * Teaching Point: Why idempotency is critical for booking systems:
+   * 1. Network timeouts can cause duplicate requests
+   * 2. User double-clicking submit buttons
+   * 3. Mobile app retry logic
+   * 4. Payment gateway webhooks
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RequireIdempotency() // This decorator ensures X-Idempotency-Key is required
+  @ApiOperation({
+    summary: 'Create new booking',
+    description: 'Creates a new hall booking with exclusion constraint protection. Requires idempotency key for safety.',
+  })
+  @ApiHeader({
+    name: 'X-Tenant-Id',
+    description: 'Tenant identifier for multi-tenant isolation',
+    required: true,
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Booking created successfully',
+    type: CreateBookingResponseDto,
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'Time slot conflict - booking already exists for this time',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input data or missing idempotency key',
+  })
   async createBooking(
     @Headers('x-tenant-id') tenantId: string,
     @Body(ValidationPipe) createBookingDto: CreateBookingDto,
@@ -80,7 +89,8 @@ export class BookingsController {
       throw new BadRequestException('X-Tenant-Id header is required');
     }
 
-    // Add idempotency key from header if provided
+    // The idempotency interceptor will validate the key format
+    // We just need to pass it to the service if provided
     if (idempotencyKey && !createBookingDto.idempotencyKey) {
       createBookingDto.idempotencyKey = idempotencyKey;
     }
@@ -91,13 +101,19 @@ export class BookingsController {
   /**
    * GET /api/v1/bookings/:id - Get booking by ID
    * 
-   * Returns full booking details including:
-   * - Customer information
-   * - Venue details
-   * - Payment status
-   * - Computed fields (duration, cancellation eligibility)
+   * Read-only operation - Optional idempotency for caching benefits
    */
   @Get(':id')
+  @OptionalIdempotency() // Helpful for caching but not critical
+  @ApiOperation({
+    summary: 'Get booking details by ID',
+    description: 'Retrieves full booking information including customer and venue details',
+  })
+  @ApiHeader({
+    name: 'X-Tenant-Id',
+    description: 'Tenant identifier',
+    required: true,
+  })
   async getBookingById(
     @Headers('x-tenant-id') tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -120,25 +136,15 @@ export class BookingsController {
   /**
    * POST /api/v1/bookings/check-availability - Check time slot availability
    * 
-   * Checks for:
-   * - Conflicting bookings (temp_hold, pending, confirmed)
-   * - Blackout periods (maintenance, holidays)
-   * - Venue-specific constraints
-   * 
-   * Returns:
-   * - Availability status
-   * - Conflicting bookings (if any)
-   * - Alternative time suggestions
-   * 
-   * Example Request:
-   * {
-   *   "venueId": "venue-uuid",
-   *   "startTs": "2025-12-25T04:30:00.000Z",
-   *   "endTs": "2025-12-25T20:30:00.000Z"
-   * }
+   * Query operation - Optional idempotency for performance
    */
   @Post('check-availability')
   @HttpCode(HttpStatus.OK)
+  @OptionalIdempotency() // Useful for caching availability checks
+  @ApiOperation({
+    summary: 'Check venue availability for time range',
+    description: 'Checks for conflicts and returns availability status with suggestions',
+  })
   async checkAvailability(
     @Headers('x-tenant-id') tenantId: string,
     @Body(ValidationPipe) timeRangeDto: BookingTimeRangeDto,
@@ -162,15 +168,71 @@ export class BookingsController {
   }
 
   /**
-   * GET /api/v1/bookings/venue/:venueId/availability - Get venue availability
+   * POST /api/v1/bookings/:id/confirm - Confirm pending booking
    * 
-   * Query parameters:
-   * - date: ISO date string (YYYY-MM-DD)
-   * - days: Number of days to check (default: 7, max: 30)
-   * 
-   * Returns day-by-day availability status for calendar views
+   * CRITICAL STATE CHANGE - Requires idempotency to prevent double-confirmation
    */
+  @Post(':id/confirm')
+  @HttpCode(HttpStatus.OK)
+  @RequireIdempotency() // Critical - prevents double confirmation
+  @ApiOperation({
+    summary: 'Confirm pending booking',
+    description: 'Transitions booking from pending to confirmed status. Usually triggered after payment.',
+  })
+  async confirmBooking(
+    @Headers('x-tenant-id') tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<{
+    success: boolean;
+    data: BookingResponseDto;
+    message: string;
+  }> {
+    if (!tenantId) {
+      throw new BadRequestException('X-Tenant-Id header is required');
+    }
+
+    // TODO: Implement booking confirmation logic
+    throw new Error('Booking confirmation not implemented yet');
+  }
+
+  /**
+   * POST /api/v1/bookings/:id/cancel - Cancel booking
+   * 
+   * CRITICAL STATE CHANGE - Requires idempotency to prevent double-cancellation
+   */
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @RequireIdempotency() // Critical - prevents double cancellation and refunds
+  @ApiOperation({
+    summary: 'Cancel booking',
+    description: 'Cancels booking and processes refund according to policy',
+  })
+  async cancelBooking(
+    @Headers('x-tenant-id') tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() cancelData: { reason?: string },
+  ): Promise<{
+    success: boolean;
+    data: BookingResponseDto;
+    message: string;
+  }> {
+    if (!tenantId) {
+      throw new BadRequestException('X-Tenant-Id header is required');
+    }
+
+    // TODO: Implement booking cancellation logic
+    throw new Error('Booking cancellation not implemented yet');
+  }
+
+  /**
+   * GET operations below - No idempotency needed as they don't change state
+   */
+
   @Get('venue/:venueId/availability')
+  @ApiOperation({
+    summary: 'Get venue availability calendar',
+    description: 'Returns day-by-day availability for calendar views',
+  })
   async getVenueAvailability(
     @Headers('x-tenant-id') tenantId: string,
     @Param('venueId', ParseUUIDPipe) venueId: string,
@@ -196,38 +258,23 @@ export class BookingsController {
     }
 
     const date = dateStr ? new Date(dateStr) : new Date();
-    const days = Math.min(parseInt(daysStr ?? '7', 10) || 7, 30); // Max 30 days
+    const days = Math.min(parseInt(daysStr ?? '7', 10) || 7, 30);
 
-    // Validate date
     if (isNaN(date.getTime())) {
       throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
     }
 
-    // For now, return simple response
-    // Full implementation would query multiple days efficiently
     return {
       success: true,
       data: [], // TODO: Implement calendar view logic
     };
   }
 
-  /**
-   * GET /api/v1/bookings - List bookings with filtering
-   * 
-   * Query parameters:
-   * - status: Filter by booking status
-   * - venueId: Filter by venue
-   * - startDate: Filter bookings from this date
-   * - endDate: Filter bookings until this date
-   * - page: Page number (1-based)
-   * - limit: Results per page (max 100)
-   * 
-   * Use cases:
-   * - Admin booking management
-   * - Customer booking history
-   * - Venue utilization reports
-   */
   @Get()
+  @ApiOperation({
+    summary: 'List bookings with filters',
+    description: 'Returns paginated list of bookings with filtering options',
+  })
   async listBookings(
     @Headers('x-tenant-id') tenantId: string,
     @Query('status') status?: string,
@@ -250,9 +297,6 @@ export class BookingsController {
       throw new BadRequestException('X-Tenant-Id header is required');
     }
 
-    // TODO: Implement booking listing with filters and pagination
-    // This would be a comprehensive query with multiple WHERE conditions
-    
     return {
       success: true,
       data: [],
@@ -265,13 +309,11 @@ export class BookingsController {
     };
   }
 
-  /**
-   * GET /api/v1/bookings/number/:bookingNumber - Get booking by number
-   * 
-   * Customer-friendly lookup using booking number instead of UUID
-   * Format: PBH-2025-0001
-   */
   @Get('number/:bookingNumber')
+  @ApiOperation({
+    summary: 'Get booking by booking number',
+    description: 'Customer-friendly lookup using booking number (e.g., PBH-2025-0001)',
+  })
   async getBookingByNumber(
     @Headers('x-tenant-id') tenantId: string,
     @Param('bookingNumber') bookingNumber: string,
@@ -283,78 +325,32 @@ export class BookingsController {
       throw new BadRequestException('X-Tenant-Id header is required');
     }
 
-    // TODO: Implement lookup by booking number
-    // This would query: WHERE tenantId = ? AND bookingNumber = ?
-    
     return {
       success: true,
-      data: null,
+      data: null, // TODO: Implement lookup by booking number
     };
-  }
-
-  /**
-   * POST /api/v1/bookings/:id/confirm - Confirm pending booking
-   * 
-   * Transitions booking from 'pending' to 'confirmed'
-   * Usually triggered after successful payment
-   */
-  @Post(':id/confirm')
-  @HttpCode(HttpStatus.OK)
-  async confirmBooking(
-    @Headers('x-tenant-id') tenantId: string,
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<{
-    success: boolean;
-    data: BookingResponseDto;
-    message: string;
-  }> {
-    if (!tenantId) {
-      throw new BadRequestException('X-Tenant-Id header is required');
-    }
-
-    // TODO: Implement booking confirmation
-    // This would update status and send notifications
-    
-    throw new Error('Not implemented yet');
-  }
-
-  /**
-   * POST /api/v1/bookings/:id/cancel - Cancel booking
-   * 
-   * Business rules:
-   * - Can only cancel if more than 24h before start time
-   * - Refund policy applies based on timing
-   * - Notifications sent to customer
-   */
-  @Post(':id/cancel')
-  @HttpCode(HttpStatus.OK)
-  async cancelBooking(
-    @Headers('x-tenant-id') tenantId: string,
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() cancelData: { reason?: string },
-  ): Promise<{
-    success: boolean;
-    data: BookingResponseDto;
-    message: string;
-  }> {
-    if (!tenantId) {
-      throw new BadRequestException('X-Tenant-Id header is required');
-    }
-
-    // TODO: Implement booking cancellation
-    // This would update status and handle refunds
-    
-    throw new Error('Not implemented yet');
   }
 }
 
 /**
- * Controller Design Decisions:
+ * Teaching Notes on Idempotency Patterns:
  * 
- * 1. **Parameter Ordering**: Required parameters (@Headers) come before optional ones (@Query)
- * 2. **Type Safety**: All string parsing includes null coalescing and defaults
- * 3. **Consistent Response Format**: All endpoints return { success, data, message? }
- * 4. **Header-based Tenant ID**: Consistent with user management API
- * 5. **Input Validation**: DTOs with comprehensive validation rules
- * 6. **Error Handling**: Proper HTTP exceptions with meaningful messages
+ * 1. **Critical vs Optional**: 
+ *    - CREATE, UPDATE, DELETE operations → Require idempotency
+ *    - READ operations → Optional idempotency for caching
+ * 
+ * 2. **State Changes**:
+ *    - Booking creation → Critical (prevents double bookings)
+ *    - Payment processing → Critical (prevents double charges)
+ *    - Status changes → Critical (prevents inconsistent state)
+ * 
+ * 3. **Client Integration**:
+ *    - Mobile apps should generate UUID per user action
+ *    - Web forms should include hidden idempotency field
+ *    - APIs should validate and cache responses appropriately
+ * 
+ * 4. **Error Handling**:
+ *    - 400: Invalid idempotency key format
+ *    - 409: Request processed with different result
+ *    - 200: Request processed with same result (from cache)
  */
