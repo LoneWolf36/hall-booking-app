@@ -74,6 +74,16 @@ export class RedisService {
     }
   }
 
+  async expire(key: string, ttlSeconds: number): Promise<boolean> {
+    try {
+      const result = await this.redis.expire(key, ttlSeconds);
+      return result === 1;
+    } catch (error) {
+      this.logger.error(`Redis EXPIRE failed for key: ${key}`, error);
+      throw error;
+    }
+  }
+
   async setJSON(key: string, obj: any, ttlSeconds?: number): Promise<void> {
     await this.set(key, JSON.stringify(obj), ttlSeconds);
   }
