@@ -72,8 +72,8 @@ export class BookingsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   async createBooking(
-    @Body(ValidationPipe) createBookingDto: CreateBookingDto,
     @Headers('x-tenant-id') tenantId: string,
+    @Body(ValidationPipe) createBookingDto: CreateBookingDto,
     @Headers('x-idempotency-key') idempotencyKey?: string,
   ): Promise<CreateBookingResponseDto> {
     if (!tenantId) {
@@ -99,8 +99,8 @@ export class BookingsController {
    */
   @Get(':id')
   async getBookingById(
-    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-tenant-id') tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<{
     success: boolean;
     data: BookingResponseDto | null;
@@ -140,8 +140,8 @@ export class BookingsController {
   @Post('check-availability')
   @HttpCode(HttpStatus.OK)
   async checkAvailability(
-    @Body(ValidationPipe) timeRangeDto: BookingTimeRangeDto,
     @Headers('x-tenant-id') tenantId: string,
+    @Body(ValidationPipe) timeRangeDto: BookingTimeRangeDto,
   ): Promise<{
     success: boolean;
     data: AvailabilityResponseDto;
@@ -172,10 +172,10 @@ export class BookingsController {
    */
   @Get('venue/:venueId/availability')
   async getVenueAvailability(
+    @Headers('x-tenant-id') tenantId: string,
     @Param('venueId', ParseUUIDPipe) venueId: string,
     @Query('date') dateStr?: string,
     @Query('days') daysStr?: string,
-    @Headers('x-tenant-id') tenantId: string,
   ): Promise<{
     success: boolean;
     data: {
@@ -196,7 +196,7 @@ export class BookingsController {
     }
 
     const date = dateStr ? new Date(dateStr) : new Date();
-    const days = Math.min(parseInt(daysStr) || 7, 30); // Max 30 days
+    const days = Math.min(parseInt(daysStr ?? '7', 10) || 7, 30); // Max 30 days
 
     // Validate date
     if (isNaN(date.getTime())) {
@@ -229,13 +229,13 @@ export class BookingsController {
    */
   @Get()
   async listBookings(
+    @Headers('x-tenant-id') tenantId: string,
     @Query('status') status?: string,
     @Query('venueId') venueId?: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-    @Headers('x-tenant-id') tenantId: string,
   ): Promise<{
     success: boolean;
     data: BookingResponseDto[];
@@ -257,8 +257,8 @@ export class BookingsController {
       success: true,
       data: [],
       pagination: {
-        page: parseInt(page) || 1,
-        limit: Math.min(parseInt(limit) || 20, 100),
+        page: parseInt(page ?? '1', 10) || 1,
+        limit: Math.min(parseInt(limit ?? '20', 10) || 20, 100),
         total: 0,
         totalPages: 0,
       },
@@ -273,8 +273,8 @@ export class BookingsController {
    */
   @Get('number/:bookingNumber')
   async getBookingByNumber(
-    @Param('bookingNumber') bookingNumber: string,
     @Headers('x-tenant-id') tenantId: string,
+    @Param('bookingNumber') bookingNumber: string,
   ): Promise<{
     success: boolean;
     data: BookingResponseDto | null;
@@ -301,8 +301,8 @@ export class BookingsController {
   @Post(':id/confirm')
   @HttpCode(HttpStatus.OK)
   async confirmBooking(
-    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-tenant-id') tenantId: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<{
     success: boolean;
     data: BookingResponseDto;
@@ -329,9 +329,9 @@ export class BookingsController {
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
   async cancelBooking(
+    @Headers('x-tenant-id') tenantId: string,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() cancelData: { reason?: string },
-    @Headers('x-tenant-id') tenantId: string,
   ): Promise<{
     success: boolean;
     data: BookingResponseDto;
@@ -351,15 +351,10 @@ export class BookingsController {
 /**
  * Controller Design Decisions:
  * 
- * 1. **Consistent Response Format**: All endpoints return { success, data, message? }
- * 2. **Proper HTTP Status Codes**: 201 for creation, 200 for success, etc.
- * 3. **Header-based Tenant ID**: Consistent with user management API
- * 4. **Idempotency Support**: Both header and body-based keys
+ * 1. **Parameter Ordering**: Required parameters (@Headers) come before optional ones (@Query)
+ * 2. **Type Safety**: All string parsing includes null coalescing and defaults
+ * 3. **Consistent Response Format**: All endpoints return { success, data, message? }
+ * 4. **Header-based Tenant ID**: Consistent with user management API
  * 5. **Input Validation**: DTOs with comprehensive validation rules
  * 6. **Error Handling**: Proper HTTP exceptions with meaningful messages
- * 7. **Future-ready**: Placeholder methods for common booking operations
- * 
- * API Documentation:
- * All endpoints are designed to be OpenAPI/Swagger compatible
- * with clear parameter descriptions and example requests/responses.
  */
