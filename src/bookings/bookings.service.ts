@@ -7,8 +7,9 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
-import { RedisService } from '../redis/redis.service';
 import { ErrorHandlerService } from '../common/services/error-handler.service';
+import { CacheService } from '../common/services/cache.service';
+import { ValidationService } from '../common/services/validation.service';
 import { BookingNumberService } from './services/booking-number.service';
 import { AvailabilityService } from './services/availability.service';
 import {
@@ -25,43 +26,35 @@ import {
 import { UserRole } from '../users/dto/create-user.dto';
 import { Venue } from '@prisma/client';
 import { randomUUID } from 'crypto';
-import { suggestAlternatives } from './utils/suggest-alternatives';
 
 /**
- * Enhanced Bookings Service - Production-ready hall booking management
+ * Refactored Bookings Service - Eliminates redundant code
  * 
  * Key Improvements:
- * 1. Centralized error handling with context-aware messages
- * 2. Atomic booking number generation with Redis
- * 3. Enhanced tstzrange handling for Indian timezone
- * 4. Improved idempotency with comprehensive validation
- * 5. Better constraint violation handling
- * 6. Performance optimizations with caching
+ * 1. Uses centralized CacheService for all caching operations
+ * 2. Uses ValidationService for consistent validation logic
+ * 3. Delegates availability checking to AvailabilityService
+ * 4. Eliminates duplicate methods and code
+ * 5. Maintains clean separation of concerns
  */
 @Injectable()
 export class BookingsService {
   private readonly logger = new Logger(BookingsService.name);
-  private readonly INDIAN_TIMEZONE = 'Asia/Kolkata';
   private readonly BOOKING_CACHE_TTL = 3600; // 1 hour
   private readonly AVAILABILITY_CACHE_TTL = 300; // 5 minutes
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
-    private readonly redisService: RedisService,
     private readonly errorHandler: ErrorHandlerService,
+    private readonly cacheService: CacheService,
+    private readonly validationService: ValidationService,
     private readonly bookingNumberService: BookingNumberService,
     private readonly availabilityService: AvailabilityService,
-  ) { }
+  ) {}
 
   /**
-   * Create new booking with enhanced error handling and atomic operations
-   * 
-   * Teaching: This method demonstrates production-ready booking creation:
-   * - Comprehensive input validation
-   * - Atomic sequence generation
-   * - Database constraint protection
-   * - Context-aware error handling
+   * Create new booking - refactored to use centralized services
    */
   async createBooking(
     tenantId: string,
@@ -71,20 +64,17 @@ export class BookingsService {
     this.logger.log(`Creating booking for tenant ${tenantId}`);
 
     try {
-      // 1. Validate and normalize timestamps with enhanced validation
-      const { startTs, endTs } = this.validateAndNormalizeTimestamps(
+      // 1. Validate and normalize timestamps using centralized validation
+      const { startTs, endTs } = this.validationService.validateAndNormalizeTimestamps(
         createBookingDto.startTs,
         createBookingDto.endTs,
       );
 
-      // 2. Validate venue exists and is available
-      const venue = await this.validateVenue(tenantId, createBookingDto.venueId);
+      // 2. Validate venue using centralized validation
+      const venue = await this.validationService.validateVenue(tenantId, createBookingDto.venueId);
 
       // 3. Handle customer upsert with validation
-      const customer = await this.handleCustomerInfo(
-        tenantId,
-        createBookingDto,
-      );
+      const customer = await this.handleCustomerInfo(tenantId, createBookingDto);
 
       // 4. Check for existing booking with idempotency key
       if (createBookingDto.idempotencyKey) {
@@ -102,8 +92,8 @@ export class BookingsService {
       // 5. Generate atomic booking number
       const bookingNumber = await this.bookingNumberService.generateBookingNumber(tenantId);
 
-      // 6. Validate business rules
-      this.validateBusinessRules(createBookingDto, venue);
+      // 6. Validate business rules using centralized validation
+      this.validationService.validateBusinessRules(createBookingDto.guestCount, venue);
 
       try {
         // 7. Create booking with constraint protection
@@ -119,21 +109,21 @@ export class BookingsService {
           venue,
         );
 
-        // 8. Cache booking for performance
-        await this.cacheBooking(booking);
+        // 8. Cache booking using centralized caching
+        await this.cacheService.cacheBooking(booking, this.BOOKING_CACHE_TTL);
 
         const duration = Date.now() - startTime;
         this.logger.log(`Booking ${bookingNumber} created successfully in ${duration}ms`);
 
         return this.buildCreateBookingResponse(booking, true);
       } catch (error) {
-        // If overlap (23P01), compute alternatives and include in ConflictException
+        // If overlap (23P01), compute alternatives using AvailabilityService
         if (error.code === '23P01') {
           const alternatives = await this.availabilityService.alternativesOnConflict(
             tenantId,
             createBookingDto.venueId,
-            new Date(createBookingDto.startTs),
-            new Date(createBookingDto.endTs),
+            startTs,
+            endTs,
           );
           throw new ConflictException({
             message: 'This time slot is no longer available',
@@ -163,86 +153,59 @@ export class BookingsService {
   }
 
   /**
-   * Enhanced availability checking with caching
+   * Check availability - refactored to use centralized services
    */
   async checkAvailability(
     tenantId: string,
     timeRange: BookingTimeRangeDto,
   ): Promise<AvailabilityResponseDto> {
-    const cacheKey = `availability:${tenantId}:${timeRange.venueId}:${timeRange.startTs}:${timeRange.endTs}`;
-    const cached = await this.getCachedAvailability(cacheKey);
+    // Check cache first using centralized caching
+    const cached = await this.cacheService.getCachedAvailability(
+      tenantId,
+      timeRange.venueId!,
+      timeRange.startTs,
+      timeRange.endTs
+    );
     if (cached) return cached;
 
-    const { startTs, endTs } = this.validateAndNormalizeTimestamps(timeRange.startTs, timeRange.endTs);
+    // Validate timestamps using centralized validation
+    const { startTs, endTs } = this.validationService.validateAndNormalizeTimestamps(
+      timeRange.startTs,
+      timeRange.endTs
+    );
 
-    const startTstz = startTs.toISOString();
-    const endTstz = endTs.toISOString();
+    // Use AvailabilityService for availability checking
+    const result = await this.availabilityService.checkAvailability(
+      tenantId,
+      timeRange.venueId!,
+      startTs,
+      endTs,
+      timeRange.excludeBookingId
+    );
 
-    const conflictingBookings = await this.prisma.$queryRaw<{
-      id: string; bookingNumber: string; startTs: Date; endTs: Date; status: string; customerName: string;
-    }[]>`
-      SELECT b.id, b."bookingNumber", b."startTs", b."endTs", b.status, u.name as "customerName"
-      FROM bookings b
-      JOIN users u ON u.id = b."userId"
-      WHERE b."tenantId" = ${tenantId}
-        AND b."venueId" = ${timeRange.venueId}
-        AND b.status IN ('temp_hold','pending','confirmed')
-        AND tstzrange(${startTstz}, ${endTstz}, '[)') && tstzrange(b."startTs"::timestamptz, b."endTs"::timestamptz, '[)')
-        ${timeRange.excludeBookingId ? `AND b.id != ${timeRange.excludeBookingId}` : ''}
-      ORDER BY b."startTs"`;
+    // Cache result using centralized caching
+    await this.cacheService.cacheAvailability(
+      tenantId,
+      timeRange.venueId!,
+      timeRange.startTs,
+      timeRange.endTs,
+      result,
+      this.AVAILABILITY_CACHE_TTL
+    );
 
-    const blackoutPeriods = await this.prisma.$queryRaw<{
-      id: string; reason: string; startTs: Date; endTs: Date; isMaintenance: boolean;
-    }[]>`
-      SELECT id, reason, "startTs", "endTs", "isMaintenance"
-      FROM availability_blackouts
-      WHERE "tenantId" = ${tenantId}
-        AND "venueId" = ${timeRange.venueId}
-        AND tstzrange(${startTstz}, ${endTstz}, '[)') && tstzrange("startTs"::timestamptz, "endTs"::timestamptz, '[)')
-      ORDER BY "startTs"`;
-
-    const isAvailable = conflictingBookings.length === 0 && blackoutPeriods.length === 0;
-
-    const result: AvailabilityResponseDto = {
-      isAvailable,
-      conflictingBookings: conflictingBookings.map((b) => ({
-        id: b.id,
-        bookingNumber: b.bookingNumber,
-        customerName: b.customerName,
-        customerPhone: '',
-        startTs: b.startTs,
-        endTs: b.endTs,
-        status: b.status,
-      })),
-      blackoutPeriods,
-      suggestedAlternatives: isAvailable
-        ? []
-        : await this.availabilityService.alternativesOnConflict(
-          tenantId,
-          timeRange.venueId!,
-          startTs,
-          endTs,
-        ),
-    };
-
-    await this.cacheAvailability(cacheKey, result);
     return result;
   }
 
   /**
-   * Get booking by ID with enhanced caching
+   * Get booking by ID - refactored to use centralized caching
    */
   async getBookingById(
     tenantId: string,
     bookingId: string,
   ): Promise<BookingResponseDto | null> {
-    // Check cache first
-    const cacheKey = `booking:${bookingId}`;
-    const cached = await this.getCachedBooking(cacheKey);
-
-    if (cached) {
-      return cached;
-    }
+    // Check cache first using centralized caching
+    const cached = await this.cacheService.getCachedBooking(bookingId);
+    if (cached) return cached;
 
     const booking = await this.prisma.booking.findFirst({
       where: {
@@ -261,114 +224,17 @@ export class BookingsService {
     }
 
     const response = this.toBookingResponse(booking);
-    await this.cacheBooking(response);
+    await this.cacheService.cacheBooking(response, this.BOOKING_CACHE_TTL);
 
     return response;
   }
 
   // ========================================
-  // ENHANCED PRIVATE METHODS
+  // PRIVATE METHODS (KEPT MINIMAL)
   // ========================================
 
   /**
-   * Enhanced timestamp validation with business rules
-   */
-  private validateAndNormalizeTimestamps(
-    startTsStr: string,
-    endTsStr: string,
-  ): { startTs: Date; endTs: Date } {
-    const startTs = new Date(startTsStr);
-    const endTs = new Date(endTsStr);
-
-    // Basic date validation
-    if (isNaN(startTs.getTime()) || isNaN(endTs.getTime())) {
-      throw new BadRequestException({
-        message: 'Invalid date format provided',
-        details: 'Dates must be in ISO 8601 format (e.g., 2025-12-25T10:00:00.000Z)',
-        code: 'INVALID_DATE_FORMAT'
-      });
-    }
-
-    // Start must be before end
-    if (startTs >= endTs) {
-      throw new BadRequestException({
-        message: 'Invalid time range',
-        details: 'Start time must be before end time',
-        code: 'INVALID_TIME_RANGE'
-      });
-    }
-
-    // Future booking validation (minimum lead time)
-    const now = new Date();
-    const minLeadTimeHours = 2; // Configurable business rule
-    const minStartTime = new Date(now.getTime() + minLeadTimeHours * 60 * 60 * 1000);
-
-    if (startTs < minStartTime) {
-      throw new BadRequestException({
-        message: 'Insufficient lead time',
-        details: `Bookings must be made at least ${minLeadTimeHours} hours in advance`,
-        code: 'INSUFFICIENT_LEAD_TIME'
-      });
-    }
-
-    // Duration validation
-    const durationHours = (endTs.getTime() - startTs.getTime()) / (1000 * 60 * 60);
-
-    if (durationHours < 1) {
-      throw new BadRequestException({
-        message: 'Booking too short',
-        details: 'Minimum booking duration is 1 hour',
-        code: 'BOOKING_TOO_SHORT'
-      });
-    }
-
-    if (durationHours > 168) { // 7 days
-      throw new BadRequestException({
-        message: 'Booking too long',
-        details: 'Maximum booking duration is 7 days',
-        code: 'BOOKING_TOO_LONG'
-      });
-    }
-
-    return { startTs, endTs };
-  }
-
-  /**
-   * Enhanced tstzrange formatting for PostgreSQL
-   * 
-   * Teaching: Proper timezone handling is critical for booking systems
-   */
-  private formatForTstzRange(date: Date): string {
-    // Convert to Indian Standard Time (IST) for storage
-    // PostgreSQL will handle timezone conversion internally
-    return date.toISOString();
-  }
-
-  /**
-   * Enhanced venue validation with business rules
-   */
-  private async validateVenue(tenantId: string, venueId: string): Promise<Venue> {
-    const venue = await this.prisma.venue.findFirst({
-      where: {
-        id: venueId,
-        tenantId,
-        isActive: true,
-      },
-    });
-
-    if (!venue) {
-      throw new NotFoundException({
-        message: 'Venue not found',
-        details: 'The specified venue does not exist or is inactive',
-        code: 'VENUE_NOT_FOUND'
-      });
-    }
-
-    return venue;
-  }
-
-  /**
-   * Enhanced customer info handling
+   * Handle customer info - no changes needed
    */
   private async handleCustomerInfo(
     tenantId: string,
@@ -403,7 +269,7 @@ export class BookingsService {
   }
 
   /**
-   * Enhanced idempotency checking
+   * Check idempotency key - no changes needed
    */
   private async checkIdempotencyKey(
     tenantId: string,
@@ -422,112 +288,7 @@ export class BookingsService {
   }
 
   /**
-   * Enhanced business rules validation
-   */
-  private validateBusinessRules(createBookingDto: CreateBookingDto, venue: Venue): void {
-    // Guest count validation
-    if (createBookingDto.guestCount && venue.capacity) {
-      if (createBookingDto.guestCount > venue.capacity) {
-        throw new BadRequestException({
-          message: 'Guest count exceeds venue capacity',
-          details: `Requested ${createBookingDto.guestCount} guests, venue capacity is ${venue.capacity}`,
-          code: 'CAPACITY_EXCEEDED'
-        });
-      }
-    }
-
-    // Add more business rules as needed
-    // - Peak time restrictions
-    // - Event type compatibility
-    // - Minimum/maximum booking amounts
-  }
-
-  /**
-   * Enhanced time slot availability checking
-   */
-  private async checkTimeSlotAvailability(
-    tenantId: string,
-    venueId: string,
-    startTs: Date,
-    endTs: Date,
-    excludeBookingId?: string,
-  ): Promise<AvailabilityResponseDto> {
-    const startTstz = this.formatForTstzRange(startTs);
-    const endTstz = this.formatForTstzRange(endTs);
-
-    // Use native PostgreSQL tstzrange for precise overlap detection
-    const conflictingBookings = await this.prisma.$queryRaw<
-      {
-        id: string;
-        bookingNumber: string;
-        startTs: Date;
-        endTs: Date;
-        status: string;
-        customerName: string;
-      }[]
-    >`
-      SELECT 
-        b.id,
-        b."bookingNumber",
-        b."startTs",
-        b."endTs",
-        b.status,
-        u.name as "customerName"
-      FROM bookings b
-      JOIN users u ON u.id = b."userId"
-      WHERE b."tenantId" = ${tenantId}
-        AND b."venueId" = ${venueId}
-        AND b.status IN ('temp_hold', 'pending', 'confirmed')
-        AND tstzrange(${startTstz}, ${endTstz}, '[)') && 
-            tstzrange(b."startTs"::timestamptz, b."endTs"::timestamptz, '[)')
-        ${excludeBookingId ? `AND b.id != ${excludeBookingId}` : ''}
-      ORDER BY b."startTs"
-    `;
-
-    // Check blackout periods
-    const blackoutPeriods = await this.prisma.$queryRaw<
-      {
-        id: string;
-        reason: string;
-        startTs: Date;
-        endTs: Date;
-        isMaintenance: boolean;
-      }[]
-    >`
-      SELECT 
-        id,
-        reason,
-        "startTs",
-        "endTs",
-        "isMaintenance"
-      FROM availability_blackouts
-      WHERE "tenantId" = ${tenantId}
-        AND "venueId" = ${venueId}
-        AND tstzrange(${startTstz}, ${endTstz}, '[)') && 
-            tstzrange("startTs"::timestamptz, "endTs"::timestamptz, '[)')
-      ORDER BY "startTs"
-    `;
-
-    const isAvailable = conflictingBookings.length === 0 && blackoutPeriods.length === 0;
-
-    return {
-      isAvailable,
-      conflictingBookings: conflictingBookings.map((booking) => ({
-        id: booking.id,
-        bookingNumber: booking.bookingNumber,
-        customerName: booking.customerName,
-        customerPhone: '', // Privacy: not exposed in availability check
-        startTs: booking.startTs,
-        endTs: booking.endTs,
-        status: booking.status,
-      })),
-      blackoutPeriods,
-      suggestedAlternatives: [], // TODO: Implement suggestion algorithm
-    };
-  }
-
-  /**
-   * Enhanced booking creation with constraint protection
+   * Create booking with constraints - simplified pricing calculation
    */
   private async createBookingWithConstraints(
     tenantId: string,
@@ -537,11 +298,7 @@ export class BookingsService {
     try {
       const totalAmountCents =
         bookingData.totalAmountCents ||
-        this.calculateBookingPrice(
-          bookingData.startTs,
-          bookingData.endTs,
-          venue.basePriceCents,
-        );
+        this.calculateBookingPrice(bookingData.startTs, bookingData.endTs, venue.basePriceCents);
 
       const holdExpiresAt =
         bookingData.status === BookingStatus.TEMP_HOLD
@@ -573,92 +330,29 @@ export class BookingsService {
         },
       });
     } catch (error) {
-      // Let the error handler deal with constraint violations
       throw error;
     }
   }
 
   /**
-   * Enhanced pricing calculation
+   * Calculate booking price - uses centralized validation for duration
    */
   private calculateBookingPrice(
     startTs: Date,
     endTs: Date,
     basePriceCents: number,
   ): number {
-    const durationHours = Math.ceil(
-      (endTs.getTime() - startTs.getTime()) / (1000 * 60 * 60),
-    );
-
-    // TODO: Add sophisticated pricing logic:
-    // - Peak time multipliers
-    // - Day of week pricing
-    // - Seasonal adjustments
-    // - Package deals
-
+    const durationHours = this.validationService.calculateDurationHours(startTs, endTs);
     return durationHours * basePriceCents;
   }
 
-  // ========================================
-  // CACHING METHODS
-  // ========================================
-
-  private async cacheBooking(booking: any): Promise<void> {
-    try {
-      const cacheKey = `booking:${booking.id}`;
-      await this.redisService.set(
-        cacheKey,
-        JSON.stringify(booking),
-        this.BOOKING_CACHE_TTL,
-      );
-    } catch (error) {
-      this.logger.warn('Failed to cache booking', error);
-    }
-  }
-
-  private async getCachedBooking(cacheKey: string): Promise<BookingResponseDto | null> {
-    try {
-      const cached = await this.redisService.get(cacheKey);
-      return cached ? JSON.parse(cached) : null;
-    } catch (error) {
-      this.logger.warn('Failed to get cached booking', error);
-      return null;
-    }
-  }
-
-  private async cacheAvailability(
-    cacheKey: string,
-    availability: AvailabilityResponseDto,
-  ): Promise<void> {
-    try {
-      await this.redisService.set(
-        cacheKey,
-        JSON.stringify(availability),
-        this.AVAILABILITY_CACHE_TTL,
-      );
-    } catch (error) {
-      this.logger.warn('Failed to cache availability', error);
-    }
-  }
-
-  private async getCachedAvailability(
-    cacheKey: string,
-  ): Promise<AvailabilityResponseDto | null> {
-    try {
-      const cached = await this.redisService.get(cacheKey);
-      return cached ? JSON.parse(cached) : null;
-    } catch (error) {
-      this.logger.warn('Failed to get cached availability', error);
-      return null;
-    }
-  }
-
   /**
-   * Convert Prisma booking to response DTO
+   * Convert Prisma booking to response DTO - uses centralized validation
    */
   private toBookingResponse(booking: any): BookingResponseDto {
-    const duration = Math.ceil(
-      (booking.endTs.getTime() - booking.startTs.getTime()) / (1000 * 60 * 60),
+    const duration = this.validationService.calculateDurationHours(
+      booking.startTs,
+      booking.endTs
     );
 
     const now = new Date();
@@ -696,7 +390,7 @@ export class BookingsService {
   }
 
   /**
-   * Build create booking response
+   * Build create booking response - no changes needed
    */
   private buildCreateBookingResponse(
     booking: any,
