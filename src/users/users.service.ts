@@ -263,14 +263,14 @@ export class UsersService {
 
   /**
    * Convert Prisma User to public UserResponseDto
-   * Removes sensitive fields
+   * Removes sensitive fields and handles null email
    */
   private toUserResponse(user: User): UserResponseDto {
     return {
       id: user.id,
       name: user.name,
       phone: user.phone,
-      email: user.email,
+      email: user.email ?? undefined, // Convert null to undefined
       role: user.role,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
