@@ -13,6 +13,7 @@ import {
   BookingStatus,
   PaymentStatus,
 } from './dto/create-booking.dto';
+import { UserRole } from '../users/dto/create-user.dto';
 
 /**
  * Unit Tests for BookingsService
@@ -102,8 +103,7 @@ describe('BookingsService', () => {
 
   const mockRedisService = {
     incr: jest.fn(),
-    expire: jest.fn(),
-    setex: jest.fn(),
+    set: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -184,7 +184,7 @@ describe('BookingsService', () => {
           name: createBookingDto.customer!.name,
           phone: createBookingDto.customer!.phone,
           email: createBookingDto.customer!.email,
-          role: 'customer',
+          role: UserRole.CUSTOMER,
         },
       );
 
@@ -409,7 +409,12 @@ describe('BookingsService', () => {
       
       // 6-hour booking: 10:00 to 16:00
       const sixHourBooking = {
-        ...createBookingDto,
+        venueId: mockVenueId,
+        customer: {
+          name: 'Rahul Sharma',
+          phone: '+91 9876 543 210',
+          email: 'rahul@example.com',
+        },
         startTs: '2025-12-25T04:30:00.000Z', // 10:00 IST
         endTs: '2025-12-25T10:30:00.000Z',   // 16:00 IST
       };
@@ -439,6 +444,20 @@ describe('BookingsService', () => {
       mockRedisService.incr.mockResolvedValue(1);
       mockPrismaService.tenant.findUnique.mockResolvedValue({ id: mockTenantId });
       mockPrismaService.booking.create.mockResolvedValue(tempHoldBooking);
+
+      const createBookingDto: CreateBookingDto = {
+        venueId: mockVenueId,
+        customer: {
+          name: 'Rahul Sharma',
+          phone: '+91 9876 543 210',
+          email: 'rahul@example.com',
+        },
+        startTs: '2025-12-25T04:30:00.000Z',
+        endTs: '2025-12-25T20:30:00.000Z',
+        eventType: 'wedding',
+        guestCount: 300,
+        specialRequests: 'Decoration setup needed',
+      };
 
       const result = await service.createBooking(mockTenantId, createBookingDto);
 
