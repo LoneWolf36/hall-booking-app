@@ -37,6 +37,17 @@ export class CacheService {
   }
 
   /**
+   * Generic cache delete
+   */
+  async delete(key: string): Promise<void> {
+    try {
+      await this.redisService.del(key);
+    } catch (error) {
+      this.logger.warn(`Failed to delete cached data for key: ${key}`, error);
+    }
+  }
+
+  /**
    * Cache booking with standardized key pattern
    */
   async cacheBooking(booking: any, ttlSeconds: number = 3600): Promise<void> {
