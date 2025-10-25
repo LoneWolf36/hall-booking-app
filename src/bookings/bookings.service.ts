@@ -20,9 +20,9 @@ import {
   AvailabilityResponseDto,
   CreateBookingResponseDto,
 } from './dto/booking-response.dto';
+import { UserRole } from '../users/dto/create-user.dto';
 import { Booking, User, Venue } from '@prisma/client';
-import * as moment from 'moment-timezone';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 /**
  * Bookings Service - Core business logic for hall booking management
@@ -300,9 +300,15 @@ export class BookingsService {
    * Ensures proper timezone handling
    */
   private formatForTstzRange(date: Date): string {
-    return moment(date)
-      .tz(this.INDIAN_TIMEZONE)
-      .format('YYYY-MM-DD HH:mm:ss.SSS');
+    // Format date for PostgreSQL tstzrange using native JS
+    // This replaces moment-timezone dependency
+    const utcDate = new Date(date.toISOString());
+    
+    // Add 5.5 hours for IST (Asia/Kolkata)
+    const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+    const istDate = new Date(utcDate.getTime() + istOffset);
+    
+    return istDate.toISOString().replace('T', ' ').replace('Z', '+05:30');
   }
 
   /**
@@ -349,7 +355,7 @@ export class BookingsService {
         name: createBookingDto.customer.name,
         phone: createBookingDto.customer.phone,
         email: createBookingDto.customer.email,
-        role: 'customer',
+        role: UserRole.CUSTOMER,
       });
     }
 
@@ -374,7 +380,7 @@ export class BookingsService {
     if (sequence === 1) {
       const nextYear = new Date(`${year + 1}-01-01`);
       const ttl = Math.floor((nextYear.getTime() - Date.now()) / 1000);
-      await this.redisService.expire(cacheKey, ttl);
+      await this.redisService.set(cacheKey, sequence.toString(), ttl);
     }
 
     // Get tenant prefix (first 3 chars of tenant name or default)
@@ -406,7 +412,7 @@ export class BookingsService {
    * Generate unique idempotency key
    */
   private generateIdempotencyKey(): string {
-    return uuidv4();
+    return randomUUID();
   }
 
   /**
@@ -511,10 +517,10 @@ export class BookingsService {
    */
   private async cacheBooking(booking: any): Promise<void> {
     const cacheKey = `booking:${booking.id}`;
-    await this.redisService.setex(
+    await this.redisService.set(
       cacheKey,
-      3600, // 1 hour
       JSON.stringify(booking),
+      3600, // 1 hour TTL
     );
   }
 
@@ -569,7 +575,12 @@ export class BookingsService {
   ): CreateBookingResponseDto {
     const bookingResponse = this.toBookingResponse(booking);
     
-    const nextSteps = [];
+    const nextSteps: Array<{
+      action: string;
+      description: string;
+      deadline?: Date;
+    }> = [];
+    
     if (booking.status === BookingStatus.TEMP_HOLD) {
       nextSteps.push({
         action: 'payment',
