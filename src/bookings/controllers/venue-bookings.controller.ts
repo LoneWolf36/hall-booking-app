@@ -8,7 +8,7 @@ import { LoggingInterceptor } from '../../common/interceptors/logging.intercepto
 
 @ApiTags('Venues > Bookings')
 @UseInterceptors(LoggingInterceptor)
-@Controller('api/v1/venues/:venueId')
+@Controller('venues/:venueId')
 export class VenueBookingsController {
   constructor(private readonly bookingsService: BookingsService) {}
 
@@ -28,7 +28,6 @@ export class VenueBookingsController {
     @Headers('x-idempotency-key') idempotencyKey?: string,
   ): Promise<CreateBookingResponseDto> {
     if (!tenantId) throw new BadRequestException('X-Tenant-Id header is required');
-    // Ensure path param and body are aligned; body wins only if empty
     if (!dto.venueId) dto.venueId = venueId; else if (dto.venueId !== venueId) {
       throw new BadRequestException('venueId in path and body must match');
     }
