@@ -5,9 +5,7 @@ import {
   Body,
   Patch,
   Param,
-  Delete,
   Query,
-  UseGuards,
   Request,
   HttpCode,
   HttpStatus,
@@ -15,6 +13,8 @@ import {
   ValidationPipe,
   UseInterceptors,
   ClassSerializerInterceptor,
+  BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto, UserRole } from './dto/create-user.dto';
