@@ -4,8 +4,19 @@ import { ValidationService } from '../common/services/validation.service';
 import { CreateUserDto, UserRole } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UserResponseDto, AdminUserResponseDto } from './dto/user-response.dto';
-import { User } from '@prisma/client';
 import { ERROR_MESSAGES } from '../common/constants/app.constants';
+
+// Define minimal user type to avoid Prisma client export issues
+type MinimalUser = {
+  id: string;
+  tenantId: string;
+  name: string;
+  phone: string;
+  email: string | null;
+  role: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
 
 /**
  * Users Service - Refactored to use centralized validation
@@ -272,7 +283,7 @@ export class UsersService {
   /**
    * Convert Prisma User to public UserResponseDto
    */
-  private toUserResponse(user: User): UserResponseDto {
+  private toUserResponse(user: MinimalUser): UserResponseDto {
     return {
       id: user.id,
       name: user.name,
@@ -287,7 +298,7 @@ export class UsersService {
   /**
    * Convert Prisma User to admin UserResponseDto
    */
-  private toAdminUserResponse(user: User): AdminUserResponseDto {
+  private toAdminUserResponse(user: MinimalUser): AdminUserResponseDto {
     return {
       ...this.toUserResponse(user),
       tenantId: user.tenantId,
