@@ -24,7 +24,6 @@ import {
   CreateBookingResponseDto,
 } from './dto/booking-response.dto';
 import { UserRole } from '../users/dto/create-user.dto';
-import { randomUUID } from 'crypto';
 
 /**
  * Refactored Bookings Service - Eliminates redundant code
