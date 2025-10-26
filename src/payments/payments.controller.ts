@@ -4,6 +4,7 @@ import {
   Get,
   Body,
   Param,
+  Query,
   Headers,
   HttpCode,
   HttpStatus,
@@ -13,22 +14,36 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { PaymentsService } from './payments.service';
+import { FlexiblePaymentService } from './services/flexible-payment.service';
 import { RazorpayService } from './services/razorpay.service';
-import { PaymentLinkResponseDto, RazorpayWebhookDto } from './dto/create-payment-link.dto';
+import {
+  PaymentLinkResponseDto,
+  RazorpayWebhookDto
+} from './dto/create-payment-link.dto';
+import {
+  PaymentOptionsResponseDto,
+  SelectPaymentMethodDto,
+  RecordCashPaymentDto,
+  VenueOnboardingDto,
+  CommissionSummaryDto,
+  VenuePaymentConfigDto,
+} from './dto/payment-options.dto';
 import { LoggingInterceptor } from '../common/interceptors/logging.interceptor';
-import { RequireIdempotency } from '../common/decorators/idempotent.decorator';
+import { RequireIdempotency, OptionalIdempotency } from '../common/decorators/idempotent.decorator';
 
 /**
- * Payments Controller - REST API endpoints for payment operations
+ * Enhanced Payments Controller - Flexible payment system for all venue types
  * 
  * Features:
- * 1. Create payment links for bookings
- * 2. Handle Razorpay webhooks
- * 3. Payment status tracking
- * 4. Secure webhook signature verification
+ * 1. Payment options generation (cash, hybrid, online)
+ * 2. Cash payment recording and tracking
+ * 3. Venue onboarding and configuration
+ * 4. Commission management
+ * 5. Razorpay integration for online payments
+ * 6. Webhook handling for payment status updates
  */
 @ApiTags('Payments')
 @Controller('payments')
@@ -36,47 +51,101 @@ import { RequireIdempotency } from '../common/decorators/idempotent.decorator';
 export class PaymentsController {
   constructor(
     private readonly paymentsService: PaymentsService,
+    private readonly flexiblePaymentService: FlexiblePaymentService,
     private readonly razorpayService: RazorpayService,
   ) {}
 
+  // =====================================
+  // PAYMENT OPTIONS & SELECTION
+  // =====================================
+
   /**
-   * POST /bookings/:id/payment-link - Create payment link for booking
+   * GET /payments/bookings/:id/options - Get payment options for booking
    */
-  @Post('/bookings/:id/payment-link')
+  @Get('bookings/:id/options')
+  @OptionalIdempotency()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get payment options for booking',
+    description: 'Returns available payment methods based on venue profile (cash-only, hybrid, online, etc.)',
+  })
+  @ApiHeader({ name: 'X-Tenant-Id', required: true })
+  @ApiParam({ name: 'id', description: 'Booking UUID' })
+  @ApiQuery({ name: 'location', description: 'Customer location for smart recommendations', required: false })
+  @ApiResponse({ status: 200, description: 'Payment options generated', type: PaymentOptionsResponseDto })
+  async getPaymentOptions(
+    @Headers('x-tenant-id') tenantId: string,
+    @Param('id', ParseUUIDPipe) bookingId: string,
+    @Query('location') location?: string,
+  ): Promise<{ success: boolean; data: PaymentOptionsResponseDto }> {
+    if (!tenantId) {
+      throw new BadRequestException('X-Tenant-Id header is required');
+    }
+
+    const options = await this.flexiblePaymentService.generatePaymentOptions(
+      tenantId,
+      bookingId,
+      location,
+    );
+
+    return {
+      success: true,
+      data: options,
+    };
+  }
+
+  /**
+   * POST /payments/bookings/:id/select-method - Select payment method for booking
+   */
+  @Post('bookings/:id/select-method')
+  @RequireIdempotency()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Select payment method for booking',
+    description: 'Customer selects their preferred payment method (cash, deposit+cash, full online, etc.)',
+  })
+  @ApiHeader({ name: 'X-Tenant-Id', required: true })
+  @ApiParam({ name: 'id', description: 'Booking UUID' })
+  @ApiResponse({ status: 200, description: 'Payment method selected successfully' })
+  async selectPaymentMethod(
+    @Headers('x-tenant-id') tenantId: string,
+    @Param('id', ParseUUIDPipe) bookingId: string,
+    @Body() selection: SelectPaymentMethodDto,
+  ): Promise<{ success: boolean; data: any; message: string }> {
+    if (!tenantId) {
+      throw new BadRequestException('X-Tenant-Id header is required');
+    }
+
+    const result = await this.flexiblePaymentService.selectPaymentMethod(
+      tenantId,
+      bookingId,
+      selection,
+    );
+
+    return {
+      success: true,
+      data: result,
+      message: 'Payment method selected successfully. Follow next steps to complete your booking.',
+    };
+  }
+
+  // =====================================
+  // ONLINE PAYMENT LINKS (RAZORPAY)
+  // =====================================
+
+  /**
+   * POST /payments/bookings/:id/payment-link - Create payment link for online portion
+   */
+  @Post('bookings/:id/payment-link')
   @HttpCode(HttpStatus.CREATED)
   @RequireIdempotency()
   @ApiOperation({
     summary: 'Create payment link for booking',
-    description: 'Generates a Razorpay payment link for the specified booking with automatic expiry matching the booking hold time.',
+    description: 'Generates Razorpay payment link for online payment portion (deposit or full amount)',
   })
-  @ApiHeader({
-    name: 'X-Tenant-Id',
-    description: 'Tenant identifier for multi-tenant isolation',
-    required: true,
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Booking UUID',
-    type: 'string',
-    format: 'uuid',
-  })
-  @ApiResponse({ 
-    status: 201, 
-    description: 'Payment link created successfully', 
-    type: PaymentLinkResponseDto 
-  })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Booking not found or not eligible for payment' 
-  })
-  @ApiResponse({ 
-    status: 409, 
-    description: 'Payment already initiated for this booking' 
-  })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Booking hold has expired or invalid request' 
-  })
+  @ApiHeader({ name: 'X-Tenant-Id', required: true })
+  @ApiParam({ name: 'id', description: 'Booking UUID' })
+  @ApiResponse({ status: 201, type: PaymentLinkResponseDto })
   async createPaymentLink(
     @Headers('x-tenant-id') tenantId: string,
     @Param('id', ParseUUIDPipe) bookingId: string,
@@ -93,7 +162,7 @@ export class PaymentsController {
     return {
       success: true,
       data: paymentLink,
-      message: 'Payment link created successfully. Complete payment within the specified time to confirm your booking.',
+      message: 'Payment link created successfully. Complete payment within the specified time.',
     };
   }
 
@@ -104,30 +173,17 @@ export class PaymentsController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Handle Razorpay webhooks',
-    description: 'Processes webhook events from Razorpay for payment status updates with signature verification.',
+    description: 'Processes webhook events from Razorpay for payment status updates',
   })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Webhook processed successfully' 
-  })
-  @ApiResponse({ 
-    status: 401, 
-    description: 'Invalid webhook signature' 
-  })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Invalid webhook payload' 
-  })
+  @ApiResponse({ status: 200, description: 'Webhook processed successfully' })
   async handleWebhook(
     @Req() req: Request,
     @Res() res: Response,
     @Headers('x-razorpay-signature') signature: string,
   ): Promise<void> {
     try {
-      // Get raw body for signature verification
       const rawBody = JSON.stringify(req.body);
 
-      // Verify webhook signature
       if (!signature) {
         throw new BadRequestException('Missing webhook signature');
       }
@@ -137,7 +193,6 @@ export class PaymentsController {
         throw new BadRequestException('Invalid webhook signature');
       }
 
-      // Process webhook
       const webhookPayload: RazorpayWebhookDto = req.body;
       const result = await this.paymentsService.handleWebhook(webhookPayload);
 
@@ -155,33 +210,240 @@ export class PaymentsController {
     }
   }
 
+  // =====================================
+  // CASH PAYMENT MANAGEMENT
+  // =====================================
+
   /**
-   * GET /payments/:id - Get payment details
+   * POST /payments/bookings/:id/cash-payment - Record cash payment by venue staff
+   */
+  @Post('bookings/:id/cash-payment')
+  @RequireIdempotency()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Record cash payment for booking',
+    description: 'Venue staff records when customer pays cash portion of booking',
+  })
+  @ApiHeader({ name: 'X-Tenant-Id', required: true })
+  @ApiHeader({ name: 'X-User-Id', description: 'Venue staff user ID', required: true })
+  @ApiParam({ name: 'id', description: 'Booking UUID' })
+  @ApiResponse({ status: 201, description: 'Cash payment recorded successfully' })
+  async recordCashPayment(
+    @Headers('x-tenant-id') tenantId: string,
+    @Headers('x-user-id') userId: string,
+    @Param('id', ParseUUIDPipe) bookingId: string,
+    @Body() paymentData: RecordCashPaymentDto,
+  ): Promise<{ success: boolean; data: any; message: string }> {
+    if (!tenantId || !userId) {
+      throw new BadRequestException('X-Tenant-Id and X-User-Id headers are required');
+    }
+
+    const result = await this.flexiblePaymentService.recordCashPayment(
+      tenantId,
+      bookingId,
+      userId,
+      paymentData,
+    );
+
+    return {
+      success: true,
+      data: result,
+      message: `Cash payment of ₹${(paymentData.amountCents / 100).toLocaleString('en-IN')} recorded successfully.`,
+    };
+  }
+
+  /**
+   * GET /payments/bookings/:id/cash-summary - Get cash payment summary for booking
+   */
+  @Get('bookings/:id/cash-summary')
+  @ApiOperation({
+    summary: 'Get cash payment summary',
+    description: 'Returns summary of cash payments for a booking',
+  })
+  @ApiHeader({ name: 'X-Tenant-Id', required: true })
+  async getCashPaymentSummary(
+    @Headers('x-tenant-id') tenantId: string,
+    @Param('id', ParseUUIDPipe) bookingId: string,
+  ): Promise<{ success: boolean; data: any }> {
+    if (!tenantId) {
+      throw new BadRequestException('X-Tenant-Id header is required');
+    }
+
+    const booking = await this.paymentsService.getPaymentById(tenantId, bookingId);
+    
+    if (!booking) {
+      throw new BadRequestException('Booking not found');
+    }
+
+    // Calculate cash payment summary
+    const cashPayments = booking.cashPayments || [];
+    const totalCashPaid = cashPayments.reduce((sum, payment) => sum + payment.amountCents, 0);
+    const remainingCash = Math.max(0, booking.cashAmountDue - totalCashPaid);
+
+    return {
+      success: true,
+      data: {
+        bookingId,
+        cashAmountDue: booking.cashAmountDue,
+        totalCashPaid,
+        remainingCash,
+        isComplete: remainingCash === 0,
+        payments: cashPayments.map(p => ({
+          id: p.id,
+          amount: p.amountCents,
+          method: p.paymentMethod,
+          recordedAt: p.recordedAt,
+          recordedBy: p.recordedByUser?.name,
+          receiptNumber: p.receiptNumber,
+          status: p.verificationStatus,
+        })),
+      },
+    };
+  }
+
+  // =====================================
+  // VENUE CONFIGURATION
+  // =====================================
+
+  /**
+   * POST /payments/venues/:id/onboarding - Process venue onboarding questionnaire
+   */
+  @Post('venues/:id/onboarding')
+  @RequireIdempotency()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Process venue payment onboarding',
+    description: 'Analyzes venue responses and recommends optimal payment profile',
+  })
+  @ApiHeader({ name: 'X-Tenant-Id', required: true })
+  @ApiParam({ name: 'id', description: 'Venue UUID' })
+  @ApiResponse({ status: 200, description: 'Onboarding completed, payment profile recommended' })
+  async processVenueOnboarding(
+    @Headers('x-tenant-id') tenantId: string,
+    @Param('id', ParseUUIDPipe) venueId: string,
+    @Body() responses: VenueOnboardingDto,
+  ): Promise<{ success: boolean; data: any; message: string }> {
+    if (!tenantId) {
+      throw new BadRequestException('X-Tenant-Id header is required');
+    }
+
+    const result = await this.flexiblePaymentService.processVenueOnboarding(
+      tenantId,
+      venueId,
+      responses,
+    );
+
+    return {
+      success: true,
+      data: result,
+      message: `Payment profile '${result.recommendedProfile}' configured for venue.`,
+    };
+  }
+
+  /**
+   * GET /payments/venues/:id/configuration - Get venue payment configuration
+   */
+  @Get('venues/:id/configuration')
+  @ApiOperation({
+    summary: 'Get venue payment configuration',
+    description: 'Returns current payment settings for venue',
+  })
+  @ApiHeader({ name: 'X-Tenant-Id', required: true })
+  async getVenueConfiguration(
+    @Headers('x-tenant-id') tenantId: string,
+    @Param('id', ParseUUIDPipe) venueId: string,
+  ): Promise<{ success: boolean; data: VenuePaymentConfigDto }> {
+    if (!tenantId) {
+      throw new BadRequestException('X-Tenant-Id header is required');
+    }
+
+    const venue = await this.prisma.venue.findFirst({
+      where: { id: venueId, tenantId },
+    });
+
+    if (!venue) {
+      throw new BadRequestException('Venue not found');
+    }
+
+    const config: VenuePaymentConfigDto = {
+      paymentProfile: venue.paymentProfile as any,
+      allowCashPayments: venue.allowCashPayments,
+      cashDiscountPercentage: venue.cashDiscountPercentage ? parseFloat(venue.cashDiscountPercentage.toString()) : 0,
+      requiresOnlineDeposit: venue.requiresOnlineDeposit,
+      depositType: venue.depositType as any,
+      depositAmount: venue.depositAmount,
+      hasRazorpayAccount: venue.hasRazorpayAccount,
+      platformHandlesPayments: venue.platformHandlesPayments,
+      confirmationTrigger: venue.confirmationTrigger as any,
+      platformCommissionPercentage: parseFloat(venue.platformCommissionPercentage.toString()),
+      paymentDueDaysBeforeEvent: venue.paymentDueDaysBeforeEvent,
+    };
+
+    return {
+      success: true,
+      data: config,
+    };
+  }
+
+  // =====================================
+  // COMMISSION & ANALYTICS
+  // =====================================
+
+  /**
+   * GET /payments/venues/:id/commission-summary - Get commission summary for venue
+   */
+  @Get('venues/:id/commission-summary')
+  @ApiOperation({
+    summary: 'Get commission summary for venue',
+    description: 'Returns commission breakdown and collection status',
+  })
+  @ApiHeader({ name: 'X-Tenant-Id', required: true })
+  @ApiQuery({ name: 'startDate', description: 'Start date (YYYY-MM-DD)', required: false })
+  @ApiQuery({ name: 'endDate', description: 'End date (YYYY-MM-DD)', required: false })
+  @ApiResponse({ status: 200, type: CommissionSummaryDto })
+  async getCommissionSummary(
+    @Headers('x-tenant-id') tenantId: string,
+    @Param('id', ParseUUIDPipe) venueId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ): Promise<{ success: boolean; data: CommissionSummaryDto }> {
+    if (!tenantId) {
+      throw new BadRequestException('X-Tenant-Id header is required');
+    }
+
+    const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default: 30 days ago
+    const end = endDate ? new Date(endDate) : new Date(); // Default: today
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
+    }
+
+    const summary = await this.flexiblePaymentService.getCommissionSummary(
+      tenantId,
+      venueId,
+      start,
+      end,
+    );
+
+    return {
+      success: true,
+      data: summary,
+    };
+  }
+
+  // =====================================
+  // PAYMENT DETAILS & HISTORY
+  // =====================================
+
+  /**
+   * GET /payments/:id - Get payment details by ID
    */
   @Get(':id')
   @ApiOperation({
     summary: 'Get payment details by ID',
-    description: 'Retrieves payment information including status, gateway response, and associated booking details.',
+    description: 'Retrieves comprehensive payment information',
   })
-  @ApiHeader({
-    name: 'X-Tenant-Id',
-    description: 'Tenant identifier',
-    required: true,
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'Payment UUID',
-    type: 'string',
-    format: 'uuid',
-  })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'Payment details retrieved successfully' 
-  })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Payment not found' 
-  })
+  @ApiHeader({ name: 'X-Tenant-Id', required: true })
   async getPaymentById(
     @Headers('x-tenant-id') tenantId: string,
     @Param('id', ParseUUIDPipe) paymentId: string,
@@ -203,7 +465,6 @@ export class PaymentsController {
         bookingId: payment.bookingId,
         bookingNumber: payment.booking.bookingNumber,
         provider: payment.provider,
-        providerPaymentId: payment.providerPaymentId,
         amount: payment.amountCents,
         currency: payment.currency,
         status: payment.status,
@@ -212,7 +473,6 @@ export class PaymentsController {
         customer: {
           name: payment.booking.user.name,
           phone: payment.booking.user.phone,
-          email: payment.booking.user.email,
         },
         venue: {
           name: payment.booking.venue.name,
@@ -223,85 +483,89 @@ export class PaymentsController {
   }
 
   /**
-   * GET /payments/booking/:bookingId - Get payments for a booking
+   * GET /payments/bookings/:id/history - Get complete payment history for booking
    */
-  @Get('booking/:bookingId')
+  @Get('bookings/:id/history')
   @ApiOperation({
-    summary: 'Get payments for a booking',
-    description: 'Retrieves all payment attempts for a specific booking.',
+    summary: 'Get payment history for booking',
+    description: 'Returns all payments (online and cash) for a booking',
   })
-  @ApiHeader({
-    name: 'X-Tenant-Id',
-    description: 'Tenant identifier',
-    required: true,
-  })
-  @ApiParam({
-    name: 'bookingId',
-    description: 'Booking UUID',
-    type: 'string',
-    format: 'uuid',
-  })
-  async getPaymentsForBooking(
+  @ApiHeader({ name: 'X-Tenant-Id', required: true })
+  async getBookingPaymentHistory(
     @Headers('x-tenant-id') tenantId: string,
-    @Param('bookingId', ParseUUIDPipe) bookingId: string,
-  ): Promise<{ success: boolean; data: any[] }> {
+    @Param('id', ParseUUIDPipe) bookingId: string,
+  ): Promise<{ success: boolean; data: any }> {
     if (!tenantId) {
       throw new BadRequestException('X-Tenant-Id header is required');
     }
 
-    const payments = await this.paymentsService.getPaymentById(tenantId, bookingId);
-    
-    return {
-      success: true,
-      data: payments || [],
-    };
-  }
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId, tenantId },
+      include: {
+        payments: true,
+        cashPayments: {
+          include: {
+            recordedByUser: {
+              select: { name: true },
+            },
+          },
+        },
+        commissionRecord: true,
+      },
+    });
 
-  /**
-   * POST /payments/:id/refresh - Refresh payment status from Razorpay
-   */
-  @Post(':id/refresh')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Refresh payment status',
-    description: 'Fetches latest payment status from Razorpay and updates local records.',
-  })
-  @ApiHeader({
-    name: 'X-Tenant-Id',
-    description: 'Tenant identifier',
-    required: true,
-  })
-  async refreshPaymentStatus(
-    @Headers('x-tenant-id') tenantId: string,
-    @Param('id', ParseUUIDPipe) paymentId: string,
-  ): Promise<{ success: boolean; data: any; message: string }> {
-    if (!tenantId) {
-      throw new BadRequestException('X-Tenant-Id header is required');
+    if (!booking) {
+      throw new BadRequestException('Booking not found');
     }
 
-    const payment = await this.paymentsService.getPaymentById(tenantId, paymentId);
-    
-    if (!payment) {
-      throw new BadRequestException('Payment not found');
-    }
+    const onlinePayments = booking.payments.map(p => ({
+      type: 'online',
+      id: p.id,
+      provider: p.provider,
+      amount: p.amountCents,
+      status: p.status,
+      processedAt: p.processedAt,
+      createdAt: p.createdAt,
+    }));
 
-    if (!payment.providerPaymentId) {
-      throw new BadRequestException('No provider payment ID found');
-    }
+    const cashPayments = booking.cashPayments.map(p => ({
+      type: 'cash',
+      id: p.id,
+      method: p.paymentMethod,
+      amount: p.amountCents,
+      status: p.verificationStatus,
+      recordedAt: p.recordedAt,
+      recordedBy: p.recordedByUser?.name,
+      receiptNumber: p.receiptNumber,
+    }));
 
-    // Fetch latest status from Razorpay
-    const razorpayPayment = await this.razorpayService.getPaymentLinkDetails(
-      payment.providerPaymentId
+    const allPayments = [...onlinePayments, ...cashPayments].sort(
+      (a, b) => new Date(b.createdAt || b.recordedAt).getTime() - new Date(a.createdAt || a.recordedAt).getTime()
     );
+
+    const totalPaid = onlinePayments.reduce((sum, p) => p.status === 'success' ? sum + p.amount : sum, 0) +
+                     cashPayments.reduce((sum, p) => p.status === 'verified' ? sum + p.amount : sum, 0);
 
     return {
       success: true,
       data: {
-        localStatus: payment.status,
-        razorpayStatus: razorpayPayment.status,
-        lastUpdated: payment.updatedAt,
+        bookingId,
+        totalAmount: booking.totalAmountCents,
+        totalPaid,
+        remainingAmount: Math.max(0, booking.totalAmountCents - totalPaid),
+        paymentMethod: booking.paymentMethod,
+        onlineAmountDue: booking.onlineAmountDue,
+        cashAmountDue: booking.cashAmountDue,
+        paymentStatus: booking.paymentStatus,
+        payments: allPayments,
+        commission: booking.commissionRecord.map(c => ({
+          amount: c.commissionAmountCents,
+          percentage: parseFloat(c.commissionPercentage.toString()),
+          status: c.commissionStatus,
+          collectionMethod: c.collectionMethod,
+          dueDate: c.dueDate,
+        })),
       },
-      message: 'Payment status refreshed from Razorpay',
     };
   }
 }
