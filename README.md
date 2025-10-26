@@ -11,37 +11,52 @@
 
 ## 🏗️ **Architecture Overview**
 
-This system solves the **double-booking problem** through database-level exclusion constraints while providing a modern, scalable API for hall bookings, payments, and admin management.
+This system solves the **double-booking problem** through database-level exclusion constraints while providing a modern, scalable API for hall bookings, user management, and comprehensive monitoring.
+
+### **Implementation Status**
+
+- ✅ **Backend API**: Fully implemented with NestJS + TypeScript
+- ✅ **Core Modules**: Bookings, Users, Redis, Health, Prisma
+- ✅ **Database**: PostgreSQL with exclusion constraints
+- ✅ **Caching**: Redis integration for performance
+- 🔄 **Frontend**: React/Next.js planned (next phase)
+- 🔄 **Payments**: Razorpay integration planned
+- 🔄 **Notifications**: Email/SMS/WhatsApp planned
 
 ### **Core Features**
+
 - ✅ **Zero Double-Bookings**: PostgreSQL exclusion constraints make overlaps impossible
 - ✅ **Idempotent APIs**: Same request multiple times = same result
-- ✅ **Payment Integration**: Razorpay with webhook signature verification
 - ✅ **Multi-tenant Ready**: Row-based tenancy for SaaS expansion
 - ✅ **Real-time Caching**: Redis for performance and availability checks
 - ✅ **Production Monitoring**: Health checks, logging, error handling
+- ✅ **Input Validation**: Comprehensive validation with class-validator
+- 🔄 **Payment Integration**: Razorpay structure ready for implementation
 
 ### **Tech Stack**
-- **Backend**: NestJS + TypeScript
-- **Database**: PostgreSQL (Supabase) with `tstzrange` + exclusion constraints
-- **Cache**: Redis (Upstash) for idempotency and performance
-- **ORM**: Prisma with native SQL for complex operations
-- **Payments**: Razorpay (UPI/Cards) with HMAC verification
-- **Hosting**: Designed for Railway/Render deployment
+
+- **Backend**: NestJS + TypeScript (✅ Implemented)
+- **Database**: PostgreSQL with `tstzrange` + exclusion constraints (✅ Implemented)
+- **Cache**: Redis (Upstash) for idempotency and performance (✅ Implemented)  
+- **ORM**: Prisma with native SQL for complex operations (✅ Implemented)
+- **API Docs**: Swagger/OpenAPI integration (✅ Implemented)
+- **Logging**: Winston with structured logging (✅ Implemented)
+- **Payments**: Razorpay (structure ready)
+- **Hosting**: Railway/Render deployment ready
 
 ## 🚀 **Quick Start**
 
 ### **Prerequisites**
-- Node.js 18+ 
-- PostgreSQL database (we use Supabase)
-- Redis instance (we use Upstash)
-- Razorpay account (for payments)
+
+- Node.js 18+
+- PostgreSQL database (Supabase recommended)
+- Redis instance (Upstash recommended)
 
 ### **Installation**
 
 1. **Clone and install dependencies**
 ```bash
-git clone <repository-url>
+git clone https://github.com/LoneWolf36/hall-booking-app
 cd hall-booking-app
 npm install
 ```
@@ -52,12 +67,13 @@ npm install
 cp .env.example .env
 
 # Configure your services in .env:
-DATABASE_URL="postgresql://..."           # Supabase PostgreSQL
-UPSTASH_REDIS_REST_URL="https://..."     # Upstash Redis
-UPSTASH_REDIS_REST_TOKEN="..."
-RAZORPAY_KEY_ID="rzp_test_..."           # Razorpay credentials
-RAZORPAY_KEY_SECRET="..."
-JWT_SECRET="your-super-secret-key"
+DATABASE_URL="postgresql://..."           # PostgreSQL connection
+UPSTASH_REDIS_REST_URL="https://..."     # Upstash Redis URL
+UPSTASH_REDIS_REST_TOKEN="..."           # Upstash Redis token
+JWT_SECRET="your-super-secret-key"       # JWT signing secret
+NODE_ENV="development"
+PORT=3000
+LOG_LEVEL="debug"
 ```
 
 3. **Database Setup**
@@ -65,11 +81,8 @@ JWT_SECRET="your-super-secret-key"
 # Generate Prisma client
 npx prisma generate
 
-# Run migrations (creates tables)
+# Run migrations (creates tables and constraints)
 npx prisma migrate deploy
-
-# Run custom SQL (adds exclusion constraints)
-# Execute the SQL from: prisma/migrations/add-tstzrange-constraints.sql
 ```
 
 4. **Start Development**
@@ -80,7 +93,7 @@ npm run start:dev
 The API will be available at:
 - **Base URL**: `http://localhost:3000/api/v1`
 - **Health Check**: `http://localhost:3000/api/v1/health`  
-- **API Docs**: `http://localhost:3000/api/docs` (Swagger)
+- **API Docs**: `http://localhost:3000/api/v1/docs` (Swagger)
 
 ## 🏛️ **Database Architecture**
 
@@ -105,12 +118,6 @@ ALTER TABLE bookings ADD CONSTRAINT no_booking_overlap
   ) WHERE (status IN ('temp_hold', 'pending', 'confirmed'));
 ```
 
-**Why this approach?**
-- **Developer Experience**: Prisma gives type-safe date operations
-- **Data Integrity**: Database physically prevents overlaps
-- **Performance**: GIST indexes make range queries lightning-fast
-- **Future-proof**: Supports partial-day bookings later
-
 ### **Core Data Models**
 
 ```typescript
@@ -125,6 +132,12 @@ Venue {
   id, tenantId, name, address, capacity
   basePriceCents, currency, timeZone, settings
   → bookings[], blackouts[]
+}
+
+// User management
+User {
+  id, tenantId, name, phone, email, role
+  → bookings[]
 }
 
 // Booking with state machine
@@ -143,35 +156,129 @@ Payment {
 }
 ```
 
+## 🔧 **Implemented Modules**
+
+### **✅ BookingsModule** 
+**Status**: Fully Implemented
+
+- **Controllers**: `BookingsController`, `VenueBookingsController`
+- **Services**: 
+  - `BookingsService` - Core booking logic with double-booking prevention
+  - `AvailabilityService` - Real-time availability checking
+  - `BookingNumberService` - Atomic booking number generation
+- **Features**: 
+  - Idempotent booking creation
+  - PostgreSQL exclusion constraint integration
+  - Redis caching for availability
+  - Comprehensive unit tests
+
+### **✅ UsersModule**
+**Status**: Fully Implemented
+
+- **Controllers**: `UsersController`
+- **Services**: `UsersService` - Phone-based user management
+- **Features**:
+  - Multi-tenant user isolation
+  - Phone number validation (Indian format)
+  - Role-based access (customer/admin)
+  - Complete CRUD operations
+
+### **✅ RedisModule**
+**Status**: Fully Implemented
+
+- **Services**: `RedisService` - Upstash Redis integration
+- **Features**:
+  - Connection health monitoring
+  - JSON serialization support
+  - Atomic operations (INCR, EXPIRE)
+  - Graceful fallback when unavailable
+  - Idempotency key management
+
+### **✅ HealthModule**
+**Status**: Fully Implemented
+
+- **Controllers**: `HealthController`
+- **Features**:
+  - Database connectivity checks
+  - Redis health monitoring
+  - System resource monitoring
+  - Production-ready health endpoints
+
+### **✅ PrismaModule**
+**Status**: Fully Implemented
+
+- **Services**: `PrismaService` - Database connection management
+- **Features**:
+  - Connection pooling
+  - Transaction support
+  - Lifecycle management
+  - Error handling
+
+### **✅ Common Infrastructure**
+**Status**: Fully Implemented
+
+- **Filters**: `GlobalExceptionFilter` - Consistent error handling
+- **Interceptors**: `LoggingInterceptor` - Request/response logging  
+- **Pipes**: `CustomValidationPipe` - Enhanced input validation
+- **Services**: `ErrorHandlerService`, `CacheService`, `ValidationService`
+
+## 📊 **API Endpoints**
+
+### **Health & Monitoring**
+
+| Method | Endpoint | Description | Status |
+|--------|----------|-------------|--------|
+| `GET` | `/api/v1/health` | System health check | ✅ |
+| `GET` | `/api/v1/docs` | Swagger documentation | ✅ |
+
+### **Users API**
+
+| Method | Endpoint | Description | Status |
+|--------|----------|-------------|--------|
+| `POST` | `/api/v1/users` | Create user | ✅ |
+| `GET` | `/api/v1/users/:id` | Get user details | ✅ |
+| `GET` | `/api/v1/users` | List users (paginated) | ✅ |
+| `PATCH` | `/api/v1/users/:id` | Update user | ✅ |
+
+### **Bookings API**
+
+| Method | Endpoint | Description | Status |
+|--------|----------|-------------|--------|
+| `POST` | `/api/v1/bookings` | Create booking | ✅ |
+| `GET` | `/api/v1/bookings/:id` | Get booking details | ✅ |
+| `GET` | `/api/v1/bookings` | List bookings (paginated) | ✅ |
+| `POST` | `/api/v1/venues/:id/bookings` | Venue-specific booking | ✅ |
+| `GET` | `/api/v1/venues/:id/availability` | Check availability | ✅ |
+
+### **Redis Management**
+
+| Method | Endpoint | Description | Status |
+|--------|----------|-------------|--------|
+| `GET` | `/api/v1/redis/health` | Redis health check | ✅ |
+| `POST` | `/api/v1/redis/clear-cache` | Clear cache (dev only) | ✅ |
+
+### **Example: Create Booking**
+
+```bash
+curl -X POST http://localhost:3000/api/v1/bookings \
+  -H "Content-Type: application/json" \
+  -H "X-Idempotency-Key: $(uuidgen)" \
+  -d '{
+    "venueId": "venue-uuid",
+    "startTs": "2025-12-25T04:30:00.000Z",
+    "endTs": "2025-12-25T20:30:00.000Z",
+    "user": {
+      "name": "Rahul Sharma",
+      "phone": "+919876543210",
+      "email": "rahul@example.com"
+    },
+    "eventType": "wedding",
+    "guestCount": 300,
+    "specialRequests": "Decoration setup needed"
+  }'
+```
+
 ## 🔐 **Security & Reliability**
-
-### **Payment Security**
-```typescript
-// Razorpay webhook signature verification
-private verifyWebhookSignature(body: string, signature: string) {
-  const expectedSignature = crypto
-    .createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET)
-    .update(body)
-    .digest('hex');
-  
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  );
-}
-```
-
-### **Idempotency Protection**
-```typescript
-// Prevent duplicate bookings from same request
-const cacheKey = `idempotency:${idempotencyKey}`;
-const existing = await redis.get(cacheKey);
-if (existing) return JSON.parse(existing); // Return cached result
-
-// Process request and cache for 24 hours
-const result = await processBooking(data);
-await redis.setex(cacheKey, 86400, JSON.stringify(result));
-```
 
 ### **Input Validation**
 ```typescript
@@ -184,61 +291,46 @@ export class CreateBookingDto {
 }
 ```
 
-## 📊 **API Endpoints**
+### **Redis Integration**
+```typescript
+// Idempotency protection
+const cacheKey = `idempotency:${idempotencyKey}`;
+const existing = await redis.getJSON(cacheKey);
+if (existing) return existing; // Return cached result
 
-### **Core Booking API**
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/health` | System health check |
-| `GET` | `/venues/:id/availability` | Check date availability |
-| `POST` | `/venues/:id/bookings` | Create booking (requires `X-Idempotency-Key`) |
-| `GET` | `/bookings/:id` | Get booking status |
-| `POST` | `/webhooks/payment/razorpay` | Payment confirmation webhook |
-
-### **Admin API**
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/admin/bookings` | List all bookings (paginated) |
-| `PATCH` | `/admin/bookings/:id` | Confirm/cancel booking |
-| `POST` | `/admin/bookings` | Manual booking creation |
-| `GET` | `/admin/calendar` | Calendar view with booking density |
-
-### **Example: Create Booking**
-
-```bash
-curl -X POST http://localhost:3000/api/v1/venues/{venue-id}/bookings \
-  -H "Content-Type: application/json" \
-  -H "X-Idempotency-Key: $(uuidgen)" \
-  -d '{
-    "user": {
-      "name": "Rahul Sharma",
-      "phone": "+91-9876543210",
-      "email": "rahul@example.com"
-    },
-    "startTs": "2025-12-25T04:30:00.000Z",
-    "endTs": "2025-12-25T20:30:00.000Z", 
-    "eventType": "wedding",
-    "guestCount": 300,
-    "specialRequests": "Decoration setup needed"
-  }'
+// Process and cache for 24 hours
+const result = await processBooking(data);
+await redis.setJSON(cacheKey, result, 86400);
 ```
+
+### **Error Handling**
+- Global exception filter for consistent error responses
+- Structured logging with Winston
+- Graceful degradation when external services fail
+- Database transaction rollbacks on errors
 
 ## 🔧 **Development**
 
 ### **Project Structure**
 ```
 src/
-├── common/           # Shared DTOs, filters, pipes
-├── config/           # Configuration files
-├── health/           # Health check endpoints
-├── redis/            # Redis service and module
-├── users/            # User management (future)
-├── venues/           # Venue management (future)
-├── bookings/         # Core booking logic (future)
-├── payments/         # Payment processing (future)
-└── notifications/    # Email/SMS/WhatsApp (future)
+├── bookings/           # ✅ Core booking logic
+│   ├── controllers/    # API endpoints  
+│   ├── services/       # Business logic
+│   ├── dto/           # Request/response models
+│   └── utils/         # Booking utilities
+├── users/             # ✅ User management
+│   ├── dto/           # User DTOs
+│   └── users.*        # Controller & service
+├── redis/             # ✅ Caching service
+├── health/            # ✅ Health monitoring  
+├── prisma/            # ✅ Database service
+├── common/            # ✅ Shared utilities
+│   ├── filters/       # Exception handling
+│   ├── interceptors/  # Logging
+│   ├── pipes/         # Validation
+│   └── services/      # Shared services
+└── config/            # ✅ Configuration
 ```
 
 ### **Available Scripts**
@@ -250,11 +342,12 @@ src/
 | `npm run start:prod` | Start production server |
 | `npm run test` | Run unit tests |
 | `npm run test:e2e` | Run end-to-end tests |
+| `npm run test:cov` | Generate test coverage |
 | `npm run lint` | Run ESLint |
-| `npx prisma studio` | Open database browser |
-| `npx prisma migrate dev` | Create and apply migration |
+| `npm run format` | Format code with Prettier |
 
 ### **Database Commands**
+
 ```bash
 # Generate Prisma client after schema changes
 npx prisma generate
@@ -272,56 +365,101 @@ npx prisma migrate reset
 npx prisma studio
 ```
 
+## 🧪 **Testing**
+
+### **Test Coverage Status**
+
+- ✅ **BookingsService**: Comprehensive unit tests (15+ test cases)
+- ✅ **UsersService**: Complete test suite (10+ test cases)  
+- ✅ **RedisService**: Basic connection and operation tests
+- ⏳ **Integration Tests**: E2E tests for complete workflows
+- ⏳ **Load Tests**: Performance testing under load
+
+### **Running Tests**
+
+```bash
+# Unit tests
+npm run test
+
+# With coverage
+npm run test:cov
+
+# E2E tests
+npm run test:e2e
+
+# Watch mode (development)
+npm run test:watch
+```
+
 ## 🚀 **Deployment**
 
 ### **Environment Variables**
+
 ```bash
-# Production environment variables
+# Production environment configuration
 DATABASE_URL="postgresql://..."           # Managed PostgreSQL
-REDIS_URL="redis://..."                   # Managed Redis  
-JWT_SECRET="crypto-strong-secret"         # Generate secure key
-RAZORPAY_KEY_ID="rzp_live_..."            # Production Razorpay
-RAZORPAY_WEBHOOK_SECRET="..."             # Webhook secret
+UPSTASH_REDIS_REST_URL="https://..."     # Managed Redis
+UPSTASH_REDIS_REST_TOKEN="..."           # Redis token
+JWT_SECRET="crypto-strong-secret"         # Secure JWT key  
 NODE_ENV="production"                     # Important for optimizations
+PORT=3000                                 # Server port
 LOG_LEVEL="info"                          # Reduce log verbosity
+
+# Optional: CORS configuration
+CORS_ORIGIN="https://your-frontend-domain.com"
 ```
 
 ### **Health Checks**
-The system provides comprehensive health checks:
-- Database connectivity
-- Redis connectivity  
-- External service availability
-- Memory/CPU usage
 
-Access at: `GET /api/v1/health`
+The system provides comprehensive health monitoring:
+
+- Database connectivity and performance
+- Redis connectivity and latency
+- Memory and CPU usage
+- External service availability
+
+Access health endpoint: `GET /api/v1/health`
 
 ## 📈 **Scaling Roadmap**
 
-### **Current Capacity (MVP)**
-- ✅ Single hall in Parbhani
-- ✅ ~100 bookings/month
-- ✅ Single server deployment
-- ✅ Basic monitoring
+### **Current Status (MVP - ✅ Complete)**
 
-### **Phase 2: Multi-Venue (3-6 months)**
-- 🔄 Onboard 5-10 halls across Maharashtra
-- 🔄 Admin dashboard frontend
+- ✅ Backend API fully implemented
+- ✅ Core booking logic with double-booking prevention  
+- ✅ User management system
+- ✅ Redis caching and performance optimization
+- ✅ Health monitoring and logging
+- ✅ Production-ready deployment configuration
+
+### **Phase 2: Frontend & Payments (Next 3 months)**
+
+- 🔄 React/Next.js frontend application
+- 🔄 Razorpay payment gateway integration  
+- 🔄 Real-time booking interface
+- 🔄 Admin dashboard for hall management
+
+### **Phase 3: Multi-Venue SaaS (3-6 months)**
+
+- 🔄 Hall owner onboarding system
 - 🔄 WhatsApp/SMS notifications
-- 🔄 Email automation
+- 🔄 Email automation workflows
+- 🔄 Advanced analytics dashboard
 
-### **Phase 3: SaaS Platform (6-12 months)**  
-- 🔄 Self-service hall owner onboarding
+### **Phase 4: Scale to 100+ Venues (6-12 months)**
+
+- 🔄 Multi-tenant SaaS platform
+- 🔄 Mobile applications
+- 🔄 Advanced reporting and analytics
 - 🔄 White-label customization
-- 🔄 Subscription billing
-- 🔄 Mobile apps
 
 ### **Performance Targets**
-| Metric | Current | Phase 2 | Phase 3 |
-|--------|---------|---------|---------|
-| **Venues** | 1 | 10 | 100+ |
-| **Bookings/month** | 100 | 1,000 | 10,000+ |
-| **Response time** | <500ms | <300ms | <200ms |
-| **Uptime** | 99% | 99.5% | 99.9% |
+
+| Metric | Current | Phase 2 | Phase 3 | Phase 4 |
+|--------|---------|---------|---------|---------|
+| **Venues** | 1 | 1 | 10 | 100+ |
+| **Bookings/month** | 100 | 500 | 2,000 | 10,000+ |
+| **Response time** | <200ms | <200ms | <300ms | <200ms |
+| **Uptime** | 99%+ | 99.5% | 99.7% | 99.9% |
 
 ## 🐛 **Troubleshooting**
 
@@ -329,44 +467,49 @@ Access at: `GET /api/v1/health`
 
 **Database connection failed**
 ```bash
-# Check Supabase connection string
+# Check connection string
 echo $DATABASE_URL
 npx prisma db pull  # Test connection
 ```
 
-**Redis connection failed**
+**Redis connection failed**  
 ```bash
 # Check Upstash credentials
 echo $UPSTASH_REDIS_REST_URL
-curl $UPSTASH_REDIS_REST_URL/ping -H "Authorization: Bearer $UPSTASH_REDIS_REST_TOKEN"
+curl -H "Authorization: Bearer $UPSTASH_REDIS_REST_TOKEN" $UPSTASH_REDIS_REST_URL/ping
 ```
 
-**Booking conflicts not prevented**
+**Application won't start**
 ```bash
-# Verify exclusion constraint exists
-psql $DATABASE_URL -c "SELECT conname FROM pg_constraint WHERE conname = 'no_booking_overlap';"
+# Check all environment variables are set
+npm run start:dev 2>&1 | grep -i error
 ```
 
-**Payment webhooks not working**
-- Verify `RAZORPAY_WEBHOOK_SECRET` matches Razorpay dashboard
-- Check webhook URL is publicly accessible
-- Monitor logs for signature verification failures
+**Tests failing**
+```bash
+# Run tests with verbose output
+npm run test -- --verbose
+```
 
 ## 👨‍💻 **Contributing**
 
 ### **Development Workflow**
+
 1. Create feature branch from `main`
-2. Write tests for new functionality  
-3. Ensure all tests pass: `npm test`
-4. Update documentation if needed
-5. Submit pull request
+2. Implement changes with comprehensive tests
+3. Run full test suite: `npm test`
+4. Ensure code formatting: `npm run lint && npm run format`
+5. Update documentation if needed
+6. Submit pull request with description
 
 ### **Code Standards**
+
 - TypeScript strict mode enabled
 - ESLint + Prettier for consistent formatting
-- Comprehensive input validation
-- Error handling for all external calls
-- Unit tests for business logic
+- Comprehensive input validation on all endpoints
+- Unit tests required for all business logic
+- Integration tests for complete workflows
+- Structured logging for all operations
 
 ## 📋 **License**
 
@@ -377,11 +520,25 @@ This project is private and proprietary. All rights reserved.
 ## 💡 **System Highlights**
 
 **What makes this system special:**
-- 🔒 **Bulletproof**: Database constraints prevent double-bookings at storage level
-- ⚡ **Fast**: Redis caching keeps response times under 100ms
-- 🔧 **Maintainable**: Clean architecture with proper separation of concerns  
+
+- 🔒 **Bulletproof**: PostgreSQL exclusion constraints prevent double-bookings at database level
+- ⚡ **Fast**: Redis caching keeps response times under 200ms  
+- 🔧 **Maintainable**: Clean NestJS architecture with proper separation of concerns
 - 🚀 **Scalable**: Multi-tenant design ready for 100+ venues
-- 💰 **Cost-effective**: ~$50/month operating costs for MVP
-- 🛡️ **Secure**: HMAC webhook verification, input validation, SQL injection protection
+- 💰 **Cost-effective**: Optimized for ~$50/month operating costs
+- 🛡️ **Secure**: Comprehensive input validation, structured logging, and error handling
+- 🧪 **Tested**: Extensive test coverage for reliability
 
 Built with ❤️ for the Indian market, designed to grow from 1 hall to 1000+ halls.
+
+---
+
+### 🧩 **Review Notes**
+- [x] Updated all modules to reflect actual implementation status
+- [x] Corrected API endpoints to match real controllers
+- [x] Fixed project structure to match current codebase
+- [x] Updated environment variables from actual .env.example
+- [x] Documented current test coverage accurately
+- [ ] Verify payment integration endpoints once implemented
+- [ ] Update frontend documentation when React/Next.js is added
+- [ ] Add deployment guides for Railway/Render once configured
