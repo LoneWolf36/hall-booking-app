@@ -9,6 +9,7 @@ import { HealthModule } from './health/health.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UsersModule } from './users/users.module';
 import { BookingsModule } from './bookings/bookings.module';
+import { PaymentsModule } from './payments/payments.module';
 // Filters, Interceptors, and Pipes
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -35,9 +36,9 @@ import { EnvironmentVariables } from './config/env.validation';
     // Business logic modules
     UsersModule,      // User management service  ✅ Complete
     BookingsModule,   // Booking management service ✅ Complete
+    PaymentsModule,   // Payment processing (Razorpay integration) ✅ Complete
     // Future modules:
     // VenuesModule,      // Venue management
-    // PaymentsModule,    // Payment processing (Razorpay integration)
     // NotificationsModule, // Email/SMS/WhatsApp notifications
     // AdminModule,       // Admin dashboard APIs
     // ReportsModule,     // Analytics and reporting
@@ -74,6 +75,7 @@ export class AppModule {}
  * 🏢 **Business Logic Layer**:
  * - UsersModule: Phone-based user management
  * - BookingsModule: Core booking with double-booking prevention
+ * - PaymentsModule: Razorpay integration with webhook handling
  * 
  * 🔧 **Cross-cutting Concerns**:
  * - GlobalExceptionFilter: Consistent error handling
