@@ -1,12 +1,20 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Venue } from '@prisma/client';
 import {
   TIME_CONSTANTS,
   DATE_FORMAT_CONSTANTS,
   VALIDATION_CONSTANTS,
   ERROR_MESSAGES,
 } from '../constants/app.constants';
+
+// Define minimal venue type to avoid Prisma client export issues
+type MinimalVenue = {
+  id: string;
+  basePriceCents: number;
+  currency: string;
+  capacity?: number;
+  isActive: boolean;
+};
 
 /**
  * Centralized Validation Service - Uses centralized constants
@@ -85,11 +93,18 @@ export class ValidationService {
   /**
    * Centralized venue validation using constants
    */
-  async validateVenue(tenantId: string, venueId: string): Promise<Venue> {
+  async validateVenue(tenantId: string, venueId: string): Promise<MinimalVenue> {
     const venue = await this.prisma.venue.findFirst({
       where: {
         id: venueId,
         tenantId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        basePriceCents: true,
+        currency: true,
+        capacity: true,
         isActive: true,
       },
     });
@@ -108,7 +123,7 @@ export class ValidationService {
   /**
    * Centralized business rules validation using constants
    */
-  validateBusinessRules(guestCount: number | undefined, venue: Venue): void {
+  validateBusinessRules(guestCount: number | undefined, venue: MinimalVenue): void {
     // Guest count validation
     if (guestCount && venue.capacity) {
       if (guestCount > venue.capacity) {
