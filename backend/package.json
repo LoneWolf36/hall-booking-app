@@ -40,9 +40,14 @@
     "db:migrate": "npx prisma migrate deploy",
     "db:generate": "npx prisma generate",
     "db:studio": "npx prisma studio",
-    "db:test-setup": "npm run db:migrate && npm run db:generate"
+    "db:test-setup": "npm run db:migrate && npm run db:generate",
+    "dev": "next dev --port 3001",
+    "type-check": "tsc --noEmit",
+    "lint:fix": "eslint --fix .",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@date-io/date-fns": "^3.2.1",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.1",
@@ -51,17 +56,20 @@
     "@prisma/client": "^6.18.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "currency.js": "^2.0.4",
+    "date-fns": "^3.6.0",
     "dotenv": "^17.2.3",
     "ioredis": "^5.8.2",
+    "libphonenumber-js": "^1.12.25",
     "moment-timezone": "^0.5.45",
     "nest-winston": "^1.10.2",
     "razorpay": "^2.9.4",
+    "react-big-calendar": "^1.19.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1",
-    "winston": "^3.18.3",
     "uuid": "^10.0.0",
-    "date-fns": "^3.6.0"
+    "winston": "^3.18.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
