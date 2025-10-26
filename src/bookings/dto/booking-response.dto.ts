@@ -8,6 +8,7 @@ import { ApiProperty } from '@nestjs/swagger';
  * 2. Consistent response format across all endpoints
  * 3. Different views for different user roles
  * 4. Include computed fields for frontend convenience
+ * 5. Payment integration for seamless booking flow
  */
 
 export class BookingResponseDto {
@@ -76,6 +77,18 @@ export class BookingResponseDto {
 
   @ApiProperty({ description: 'When temp hold expires', example: '2024-12-20T16:00:00.000Z', format: 'date-time', required: false })
   holdExpiresAt?: Date; // For temp_hold status
+
+  // Payment integration fields
+  @ApiProperty({ description: 'Payment link information (if payment required)', required: false, type: 'object', properties: { id: { type: 'string', example: 'plink_KKBLjhmrasdf23' }, shortUrl: { type: 'string', example: 'https://rzp.io/i/KKBLjhmr' }, expiresAt: { type: 'string', format: 'date-time' }, expiresInMinutes: { type: 'number', example: 15 } } })
+  paymentLink?: {
+    id: string;
+    shortUrl: string;
+    expiresAt: Date;
+    expiresInMinutes: number;
+  };
+
+  @ApiProperty({ description: 'Whether payment is required for this booking', example: true, required: false })
+  requiresPayment?: boolean;
 }
 
 /**
@@ -157,7 +170,7 @@ export class AvailabilityResponseDto {
 }
 
 /**
- * Booking creation response with additional context
+ * Booking creation response with additional context and payment integration
  */
 export class CreateBookingResponseDto {
   @ApiProperty({ description: 'Whether the booking creation was successful', example: true })
@@ -176,9 +189,19 @@ export class CreateBookingResponseDto {
   @ApiProperty({ description: 'Minutes until temp hold expires', example: 30, required: false })
   holdExpiresIn?: number; // Minutes until temp hold expires
   
+  // Payment integration
+  @ApiProperty({ description: 'Payment link details (if payment required)', required: false, type: 'object', properties: { id: { type: 'string', example: 'plink_KKBLjhmrasdf23' }, shortUrl: { type: 'string', example: 'https://rzp.io/i/KKBLjhmr' }, expiresAt: { type: 'string', format: 'date-time' }, amount: { type: 'number', example: 5000000 }, currency: { type: 'string', example: 'INR' } } })
+  paymentLink?: {
+    id: string;
+    shortUrl: string;
+    expiresAt: Date;
+    amount: number;
+    currency: string;
+  };
+  
   // Next steps for user
-  @ApiProperty({ description: 'Next steps the user should take', type: 'array', items: { type: 'object', required: ['action', 'description'], properties: { action: { type: 'string', enum: ['payment', 'confirmation', 'wait'] }, description: { type: 'string', example: 'Complete payment within 30 minutes' }, deadline: { type: 'string', format: 'date-time' } } } })
-  nextSteps: { action: string; description: string; deadline?: Date }[];
+  @ApiProperty({ description: 'Next steps the user should take', type: 'array', items: { type: 'object', required: ['action', 'description'], properties: { action: { type: 'string', enum: ['payment', 'confirmation', 'wait'] }, description: { type: 'string', example: 'Complete payment within 30 minutes' }, deadline: { type: 'string', format: 'date-time' }, paymentUrl: { type: 'string', example: 'https://rzp.io/i/KKBLjhmr' } } } })
+  nextSteps: { action: string; description: string; deadline?: Date; paymentUrl?: string }[];
 }
 
 /**
@@ -206,10 +229,12 @@ export class BulkBookingResponseDto {
  * 3. **Flexibility**: Different views for different contexts
  * 4. **Future-proof**: Easy to add computed fields
  * 5. **API Documentation**: Clear contract with frontend
+ * 6. **Payment Integration**: Seamless payment flow with booking creation
  * 
  * Computed Fields Benefits:
  * - Reduce frontend complexity
  * - Consistent business logic
  * - Better user experience
  * - Easier testing
+ * - Payment link integration
  */
