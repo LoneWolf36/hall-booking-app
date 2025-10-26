@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CalendarIcon, CreditCardIcon, ShieldIcon, UsersIcon } from "lucide-react";
+import { CalendarIcon, CreditCardIcon, ShieldIcon, UsersIcon, SearchIcon } from "lucide-react";
 
 export default function HomePage() {
   return (
@@ -22,12 +22,44 @@ export default function HomePage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild size="lg">
-                <Link href="/bookings">Browse Venues</Link>
+                <Link href="/availability">
+                  <SearchIcon className="mr-2 h-5 w-5" />
+                  Check Availability
+                </Link>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <Link href="/bookings/new">New Booking</Link>
+                <Link href="/venues">Browse Venues</Link>
               </Button>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Quick Availability Check */}
+      <section className="px-4 py-12 border-b">
+        <div className="container mx-auto">
+          <div className="max-w-3xl mx-auto">
+            <Card className="border-primary/20">
+              <CardHeader className="text-center">
+                <CardTitle className="flex items-center justify-center gap-2">
+                  <SearchIcon className="h-5 w-5" />
+                  Quick Availability Check
+                </CardTitle>
+                <CardDescription>
+                  Find your perfect time slot instantly - no login required!
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Select venue, date, and time to check real-time availability with zero double-booking guarantee
+                </p>
+                <Button asChild size="lg" className="w-full sm:w-auto">
+                  <Link href="/availability">
+                    Start Your Search →
+                  </Link>
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </section>
@@ -161,10 +193,13 @@ export default function HomePage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild size="lg">
-                <Link href="/bookings/new">Create Your First Booking</Link>
+                <Link href="/availability">
+                  <SearchIcon className="mr-2 h-5 w-5" />
+                  Check Availability Now
+                </Link>
               </Button>
               <Button asChild variant="outline" size="lg">
-                <Link href="/venues">Explore Venues</Link>
+                <Link href="/venues">Explore All Venues</Link>
               </Button>
             </div>
           </div>
