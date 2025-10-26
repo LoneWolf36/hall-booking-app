@@ -1,11 +1,12 @@
 import { Module, Global } from '@nestjs/common';
 import { RedisService } from './redis.service';
 import { RedisTestController } from './redis.controller';
+import { CacheService } from '../common/services/cache.service';
 
-@Global() // Makes RedisService available everywhere without importing
+@Global() // Makes RedisService and CacheService available everywhere without importing
 @Module({
   controllers: [RedisTestController],
-  providers: [RedisService],
-  exports: [RedisService],
+  providers: [RedisService, CacheService],
+  exports: [RedisService, CacheService],
 })
 export class RedisModule {}
