@@ -15,10 +15,11 @@ import {
   Res,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiParam, ApiQuery } from '@nestjs/swagger';
-import { Request, Response } from 'express';
+import { type Request, type Response } from 'express';
 import { PaymentsService } from './payments.service';
 import { FlexiblePaymentService } from './services/flexible-payment.service';
 import { RazorpayService } from './services/razorpay.service';
+import { PrismaService } from '../prisma/prisma.service';
 import {
   PaymentLinkResponseDto,
   RazorpayWebhookDto
@@ -53,6 +54,7 @@ export class PaymentsController {
     private readonly paymentsService: PaymentsService,
     private readonly flexiblePaymentService: FlexiblePaymentService,
     private readonly razorpayService: RazorpayService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // =====================================

@@ -20,6 +20,13 @@ import {
 } from '../dto/payment-options.dto';
 import { RazorpayService } from './razorpay.service';
 
+// Define next step interface for type safety
+interface NextStep {
+  action: string;
+  description: string;
+  deadline?: Date;
+}
+
 /**
  * Flexible Payment Service - Core orchestrator for all payment methods
  * 
@@ -38,7 +45,7 @@ export class FlexiblePaymentService {
     private readonly prisma: PrismaService,
     private readonly cacheService: CacheService,
     private readonly razorpayService: RazorpayService,
-  ) {}
+  ) { }
 
   /**
    * Generate payment options for a booking based on venue profile
@@ -49,7 +56,7 @@ export class FlexiblePaymentService {
     customerLocation?: string,
   ): Promise<PaymentOptionsResponseDto> {
     const cacheKey = `payment-options:${bookingId}`;
-    const cached = await this.cacheService.get(cacheKey);
+    const cached = await this.cacheService.get<PaymentOptionsResponseDto>(cacheKey);
     if (cached) {
       this.logger.debug(`Returning cached payment options for booking ${bookingId}`);
       return cached;
@@ -171,7 +178,7 @@ export class FlexiblePaymentService {
       );
 
       // Clear cached options
-      await this.cacheService.del(`payment-options:${bookingId}`);
+      await this.cacheService.delete(`payment-options:${bookingId}`);
 
       this.logger.log(`Payment method selected for booking ${bookingId}`, {
         method: selection.selectedMethod,
@@ -720,8 +727,8 @@ export class FlexiblePaymentService {
   private async generateNextSteps(
     booking: any,
     method: PaymentMethod,
-  ): Promise<any[]> {
-    const steps = [];
+  ): Promise<NextStep[]> {
+    const steps: NextStep[] = [];
 
     switch (method) {
       case PaymentMethod.CASH_FULL:
@@ -904,12 +911,12 @@ export class FlexiblePaymentService {
 
   private inferCityTier(location?: string): string {
     if (!location) return 'tier2';
-    
+
     const tier1Cities = ['mumbai', 'delhi', 'bangalore', 'chennai', 'kolkata', 'pune', 'hyderabad', 'ahmedabad'];
     const tier2Cities = ['jaipur', 'lucknow', 'kanpur', 'nagpur', 'indore', 'thane', 'bhopal', 'visakhapatnam'];
-    
+
     const lowercaseLocation = location.toLowerCase();
-    
+
     if (tier1Cities.some(city => lowercaseLocation.includes(city))) {
       return 'tier1';
     } else if (tier2Cities.some(city => lowercaseLocation.includes(city))) {

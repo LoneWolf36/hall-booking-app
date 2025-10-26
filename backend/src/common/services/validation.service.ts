@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { Venue } from '@prisma/client';
+import type { Venue } from '../../../generated/prisma';
+
 import {
   TIME_CONSTANTS,
   DATE_FORMAT_CONSTANTS,

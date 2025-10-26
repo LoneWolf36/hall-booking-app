@@ -1,8 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
  * Response DTOs for Booking API endpoints
- * 
+ *
  * Design Principles:
  * 1. Never expose sensitive internal data
  * 2. Consistent response format across all endpoints
@@ -11,6 +11,114 @@ import { ApiProperty } from '@nestjs/swagger';
  * 5. Payment integration for seamless booking flow
  */
 
+/**
+ * Shared nested DTOs
+ */
+export class CustomerPublicDto {
+  @ApiProperty({ description: 'Customer identifier', example: '123e4567-e89b-12d3-a456-426614174002', format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ description: 'Customer name', example: 'John Doe' })
+  name: string;
+
+  @ApiProperty({ description: 'Customer phone', example: '+919876543210' })
+  phone: string;
+
+  @ApiPropertyOptional({ description: 'Customer email', example: 'john.doe@example.com' })
+  email?: string;
+}
+
+export class PaymentLinkDto {
+  @ApiProperty({ description: 'Payment link id', example: 'plink_KKBLjhmrasdf23' })
+  id: string;
+
+  @ApiProperty({ description: 'Short payment URL', example: 'https://rzp.io/i/KKBLjhmr' })
+  shortUrl: string;
+
+  @ApiProperty({ description: 'Expiration timestamp', example: '2024-12-20T16:00:00.000Z', format: 'date-time' })
+  expiresAt: Date;
+
+  @ApiProperty({ description: 'Minutes until expiration', example: 15 })
+  expiresInMinutes: number;
+}
+
+export class PaymentHistoryItemDto {
+  @ApiProperty({ description: 'Payment record id', format: 'uuid', example: '123e4567-e89b-12d3-a456-426614174111' })
+  id: string;
+
+  @ApiProperty({ description: 'Payment provider', example: 'razorpay' })
+  provider: string;
+
+  @ApiProperty({ description: 'Amount in cents', example: 2500000 })
+  amountCents: number;
+
+  @ApiProperty({ description: 'Payment status', example: 'completed' })
+  status: string;
+
+  @ApiProperty({ description: 'Creation timestamp', format: 'date-time', example: '2024-12-20T10:30:00.000Z' })
+  createdAt: Date;
+}
+
+export class BlackoutPeriodDto {
+  @ApiProperty({ description: 'Blackout id', format: 'uuid', example: '123e4567-e89b-12d3-a456-426614174222' })
+  id: string;
+
+  @ApiPropertyOptional({ description: 'Reason for blackout', example: 'Maintenance' })
+  reason?: string;
+
+  @ApiProperty({ description: 'Start timestamp', format: 'date-time', example: '2024-12-25T14:00:00.000Z' })
+  startTs: Date;
+
+  @ApiProperty({ description: 'End timestamp', format: 'date-time', example: '2024-12-25T18:00:00.000Z' })
+  endTs: Date;
+
+  @ApiProperty({ description: 'Whether this is maintenance', example: true })
+  isMaintenance: boolean;
+}
+
+export class SuggestedAlternativeDto {
+  @ApiProperty({ description: 'Alternative start', format: 'date-time', example: '2024-12-26T14:00:00.000Z' })
+  startTs: Date;
+
+  @ApiProperty({ description: 'Alternative end', format: 'date-time', example: '2024-12-26T18:00:00.000Z' })
+  endTs: Date;
+
+  @ApiProperty({ description: 'Is full-day option', example: false })
+  isFullDay: boolean;
+}
+
+export class NextStepDto {
+  @ApiProperty({ description: 'Action type', enum: ['payment', 'confirmation', 'wait'], example: 'payment' })
+  action: string;
+
+  @ApiProperty({ description: 'What the user should do', example: 'Complete payment within 30 minutes' })
+  description: string;
+
+  @ApiPropertyOptional({ description: 'Deadline for the action', format: 'date-time', example: '2024-12-20T16:00:00.000Z' })
+  deadline?: Date;
+
+  @ApiPropertyOptional({ description: 'Payment URL if action is payment', example: 'https://rzp.io/i/KKBLjhmr' })
+  paymentUrl?: string;
+}
+
+export class BulkErrorDto {
+  @ApiProperty({ description: 'Error code', example: 'VENUE_NOT_AVAILABLE' })
+  code: string;
+
+  @ApiProperty({ description: 'Error message', example: 'Venue is not available at the requested time' })
+  message: string;
+
+  @ApiPropertyOptional({
+    description: 'Additional error details',
+    type: 'object',
+    additionalProperties: true,
+  })
+  details?: Record<string, any>;
+}
+
+/**
+ * Core DTOs
+ */
 export class BookingResponseDto {
   @ApiProperty({ description: 'Unique booking identifier', example: '123e4567-e89b-12d3-a456-426614174000', format: 'uuid' })
   id: string;
@@ -21,73 +129,69 @@ export class BookingResponseDto {
   @ApiProperty({ description: 'Venue identifier', example: '123e4567-e89b-12d3-a456-426614174001', format: 'uuid' })
   venueId: string;
 
-  @ApiProperty({ description: 'Venue name (populated from relation)', example: 'Grand Ballroom', required: false })
-  venueName?: string; // Populated from relation
-  
-  // Customer information (public safe)
-  @ApiProperty({ description: 'Customer information', example: { id: '123e4567-e89b-12d3-a456-426614174002', name: 'John Doe', phone: '+919876543210', email: 'john.doe@example.com' } })
-  customer: { id: string; name: string; phone: string; email?: string };
-  
-  // Timing information
+  @ApiPropertyOptional({ description: 'Venue name (populated from relation)', example: 'Grand Ballroom' })
+  venueName?: string;
+
+  @ApiProperty({ description: 'Customer information', type: () => CustomerPublicDto })
+  customer: CustomerPublicDto;
+
   @ApiProperty({ description: 'Booking start timestamp', example: '2024-12-25T14:00:00.000Z', format: 'date-time' })
   startTs: Date;
 
   @ApiProperty({ description: 'Booking end timestamp', example: '2024-12-25T18:00:00.000Z', format: 'date-time' })
   endTs: Date;
 
-  @ApiProperty({ description: 'Booking duration in hours (computed)', example: 4, required: false })
-  duration?: number; // Computed: hours between start and end
-  
-  // Booking details
-  @ApiProperty({ description: 'Current booking status', example: 'confirmed', enum: ['temp_hold', 'pending', 'confirmed', 'cancelled', 'expired'] })
+  @ApiPropertyOptional({ description: 'Booking duration in hours (computed)', example: 4 })
+  duration?: number;
+
+  @ApiProperty({
+    description: 'Current booking status',
+    example: 'confirmed',
+    enum: ['temp_hold', 'pending', 'confirmed', 'cancelled', 'expired'],
+  })
   status: string;
 
-  @ApiProperty({ description: 'Payment status', example: 'paid', enum: ['pending', 'partial', 'paid', 'refunded'] })
+  @ApiProperty({
+    description: 'Payment status',
+    example: 'paid',
+    enum: ['pending', 'partial', 'paid', 'refunded'],
+  })
   paymentStatus: string;
 
-  @ApiProperty({ description: 'Type of event', example: 'wedding', required: false })
+  @ApiPropertyOptional({ description: 'Type of event', example: 'wedding' })
   eventType?: string;
 
-  @ApiProperty({ description: 'Expected number of guests', example: 150, required: false })
+  @ApiPropertyOptional({ description: 'Expected number of guests', example: 150 })
   guestCount?: number;
 
-  @ApiProperty({ description: 'Special requests or requirements', example: 'Need projector and sound system', required: false })
+  @ApiPropertyOptional({ description: 'Special requests or requirements', example: 'Need projector and sound system' })
   specialRequests?: string;
-  
-  // Pricing
-  @ApiProperty({ description: 'Total booking amount in cents', example: 5000000, required: false })
+
+  @ApiPropertyOptional({ description: 'Total booking amount in cents', example: 5000000 })
   totalAmountCents?: number;
 
   @ApiProperty({ description: 'Currency code', example: 'INR' })
   currency: string;
-  
-  // Metadata
+
   @ApiProperty({ description: 'Booking creation timestamp', example: '2024-12-20T10:30:00.000Z', format: 'date-time' })
   createdAt: Date;
 
   @ApiProperty({ description: 'Last update timestamp', example: '2024-12-20T15:45:00.000Z', format: 'date-time' })
   updatedAt: Date;
-  
-  // Computed fields for frontend convenience
-  @ApiProperty({ description: 'Whether booking is in active state', example: true, required: false })
-  isActive?: boolean; // status in ['temp_hold', 'pending', 'confirmed']
 
-  @ApiProperty({ description: 'Whether booking can be cancelled (24h rule)', example: true, required: false })
-  canBeCancelled?: boolean; // Business rule: 24h before start
+  @ApiPropertyOptional({ description: 'Whether booking is in active state', example: true })
+  isActive?: boolean;
 
-  @ApiProperty({ description: 'When temp hold expires', example: '2024-12-20T16:00:00.000Z', format: 'date-time', required: false })
-  holdExpiresAt?: Date; // For temp_hold status
+  @ApiPropertyOptional({ description: 'Whether booking can be cancelled (24h rule)', example: true })
+  canBeCancelled?: boolean;
 
-  // Payment integration fields
-  @ApiProperty({ description: 'Payment link information (if payment required)', required: false, type: 'object', properties: { id: { type: 'string', example: 'plink_KKBLjhmrasdf23' }, shortUrl: { type: 'string', example: 'https://rzp.io/i/KKBLjhmr' }, expiresAt: { type: 'string', format: 'date-time' }, expiresInMinutes: { type: 'number', example: 15 } } })
-  paymentLink?: {
-    id: string;
-    shortUrl: string;
-    expiresAt: Date;
-    expiresInMinutes: number;
-  };
+  @ApiPropertyOptional({ description: 'When temp hold expires', example: '2024-12-20T16:00:00.000Z', format: 'date-time' })
+  holdExpiresAt?: Date;
 
-  @ApiProperty({ description: 'Whether payment is required for this booking', example: true, required: false })
+  @ApiPropertyOptional({ description: 'Payment link information (if payment required)', type: () => PaymentLinkDto })
+  paymentLink?: PaymentLinkDto;
+
+  @ApiPropertyOptional({ description: 'Whether payment is required for this booking', example: true })
   requiresPayment?: boolean;
 }
 
@@ -101,23 +205,25 @@ export class AdminBookingResponseDto extends BookingResponseDto {
   @ApiProperty({ description: 'User identifier (admin only)', example: '123e4567-e89b-12d3-a456-426614174004', format: 'uuid' })
   userId: string;
 
-  @ApiProperty({ description: 'Idempotency key used for creation (admin only)', example: 'booking_20241225_venue123_user456', required: false })
+  @ApiPropertyOptional({ description: 'Idempotency key used for creation (admin only)', example: 'booking_20241225_venue123_user456' })
   idempotencyKey?: string;
-  
-  // Payment tracking
-  @ApiProperty({ description: 'Payment history (admin only)', required: false, type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, provider: { type: 'string', example: 'razorpay' }, amountCents: { type: 'number', example: 2500000 }, status: { type: 'string', example: 'completed' }, createdAt: { type: 'string', format: 'date-time' } } } })
-  payments?: { id: string; provider: string; amountCents: number; status: string; createdAt: Date }[];
-  
-  // Audit information
-  @ApiProperty({ description: 'Additional metadata (admin only)', example: { source: 'website', referral: 'google_ads' }, required: false })
-  meta?: Record<string, any>;
-  
-  // Computed analytics
-  @ApiProperty({ description: 'Whether payment is overdue (admin only)', example: false, required: false })
-  isOverdue?: boolean; // Payment overdue
 
-  @ApiProperty({ description: 'Profit margin percentage (admin only)', example: 35.5, required: false })
-  profitMargin?: number; // Revenue analytics
+  @ApiPropertyOptional({ description: 'Payment history (admin only)', type: () => [PaymentHistoryItemDto] })
+  payments?: PaymentHistoryItemDto[];
+
+  @ApiPropertyOptional({
+    description: 'Additional metadata (admin only)',
+    type: 'object',
+    additionalProperties: true,
+    example: { source: 'website', referral: 'google_ads' },
+  })
+  meta?: Record<string, any>;
+
+  @ApiPropertyOptional({ description: 'Whether payment is overdue (admin only)', example: false })
+  isOverdue?: boolean;
+
+  @ApiPropertyOptional({ description: 'Profit margin percentage (admin only)', example: 35.5 })
+  profitMargin?: number;
 }
 
 /**
@@ -142,13 +248,17 @@ export class BookingSummaryDto {
   @ApiProperty({ description: 'Booking end timestamp', example: '2024-12-25T18:00:00.000Z', format: 'date-time' })
   endTs: Date;
 
-  @ApiProperty({ description: 'Current booking status', example: 'confirmed', enum: ['temp_hold', 'pending', 'confirmed', 'cancelled', 'expired'] })
+  @ApiProperty({
+    description: 'Current booking status',
+    example: 'confirmed',
+    enum: ['temp_hold', 'pending', 'confirmed', 'cancelled', 'expired'],
+  })
   status: string;
 
-  @ApiProperty({ description: 'Total booking amount in cents', example: 5000000, required: false })
+  @ApiPropertyOptional({ description: 'Total booking amount in cents', example: 5000000 })
   totalAmountCents?: number;
 
-  @ApiProperty({ description: 'Type of event', example: 'wedding', required: false })
+  @ApiPropertyOptional({ description: 'Type of event', example: 'wedding' })
   eventType?: string;
 }
 
@@ -159,14 +269,14 @@ export class AvailabilityResponseDto {
   @ApiProperty({ description: 'Whether the requested time slot is available', example: true })
   isAvailable: boolean;
 
-  @ApiProperty({ description: 'List of conflicting bookings (if any)', type: [BookingSummaryDto], required: false })
+  @ApiPropertyOptional({ description: 'List of conflicting bookings (if any)', type: () => [BookingSummaryDto] })
   conflictingBookings?: BookingSummaryDto[];
 
-  @ApiProperty({ description: 'Blackout periods during requested time', required: false, type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, reason: { type: 'string', example: 'Maintenance' }, startTs: { type: 'string', format: 'date-time' }, endTs: { type: 'string', format: 'date-time' }, isMaintenance: { type: 'boolean' } } } })
-  blackoutPeriods?: { id: string; reason?: string; startTs: Date; endTs: Date; isMaintenance: boolean }[];
+  @ApiPropertyOptional({ description: 'Blackout periods during requested time', type: () => [BlackoutPeriodDto] })
+  blackoutPeriods?: BlackoutPeriodDto[];
 
-  @ApiProperty({ description: 'Alternative time slots that are available', required: false, type: 'array', items: { type: 'object', properties: { startTs: { type: 'string', format: 'date-time' }, endTs: { type: 'string', format: 'date-time' }, isFullDay: { type: 'boolean' } } } })
-  suggestedAlternatives?: { startTs: Date; endTs: Date; isFullDay: boolean }[];
+  @ApiPropertyOptional({ description: 'Alternative time slots that are available', type: () => [SuggestedAlternativeDto] })
+  suggestedAlternatives?: SuggestedAlternativeDto[];
 }
 
 /**
@@ -176,37 +286,36 @@ export class CreateBookingResponseDto {
   @ApiProperty({ description: 'Whether the booking creation was successful', example: true })
   success: boolean;
 
-  @ApiProperty({ description: 'The created booking details', type: BookingResponseDto })
+  @ApiProperty({ description: 'The created booking details', type: () => BookingResponseDto })
   booking: BookingResponseDto;
-  
-  // Additional context for frontend
+
   @ApiProperty({ description: 'Whether a new customer was created', example: false })
   isNewCustomer: boolean;
 
   @ApiProperty({ description: 'Whether payment is required immediately', example: true })
   paymentRequired: boolean;
 
-  @ApiProperty({ description: 'Minutes until temp hold expires', example: 30, required: false })
-  holdExpiresIn?: number; // Minutes until temp hold expires
-  
-  // Payment integration
-  @ApiProperty({ description: 'Payment link details (if payment required)', required: false, type: 'object', properties: { id: { type: 'string', example: 'plink_KKBLjhmrasdf23' }, shortUrl: { type: 'string', example: 'https://rzp.io/i/KKBLjhmr' }, expiresAt: { type: 'string', format: 'date-time' }, amount: { type: 'number', example: 5000000 }, currency: { type: 'string', example: 'INR' } } })
-  paymentLink?: {
-    id: string;
-    shortUrl: string;
-    expiresAt: Date;
-    amount: number;
-    currency: string;
-  };
-  
-  // Next steps for user
-  @ApiProperty({ description: 'Next steps the user should take', type: 'array', items: { type: 'object', required: ['action', 'description'], properties: { action: { type: 'string', enum: ['payment', 'confirmation', 'wait'] }, description: { type: 'string', example: 'Complete payment within 30 minutes' }, deadline: { type: 'string', format: 'date-time' }, paymentUrl: { type: 'string', example: 'https://rzp.io/i/KKBLjhmr' } } } })
-  nextSteps: { action: string; description: string; deadline?: Date; paymentUrl?: string }[];
+  @ApiPropertyOptional({ description: 'Minutes until temp hold expires', example: 30 })
+  holdExpiresIn?: number;
+
+  @ApiPropertyOptional({ description: 'Payment link details (if payment required)', type: () => PaymentLinkDto })
+  paymentLink?: PaymentLinkDto;
+
+  @ApiProperty({ description: 'Next steps the user should take', type: () => [NextStepDto] })
+  nextSteps: NextStepDto[];
 }
 
 /**
  * Bulk operations response
  */
+export class BulkResultDto {
+  @ApiPropertyOptional({ description: 'Processed booking', type: () => BookingResponseDto })
+  booking?: BookingResponseDto;
+
+  @ApiPropertyOptional({ description: 'Error object for failed item', type: () => BulkErrorDto })
+  error?: BulkErrorDto;
+}
+
 export class BulkBookingResponseDto {
   @ApiProperty({ description: 'Whether the bulk operation was successful', example: true })
   success: boolean;
@@ -216,25 +325,10 @@ export class BulkBookingResponseDto {
 
   @ApiProperty({ description: 'Number of bookings that failed to process', example: 2 })
   failed: number;
-  
-  @ApiProperty({ description: 'Results for each booking in the bulk operation', type: 'array', items: { type: 'object', properties: { booking: { $ref: '#/components/schemas/BookingResponseDto' }, error: { type: 'object', properties: { code: { type: 'string', example: 'VENUE_NOT_AVAILABLE' }, message: { type: 'string', example: 'Venue is not available at the requested time' }, details: { type: 'object' } } } } } })
-  results: { booking?: BookingResponseDto; error?: { code: string; message: string; details?: any } }[];
-}
 
-/**
- * Why separate response DTOs?
- * 
- * 1. **Security**: Never expose sensitive fields (tenantId, internal IDs)
- * 2. **Performance**: Only send required data to frontend
- * 3. **Flexibility**: Different views for different contexts
- * 4. **Future-proof**: Easy to add computed fields
- * 5. **API Documentation**: Clear contract with frontend
- * 6. **Payment Integration**: Seamless payment flow with booking creation
- * 
- * Computed Fields Benefits:
- * - Reduce frontend complexity
- * - Consistent business logic
- * - Better user experience
- * - Easier testing
- * - Payment link integration
- */
+  @ApiProperty({
+    description: 'Results for each booking in the bulk operation',
+    type: () => [BulkResultDto],
+  })
+  results: BulkResultDto[];
+}

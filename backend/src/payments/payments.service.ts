@@ -259,8 +259,8 @@ export class PaymentsService {
     });
 
     // Clear relevant caches
-    await this.cacheService.del(`payment:${payment.id}`);
-    await this.cacheService.del(`booking:${payment.bookingId}`);
+    await this.cacheService.delete(`payment:${payment.id}`);
+    await this.cacheService.delete(`booking:${payment.bookingId}`);
 
     this.logger.log('Payment processed successfully', {
       paymentId: payment.id,
@@ -296,8 +296,8 @@ export class PaymentsService {
         data: { status: 'expired' },
       });
 
-      await this.cacheService.del(`payment:${payment.id}`);
-      await this.cacheService.del(`booking:${payment.bookingId}`);
+      await this.cacheService.delete(`payment:${payment.id}`);
+      await this.cacheService.delete(`booking:${payment.bookingId}`);
     }
 
     return { success: true, message: 'Payment link expiry processed' };
@@ -319,7 +319,7 @@ export class PaymentsService {
         data: { status: 'failed' },
       });
 
-      await this.cacheService.del(`payment:${payment.id}`);
+      await this.cacheService.delete(`payment:${payment.id}`);
     }
 
     return { success: true, message: 'Payment link cancellation processed' };

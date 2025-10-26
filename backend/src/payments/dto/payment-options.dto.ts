@@ -28,7 +28,7 @@ export enum VenuePaymentProfile {
 
 export enum PaymentMethod {
   CASH_FULL = 'cash_full',
-  DEPOSIT_ONLINE = 'deposit_online', 
+  DEPOSIT_ONLINE = 'deposit_online',
   HYBRID_FLEXIBLE = 'hybrid_flexible',
   FULL_ONLINE = 'full_online',
   MARKETPLACE = 'marketplace'
@@ -36,7 +36,7 @@ export enum PaymentMethod {
 
 export enum ConfirmationTrigger {
   DEPOSIT_ONLY = 'deposit_only',
-  FULL_PAYMENT = 'full_payment', 
+  FULL_PAYMENT = 'full_payment',
   MANUAL_APPROVAL = 'manual_approval'
 }
 
@@ -62,7 +62,7 @@ export class PaymentOptionDto {
   onlineAmount: number;
 
   @ApiProperty({
-    description: 'Amount to be paid in cash (in cents)', 
+    description: 'Amount to be paid in cash (in cents)',
     example: 375000,
     minimum: 0
   })
@@ -170,11 +170,10 @@ export class PaymentOptionsResponseDto {
     properties: {
       preferredMethod: { type: 'string', example: 'cash' },
       cityTier: { type: 'string', example: 'tier2' },
-      totalBookings: { type: 'number', example: 3 }
-    }
+      totalBookings: { type: 'number', example: 3 },
+    },
+    additionalProperties: false,
   })
-  @IsOptional()
-  @IsObject()
   customerPreferences?: {
     preferredMethod: string;
     cityTier?: string;
@@ -205,12 +204,12 @@ export class SelectPaymentMethodDto {
 
   @ApiProperty({
     description: 'Additional customer preferences',
-    required: false,
-    type: 'object'
+    type: 'object',
+    additionalProperties: { type: 'string' },
   })
   @IsOptional()
   @IsObject()
-  customerPreferences?: Record<string, any>;
+  customerPreferences?: Record<string, string>;
 }
 
 /**
@@ -407,12 +406,10 @@ export class VenueOnboardingDto {
 
   @ApiProperty({
     description: 'Additional responses to questionnaire',
-    required: false,
-    type: 'object'
+    type: 'object',
+    additionalProperties: { type: 'string' },
   })
-  @IsOptional()
-  @IsObject()
-  additionalResponses?: Record<string, any>;
+  additionalResponses?: Record<string, string>;
 }
 
 /**
@@ -469,12 +466,8 @@ export class CommissionSummaryDto {
   @ApiProperty({
     description: 'Collection method breakdown',
     type: 'object',
-    example: {
-      auto_deduct: 200000,
-      monthly_invoice: 250000,
-      cash_settlement: 0
-    }
+    additionalProperties: { type: 'number' },
+    example: { auto_deduct: 200000, monthly_invoice: 250000, cash_settlement: 0 },
   })
-  @IsObject()
   collectionMethodBreakdown: Record<string, number>;
 }

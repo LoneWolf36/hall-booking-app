@@ -1,6 +1,6 @@
 import { Injectable, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as Razorpay from 'razorpay';
+import Razorpay from 'razorpay';
 import * as crypto from 'crypto';
 import { CreatePaymentLinkDto, PaymentLinkResponseDto } from '../dto/create-payment-link.dto';
 
@@ -63,7 +63,7 @@ export class RazorpayService {
       } = createPaymentLinkDto;
 
       // Calculate expiry time (default to 15 minutes if not provided)
-      const expireBy = expiresAt 
+      const expireBy = expiresAt
         ? Math.floor(new Date(expiresAt).getTime() / 1000)
         : Math.floor((Date.now() + 15 * 60 * 1000) / 1000);
 
@@ -115,12 +115,12 @@ export class RazorpayService {
       });
 
       return {
-        id: response.id,
-        shortUrl: response.short_url,
-        amount: response.amount,
-        currency: response.currency,
-        status: response.status,
-        expireBy: new Date(response.expire_by * 1000),
+        id: String(response.id),
+        shortUrl: String(response.short_url),
+        amount: Number(response.amount),
+        currency: response.currency ?? 'INR',
+        status: String(response.status),
+        expireBy: response.expire_by ? new Date(Number(response.expire_by) * 1000) : new Date(expireBy * 1000),
         paymentId: '', // Will be set when payment record is created
         bookingId,
         expiresInMinutes,
