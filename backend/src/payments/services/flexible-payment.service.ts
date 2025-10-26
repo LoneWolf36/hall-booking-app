@@ -20,6 +20,13 @@ import {
 } from '../dto/payment-options.dto';
 import { RazorpayService } from './razorpay.service';
 
+// Define next step interface for type safety
+interface NextStep {
+  action: string;
+  description: string;
+  deadline?: Date;
+}
+
 /**
  * Flexible Payment Service - Core orchestrator for all payment methods
  * 
@@ -49,7 +56,7 @@ export class FlexiblePaymentService {
     customerLocation?: string,
   ): Promise<PaymentOptionsResponseDto> {
     const cacheKey = `payment-options:${bookingId}`;
-    const cached = await this.cacheService.get(cacheKey);
+    const cached = await this.cacheService.get<PaymentOptionsResponseDto>(cacheKey);
     if (cached) {
       this.logger.debug(`Returning cached payment options for booking ${bookingId}`);
       return cached;
@@ -115,7 +122,7 @@ export class FlexiblePaymentService {
     tenantId: string,
     bookingId: string,
     selection: SelectPaymentMethodDto,
-  ): Promise<{ success: boolean; booking: any; nextSteps: any[] }> {
+  ): Promise<{ success: boolean; booking: any; nextSteps: NextStep[] }> {
     try {
       const booking = await this.prisma.booking.findFirst({
         where: { id: bookingId, tenantId },
@@ -720,8 +727,8 @@ export class FlexiblePaymentService {
   private async generateNextSteps(
     booking: any,
     method: PaymentMethod,
-  ): Promise<any[]> {
-    const steps = [];
+  ): Promise<NextStep[]> {
+    const steps: NextStep[] = [];
 
     switch (method) {
       case PaymentMethod.CASH_FULL:
