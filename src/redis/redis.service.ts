@@ -62,7 +62,7 @@ export class RedisService implements OnModuleInit {
     }
   }
 
-  private ensureConnection(): void {
+  private ensureConnection(): asserts this is { redis: Redis } {
     if (!this.redis) {
       throw new Error('Redis client is not initialized. Check your environment configuration.');
     }
