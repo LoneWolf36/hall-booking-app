@@ -1,0 +1,52 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": ".*\\.(spec|test|integration|e2e-spec)\\.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "collectCoverageFrom": [
+    "../src/**/*.(t|j)s",
+    "!../src/**/*.spec.ts",
+    "!../src/**/*.e2e-spec.ts",
+    "!../src/main.ts",
+    "!../src/**/*.interface.ts",
+    "!../src/**/*.dto.ts",
+    "!../src/**/*.entity.ts",
+    "!../src/**/*.module.ts"
+  ],
+  "coverageDirectory": "../coverage/full",
+  "coverageReporters": ["text", "lcov", "html", "json-summary"],
+  "coverageThreshold": {
+    "global": {
+      "branches": 70,
+      "functions": 75,
+      "lines": 80,
+      "statements": 80
+    },
+    "../src/payments/": {
+      "branches": 85,
+      "functions": 90,
+      "lines": 90,
+      "statements": 90
+    },
+    "../src/bookings/": {
+      "branches": 80,
+      "functions": 85,
+      "lines": 85,
+      "statements": 85
+    }
+  },
+  "testTimeout": 45000,
+  "setupFilesAfterEnv": ["<rootDir>/setup/test-setup.ts"],
+  "moduleNameMapping": {
+    "^src/(.*)$": "<rootDir>/../src/$1"
+  },
+  "testPathIgnorePatterns": ["<rootDir>/../dist/"],
+  "verbose": true,
+  "forceExit": true,
+  "detectOpenHandles": true,
+  "maxWorkers": 2,
+  "testSequencer": "<rootDir>/utils/test-sequencer.js"
+}
