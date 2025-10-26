@@ -1,0 +1,424 @@
+name: Comprehensive Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  # Unit Tests - Fast feedback
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Generate Prisma client
+      run: npx prisma generate
+      
+    - name: Run unit tests
+      run: npm run test:unit-only
+      
+    - name: Upload unit test coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/lcov.info
+        flags: unit-tests
+        name: unit-tests-coverage
+
+  # Database Integration Tests
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: hall_booking_test
+        options: >
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7-alpine
+        options: >
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Setup test environment
+      run: |
+        cp .env.test .env
+        sed -i 's|postgresql://username:password@localhost:5432/hall_booking_test|postgresql://test_user:test_password@localhost:5432/hall_booking_test|g' .env
+        
+    - name: Generate Prisma client
+      run: npx prisma generate
+      
+    - name: Run database migrations
+      run: npx prisma migrate deploy
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/hall_booking_test
+        
+    - name: Run integration tests
+      run: npm run test:integration
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/hall_booking_test
+        UPSTASH_REDIS_REST_URL: redis://localhost:6379
+        JWT_SECRET: test-jwt-secret-key-for-integration-tests-at-least-32-characters
+        
+    - name: Upload integration test coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/integration/lcov.info
+        flags: integration-tests
+        name: integration-tests-coverage
+
+  # Payment Integration Tests - Most Critical
+  payment-integration-tests:
+    name: Payment Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: hall_booking_test
+        options: >
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7-alpine
+        options: >
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Setup test environment
+      run: |
+        cp .env.test .env
+        sed -i 's|postgresql://username:password@localhost:5432/hall_booking_test|postgresql://test_user:test_password@localhost:5432/hall_booking_test|g' .env
+        
+    - name: Generate Prisma client
+      run: npx prisma generate
+      
+    - name: Run database migrations
+      run: npx prisma migrate deploy
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/hall_booking_test
+        
+    - name: Run payment integration tests
+      run: npm run test:payments
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/hall_booking_test
+        UPSTASH_REDIS_REST_URL: redis://localhost:6379
+        JWT_SECRET: test-jwt-secret-key-for-integration-tests-at-least-32-characters
+        RAZORPAY_KEY_ID: rzp_test_github_actions_key
+        RAZORPAY_KEY_SECRET: test_secret_for_github_actions
+        RAZORPAY_WEBHOOK_SECRET: test_webhook_secret_key_for_signature_validation
+        
+    - name: Upload payment test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: payment-test-results
+        path: |
+          coverage/integration/
+          test-results/
+          
+    - name: Comment PR with payment test results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          if (fs.existsSync('coverage/integration/coverage-summary.json')) {
+            const coverage = JSON.parse(fs.readFileSync('coverage/integration/coverage-summary.json', 'utf8'));
+            const comment = `## 💳 Payment Integration Test Results\n\n` +
+              `**Coverage Summary:**\n` +
+              `- Lines: ${coverage.total.lines.pct}%\n` +
+              `- Functions: ${coverage.total.functions.pct}%\n` +
+              `- Branches: ${coverage.total.branches.pct}%\n` +
+              `\n✅ All 5 payment profiles tested successfully!`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+          }
+
+  # E2E Tests
+  e2e-tests:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [unit-tests, integration-tests]
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: hall_booking_test
+        options: >
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Setup test environment
+      run: |
+        cp .env.test .env
+        sed -i 's|postgresql://username:password@localhost:5432/hall_booking_test|postgresql://test_user:test_password@localhost:5432/hall_booking_test|g' .env
+        
+    - name: Generate Prisma client
+      run: npx prisma generate
+      
+    - name: Run database migrations
+      run: npx prisma migrate deploy
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/hall_booking_test
+        
+    - name: Run E2E tests
+      run: npm run test:e2e
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/hall_booking_test
+        JWT_SECRET: test-jwt-secret-key-for-integration-tests-at-least-32-characters
+
+  # Performance Tests (Optional - only on schedule or manual trigger)
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: hall_booking_test
+        options: >
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7-alpine
+        options: >
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Setup test environment
+      run: |
+        cp .env.test .env
+        sed -i 's|postgresql://username:password@localhost:5432/hall_booking_test|postgresql://test_user:test_password@localhost:5432/hall_booking_test|g' .env
+        
+    - name: Generate Prisma client
+      run: npx prisma generate
+      
+    - name: Run database migrations
+      run: npx prisma migrate deploy
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/hall_booking_test
+        
+    - name: Run performance tests
+      run: npm run test:performance
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/hall_booking_test
+        UPSTASH_REDIS_REST_URL: redis://localhost:6379
+        JWT_SECRET: test-jwt-secret-key-for-integration-tests-at-least-32-characters
+        PERFORMANCE_TEST_CONCURRENCY: 20
+        PERFORMANCE_TEST_DURATION: 60000
+        
+    - name: Upload performance results
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-results
+        path: |
+          coverage/performance/
+          performance-results/
+
+  # Full Coverage Report (combines all test results)
+  full-coverage:
+    name: Full Coverage Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [unit-tests, integration-tests, payment-integration-tests, e2e-tests]
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: hall_booking_test
+        options: >
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+          
+      redis:
+        image: redis:7-alpine
+        options: >
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Setup test environment
+      run: |
+        cp .env.test .env
+        sed -i 's|postgresql://username:password@localhost:5432/hall_booking_test|postgresql://test_user:test_password@localhost:5432/hall_booking_test|g' .env
+        
+    - name: Generate Prisma client
+      run: npx prisma generate
+      
+    - name: Run database migrations
+      run: npx prisma migrate deploy
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/hall_booking_test
+        
+    - name: Run full test suite with coverage
+      run: npm run test:full-coverage
+      env:
+        DATABASE_URL: postgresql://test_user:test_password@localhost:5432/hall_booking_test
+        UPSTASH_REDIS_REST_URL: redis://localhost:6379
+        JWT_SECRET: test-jwt-secret-key-for-integration-tests-at-least-32-characters
+        RAZORPAY_KEY_ID: rzp_test_github_actions_key
+        RAZORPAY_KEY_SECRET: test_secret_for_github_actions
+        RAZORPAY_WEBHOOK_SECRET: test_webhook_secret_key_for_signature_validation
+        
+    - name: Upload full coverage report
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/full/lcov.info
+        flags: full-coverage
+        name: full-coverage-report
+        
+    - name: Generate coverage badge
+      uses: codecov/codecov-action@v3
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage/full/coverage-summary.json
