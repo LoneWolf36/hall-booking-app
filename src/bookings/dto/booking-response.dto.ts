@@ -1,3 +1,5 @@
+import { ApiProperty } from '@nestjs/swagger';
+
 /**
  * Response DTOs for Booking API endpoints
  * 
@@ -9,12 +11,43 @@
  */
 
 export class BookingResponseDto {
+  @ApiProperty({
+    description: 'Unique booking identifier',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    format: 'uuid'
+  })
   id: string;
+
+  @ApiProperty({
+    description: 'Human-readable booking number',
+    example: 'BK-2024-001234'
+  })
   bookingNumber: string;
+
+  @ApiProperty({
+    description: 'Venue identifier',
+    example: '123e4567-e89b-12d3-a456-426614174001',
+    format: 'uuid'
+  })
   venueId: string;
+
+  @ApiProperty({
+    description: 'Venue name (populated from relation)',
+    example: 'Grand Ballroom',
+    required: false
+  })
   venueName?: string; // Populated from relation
   
   // Customer information (public safe)
+  @ApiProperty({
+    description: 'Customer information',
+    example: {
+      id: '123e4567-e89b-12d3-a456-426614174002',
+      name: 'John Doe',
+      phone: '+919876543210',
+      email: 'john.doe@example.com'
+    }
+  })
   customer: {
     id: string;
     name: string;
@@ -23,28 +56,113 @@ export class BookingResponseDto {
   };
   
   // Timing information
+  @ApiProperty({
+    description: 'Booking start timestamp',
+    example: '2024-12-25T14:00:00.000Z',
+    format: 'date-time'
+  })
   startTs: Date;
+
+  @ApiProperty({
+    description: 'Booking end timestamp',
+    example: '2024-12-25T18:00:00.000Z',
+    format: 'date-time'
+  })
   endTs: Date;
+
+  @ApiProperty({
+    description: 'Booking duration in hours (computed)',
+    example: 4,
+    required: false
+  })
   duration?: number; // Computed: hours between start and end
   
   // Booking details
+  @ApiProperty({
+    description: 'Current booking status',
+    example: 'confirmed',
+    enum: ['temp_hold', 'pending', 'confirmed', 'cancelled', 'expired']
+  })
   status: string;
+
+  @ApiProperty({
+    description: 'Payment status',
+    example: 'paid',
+    enum: ['pending', 'partial', 'paid', 'refunded']
+  })
   paymentStatus: string;
+
+  @ApiProperty({
+    description: 'Type of event',
+    example: 'wedding',
+    required: false
+  })
   eventType?: string;
+
+  @ApiProperty({
+    description: 'Expected number of guests',
+    example: 150,
+    required: false
+  })
   guestCount?: number;
+
+  @ApiProperty({
+    description: 'Special requests or requirements',
+    example: 'Need projector and sound system',
+    required: false
+  })
   specialRequests?: string;
   
   // Pricing
+  @ApiProperty({
+    description: 'Total booking amount in cents',
+    example: 5000000,
+    required: false
+  })
   totalAmountCents?: number;
+
+  @ApiProperty({
+    description: 'Currency code',
+    example: 'INR'
+  })
   currency: string;
   
   // Metadata
+  @ApiProperty({
+    description: 'Booking creation timestamp',
+    example: '2024-12-20T10:30:00.000Z',
+    format: 'date-time'
+  })
   createdAt: Date;
+
+  @ApiProperty({
+    description: 'Last update timestamp',
+    example: '2024-12-20T15:45:00.000Z',
+    format: 'date-time'
+  })
   updatedAt: Date;
   
   // Computed fields for frontend convenience
+  @ApiProperty({
+    description: 'Whether booking is in active state',
+    example: true,
+    required: false
+  })
   isActive?: boolean; // status in ['temp_hold', 'pending', 'confirmed']
+
+  @ApiProperty({
+    description: 'Whether booking can be cancelled (24h rule)',
+    example: true,
+    required: false
+  })
   canBeCancelled?: boolean; // Business rule: 24h before start
+
+  @ApiProperty({
+    description: 'When temp hold expires',
+    example: '2024-12-20T16:00:00.000Z',
+    format: 'date-time',
+    required: false
+  })
   holdExpiresAt?: Date; // For temp_hold status
 }
 
@@ -52,11 +170,43 @@ export class BookingResponseDto {
  * Extended admin view with additional operational data
  */
 export class AdminBookingResponseDto extends BookingResponseDto {
+  @ApiProperty({
+    description: 'Tenant identifier (admin only)',
+    example: '123e4567-e89b-12d3-a456-426614174003',
+    format: 'uuid'
+  })
   tenantId: string;
+
+  @ApiProperty({
+    description: 'User identifier (admin only)',
+    example: '123e4567-e89b-12d3-a456-426614174004',
+    format: 'uuid'
+  })
   userId: string;
+
+  @ApiProperty({
+    description: 'Idempotency key used for creation (admin only)',
+    example: 'booking_20241225_venue123_user456',
+    required: false
+  })
   idempotencyKey?: string;
   
   // Payment tracking
+  @ApiProperty({
+    description: 'Payment history (admin only)',
+    required: false,
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        provider: { type: 'string', example: 'razorpay' },
+        amountCents: { type: 'number', example: 2500000 },
+        status: { type: 'string', example: 'completed' },
+        createdAt: { type: 'string', format: 'date-time' }
+      }
+    }
+  })
   payments?: {
     id: string;
     provider: string;
@@ -66,10 +216,26 @@ export class AdminBookingResponseDto extends BookingResponseDto {
   }[];
   
   // Audit information
+  @ApiProperty({
+    description: 'Additional metadata (admin only)',
+    example: { source: 'website', referral: 'google_ads' },
+    required: false
+  })
   meta?: Record<string, any>;
   
   // Computed analytics
+  @ApiProperty({
+    description: 'Whether payment is overdue (admin only)',
+    example: false,
+    required: false
+  })
   isOverdue?: boolean; // Payment overdue
+
+  @ApiProperty({
+    description: 'Profit margin percentage (admin only)',
+    example: 35.5,
+    required: false
+  })
   profitMargin?: number; // Revenue analytics
 }
 
@@ -77,14 +243,64 @@ export class AdminBookingResponseDto extends BookingResponseDto {
  * Lightweight booking summary for list views
  */
 export class BookingSummaryDto {
+  @ApiProperty({
+    description: 'Unique booking identifier',
+    example: '123e4567-e89b-12d3-a456-426614174000',
+    format: 'uuid'
+  })
   id: string;
+
+  @ApiProperty({
+    description: 'Human-readable booking number',
+    example: 'BK-2024-001234'
+  })
   bookingNumber: string;
+
+  @ApiProperty({
+    description: 'Customer name',
+    example: 'John Doe'
+  })
   customerName: string;
+
+  @ApiProperty({
+    description: 'Customer phone number',
+    example: '+919876543210'
+  })
   customerPhone: string;
+
+  @ApiProperty({
+    description: 'Booking start timestamp',
+    example: '2024-12-25T14:00:00.000Z',
+    format: 'date-time'
+  })
   startTs: Date;
+
+  @ApiProperty({
+    description: 'Booking end timestamp',
+    example: '2024-12-25T18:00:00.000Z',
+    format: 'date-time'
+  })
   endTs: Date;
+
+  @ApiProperty({
+    description: 'Current booking status',
+    example: 'confirmed',
+    enum: ['temp_hold', 'pending', 'confirmed', 'cancelled', 'expired']
+  })
   status: string;
+
+  @ApiProperty({
+    description: 'Total booking amount in cents',
+    example: 5000000,
+    required: false
+  })
   totalAmountCents?: number;
+
+  @ApiProperty({
+    description: 'Type of event',
+    example: 'wedding',
+    required: false
+  })
   eventType?: string;
 }
 
@@ -92,8 +308,34 @@ export class BookingSummaryDto {
  * Availability checking response
  */
 export class AvailabilityResponseDto {
+  @ApiProperty({
+    description: 'Whether the requested time slot is available',
+    example: true
+  })
   isAvailable: boolean;
+
+  @ApiProperty({
+    description: 'List of conflicting bookings (if any)',
+    type: [BookingSummaryDto],
+    required: false
+  })
   conflictingBookings?: BookingSummaryDto[];
+
+  @ApiProperty({
+    description: 'Blackout periods during requested time',
+    required: false,
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+        reason: { type: 'string', example: 'Maintenance' },
+        startTs: { type: 'string', format: 'date-time' },
+        endTs: { type: 'string', format: 'date-time' },
+        isMaintenance: { type: 'boolean' }
+      }
+    }
+  })
   blackoutPeriods?: {
     id: string;
     reason?: string;
@@ -101,6 +343,20 @@ export class AvailabilityResponseDto {
     endTs: Date;
     isMaintenance: boolean;
   }[];
+
+  @ApiProperty({
+    description: 'Alternative time slots that are available',
+    required: false,
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        startTs: { type: 'string', format: 'date-time' },
+        endTs: { type: 'string', format: 'date-time' },
+        isFullDay: { type: 'boolean' }
+      }
+    }
+  })
   suggestedAlternatives?: {
     startTs: Date;
     endTs: Date;
@@ -112,15 +368,51 @@ export class AvailabilityResponseDto {
  * Booking creation response with additional context
  */
 export class CreateBookingResponseDto {
+  @ApiProperty({
+    description: 'Whether the booking creation was successful',
+    example: true
+  })
   success: boolean;
+
+  @ApiProperty({
+    description: 'The created booking details',
+    type: BookingResponseDto
+  })
   booking: BookingResponseDto;
   
   // Additional context for frontend
+  @ApiProperty({
+    description: 'Whether a new customer was created',
+    example: false
+  })
   isNewCustomer: boolean;
+
+  @ApiProperty({
+    description: 'Whether payment is required immediately',
+    example: true
+  })
   paymentRequired: boolean;
+
+  @ApiProperty({
+    description: 'Minutes until temp hold expires',
+    example: 30,
+    required: false
+  })
   holdExpiresIn?: number; // Minutes until temp hold expires
   
   // Next steps for user
+  @ApiProperty({
+    description: 'Next steps the user should take',
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['payment', 'confirmation', 'wait'] },
+        description: { type: 'string', example: 'Complete payment within 30 minutes' },
+        deadline: { type: 'string', format: 'date-time', required: false }
+      }
+    }
+  })
   nextSteps: {
     action: string; // 'payment', 'confirmation', 'wait'
     description: string;
@@ -132,10 +424,43 @@ export class CreateBookingResponseDto {
  * Bulk operations response
  */
 export class BulkBookingResponseDto {
+  @ApiProperty({
+    description: 'Whether the bulk operation was successful',
+    example: true
+  })
   success: boolean;
+
+  @ApiProperty({
+    description: 'Number of bookings processed successfully',
+    example: 8
+  })
   processed: number;
+
+  @ApiProperty({
+    description: 'Number of bookings that failed to process',
+    example: 2
+  })
   failed: number;
   
+  @ApiProperty({
+    description: 'Results for each booking in the bulk operation',
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        booking: { $ref: '#/components/schemas/BookingResponseDto', required: false },
+        error: {
+          type: 'object',
+          required: false,
+          properties: {
+            code: { type: 'string', example: 'VENUE_NOT_AVAILABLE' },
+            message: { type: 'string', example: 'Venue is not available at the requested time' },
+            details: { type: 'object', required: false }
+          }
+        }
+      }
+    }
+  })
   results: {
     booking?: BookingResponseDto;
     error?: {
