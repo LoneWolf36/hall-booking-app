@@ -1,5 +1,6 @@
 import { IsEmail, IsEnum, IsOptional, IsPhoneNumber, IsString, MinLength } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { ApiProperty } from '@nestjs/swagger';
 
 export enum UserRole {
   CUSTOMER = 'customer',
@@ -17,20 +18,43 @@ export enum UserRole {
  * 5. Phone number is normalized (removes spaces, special chars)
  */
 export class CreateUserDto {
+  @ApiProperty({
+    description: 'Full name of the user',
+    example: 'John Doe',
+    minLength: 2,
+    required: true
+  })
   @IsString()
   @MinLength(2, { message: 'Name must be at least 2 characters long' })
   @Transform(({ value }) => value?.trim())
   name: string;
 
+  @ApiProperty({
+    description: 'Indian phone number with country code',
+    example: '+919876543210',
+    required: true
+  })
   @IsPhoneNumber('IN', { message: 'Phone number must be a valid Indian phone number' })
   @Transform(({ value }) => value?.replace(/[\s\-\(\)]/g, '')) // Normalize phone number
   phone: string;
 
+  @ApiProperty({
+    description: 'Email address (optional)',
+    example: 'john.doe@example.com',
+    required: false
+  })
   @IsOptional()
   @IsEmail({}, { message: 'Email must be valid' })
   @Transform(({ value }) => value?.toLowerCase().trim())
   email?: string;
 
+  @ApiProperty({
+    description: 'User role in the system',
+    enum: UserRole,
+    example: UserRole.CUSTOMER,
+    default: UserRole.CUSTOMER,
+    required: false
+  })
   @IsOptional()
   @IsEnum(UserRole, { message: 'Role must be either customer or admin' })
   role?: UserRole = UserRole.CUSTOMER;
