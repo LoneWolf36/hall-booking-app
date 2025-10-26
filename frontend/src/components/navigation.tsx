@@ -11,7 +11,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu"
-import { MoonIcon, SunIcon, CalendarIcon, CreditCardIcon } from "lucide-react"
+import { MoonIcon, SunIcon, CalendarIcon, SearchIcon } from "lucide-react"
 
 export function Navigation() {
   const { setTheme, theme } = useTheme()
@@ -28,6 +28,17 @@ export function Navigation() {
           </Link>
           <NavigationMenu>
             <NavigationMenuList>
+              <NavigationMenuItem>
+                <NavigationMenuLink asChild>
+                  <Link
+                    className="group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50"
+                    href="/availability"
+                  >
+                    <SearchIcon className="mr-2 h-4 w-4" />
+                    Check Availability
+                  </Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
               <NavigationMenuItem>
                 <NavigationMenuTrigger>Bookings</NavigationMenuTrigger>
                 <NavigationMenuContent>
@@ -94,6 +105,19 @@ export function Navigation() {
                         </Link>
                       </NavigationMenuLink>
                     </li>
+                    <li>
+                      <NavigationMenuLink asChild>
+                        <Link
+                          className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+                          href="/availability"
+                        >
+                          <div className="text-sm font-medium leading-none">Check Availability</div>
+                          <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
+                            Real-time availability checking
+                          </p>
+                        </Link>
+                      </NavigationMenuLink>
+                    </li>
                   </ul>
                 </NavigationMenuContent>
               </NavigationMenuItem>
@@ -104,7 +128,13 @@ export function Navigation() {
           <div className="w-full flex-1 md:w-auto md:flex-none">
             {/* Search can be added here later */}
           </div>
-          <nav className="flex items-center">
+          <nav className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm" className="hidden md:inline-flex">
+              <Link href="/availability">
+                <SearchIcon className="mr-2 h-4 w-4" />
+                Check Availability
+              </Link>
+            </Button>
             <Button
               variant="ghost"
               size="icon"
