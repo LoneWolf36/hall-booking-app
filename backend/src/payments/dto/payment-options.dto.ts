@@ -166,11 +166,14 @@ export class PaymentOptionsResponseDto {
   @ApiProperty({
     description: 'Customer payment preferences (if known)',
     required: false,
-    type: 'object',
-    properties: {
-      preferredMethod: { type: 'string', example: 'cash' },
-      cityTier: { type: 'string', example: 'tier2' },
-      totalBookings: { type: 'number', example: 3 }
+    schema: {
+      type: 'object',
+      properties: {
+        preferredMethod: { type: 'string', example: 'cash' },
+        cityTier: { type: 'string', example: 'tier2' },
+        totalBookings: { type: 'number', example: 3 }
+      },
+      additionalProperties: false
     }
   })
   @IsOptional()
@@ -206,7 +209,10 @@ export class SelectPaymentMethodDto {
   @ApiProperty({
     description: 'Additional customer preferences',
     required: false,
-    type: 'object'
+    schema: {
+      type: 'object',
+      additionalProperties: true
+    }
   })
   @IsOptional()
   @IsObject()
@@ -408,7 +414,10 @@ export class VenueOnboardingDto {
   @ApiProperty({
     description: 'Additional responses to questionnaire',
     required: false,
-    type: 'object'
+    schema: {
+      type: 'object',
+      additionalProperties: true
+    }
   })
   @IsOptional()
   @IsObject()
@@ -468,7 +477,15 @@ export class CommissionSummaryDto {
 
   @ApiProperty({
     description: 'Collection method breakdown',
-    type: 'object',
+    schema: {
+      type: 'object',
+      properties: {
+        auto_deduct: { type: 'number', example: 200000 },
+        monthly_invoice: { type: 'number', example: 250000 },
+        cash_settlement: { type: 'number', example: 0 }
+      },
+      additionalProperties: false
+    },
     example: {
       auto_deduct: 200000,
       monthly_invoice: 250000,
