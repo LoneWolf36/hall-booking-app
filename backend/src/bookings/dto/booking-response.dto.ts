@@ -25,7 +25,19 @@ export class BookingResponseDto {
   venueName?: string; // Populated from relation
   
   // Customer information (public safe)
-  @ApiProperty({ description: 'Customer information', example: { id: '123e4567-e89b-12d3-a456-426614174002', name: 'John Doe', phone: '+919876543210', email: 'john.doe@example.com' } })
+  @ApiProperty({ 
+    description: 'Customer information', 
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', example: '123e4567-e89b-12d3-a456-426614174002' },
+        name: { type: 'string', example: 'John Doe' },
+        phone: { type: 'string', example: '+919876543210' },
+        email: { type: 'string', example: 'john.doe@example.com' }
+      },
+      additionalProperties: false
+    }
+  })
   customer: { id: string; name: string; phone: string; email?: string };
   
   // Timing information
@@ -79,7 +91,20 @@ export class BookingResponseDto {
   holdExpiresAt?: Date; // For temp_hold status
 
   // Payment integration fields
-  @ApiProperty({ description: 'Payment link information (if payment required)', required: false, type: 'object', properties: { id: { type: 'string', example: 'plink_KKBLjhmrasdf23' }, shortUrl: { type: 'string', example: 'https://rzp.io/i/KKBLjhmr' }, expiresAt: { type: 'string', format: 'date-time' }, expiresInMinutes: { type: 'number', example: 15 } } })
+  @ApiProperty({ 
+    description: 'Payment link information (if payment required)', 
+    required: false, 
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', example: 'plink_KKBLjhmrasdf23' },
+        shortUrl: { type: 'string', example: 'https://rzp.io/i/KKBLjhmr' },
+        expiresAt: { type: 'string', format: 'date-time' },
+        expiresInMinutes: { type: 'number', example: 15 }
+      },
+      additionalProperties: false
+    }
+  })
   paymentLink?: {
     id: string;
     shortUrl: string;
@@ -105,11 +130,33 @@ export class AdminBookingResponseDto extends BookingResponseDto {
   idempotencyKey?: string;
   
   // Payment tracking
-  @ApiProperty({ description: 'Payment history (admin only)', required: false, type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, provider: { type: 'string', example: 'razorpay' }, amountCents: { type: 'number', example: 2500000 }, status: { type: 'string', example: 'completed' }, createdAt: { type: 'string', format: 'date-time' } } } })
+  @ApiProperty({ 
+    description: 'Payment history (admin only)', 
+    required: false, 
+    type: 'array', 
+    items: { 
+      type: 'object', 
+      properties: { 
+        id: { type: 'string', format: 'uuid' }, 
+        provider: { type: 'string', example: 'razorpay' }, 
+        amountCents: { type: 'number', example: 2500000 }, 
+        status: { type: 'string', example: 'completed' }, 
+        createdAt: { type: 'string', format: 'date-time' } 
+      } 
+    } 
+  })
   payments?: { id: string; provider: string; amountCents: number; status: string; createdAt: Date }[];
   
   // Audit information
-  @ApiProperty({ description: 'Additional metadata (admin only)', example: { source: 'website', referral: 'google_ads' }, required: false })
+  @ApiProperty({ 
+    description: 'Additional metadata (admin only)', 
+    required: false,
+    schema: {
+      type: 'object',
+      example: { source: 'website', referral: 'google_ads' },
+      additionalProperties: true
+    }
+  })
   meta?: Record<string, any>;
   
   // Computed analytics
@@ -162,10 +209,36 @@ export class AvailabilityResponseDto {
   @ApiProperty({ description: 'List of conflicting bookings (if any)', type: [BookingSummaryDto], required: false })
   conflictingBookings?: BookingSummaryDto[];
 
-  @ApiProperty({ description: 'Blackout periods during requested time', required: false, type: 'array', items: { type: 'object', properties: { id: { type: 'string', format: 'uuid' }, reason: { type: 'string', example: 'Maintenance' }, startTs: { type: 'string', format: 'date-time' }, endTs: { type: 'string', format: 'date-time' }, isMaintenance: { type: 'boolean' } } } })
+  @ApiProperty({ 
+    description: 'Blackout periods during requested time', 
+    required: false, 
+    type: 'array', 
+    items: { 
+      type: 'object', 
+      properties: { 
+        id: { type: 'string', format: 'uuid' }, 
+        reason: { type: 'string', example: 'Maintenance' }, 
+        startTs: { type: 'string', format: 'date-time' }, 
+        endTs: { type: 'string', format: 'date-time' }, 
+        isMaintenance: { type: 'boolean' } 
+      } 
+    } 
+  })
   blackoutPeriods?: { id: string; reason?: string; startTs: Date; endTs: Date; isMaintenance: boolean }[];
 
-  @ApiProperty({ description: 'Alternative time slots that are available', required: false, type: 'array', items: { type: 'object', properties: { startTs: { type: 'string', format: 'date-time' }, endTs: { type: 'string', format: 'date-time' }, isFullDay: { type: 'boolean' } } } })
+  @ApiProperty({ 
+    description: 'Alternative time slots that are available', 
+    required: false, 
+    type: 'array', 
+    items: { 
+      type: 'object', 
+      properties: { 
+        startTs: { type: 'string', format: 'date-time' }, 
+        endTs: { type: 'string', format: 'date-time' }, 
+        isFullDay: { type: 'boolean' } 
+      } 
+    } 
+  })
   suggestedAlternatives?: { startTs: Date; endTs: Date; isFullDay: boolean }[];
 }
 
@@ -190,7 +263,21 @@ export class CreateBookingResponseDto {
   holdExpiresIn?: number; // Minutes until temp hold expires
   
   // Payment integration
-  @ApiProperty({ description: 'Payment link details (if payment required)', required: false, type: 'object', properties: { id: { type: 'string', example: 'plink_KKBLjhmrasdf23' }, shortUrl: { type: 'string', example: 'https://rzp.io/i/KKBLjhmr' }, expiresAt: { type: 'string', format: 'date-time' }, amount: { type: 'number', example: 5000000 }, currency: { type: 'string', example: 'INR' } } })
+  @ApiProperty({ 
+    description: 'Payment link details (if payment required)', 
+    required: false, 
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', example: 'plink_KKBLjhmrasdf23' },
+        shortUrl: { type: 'string', example: 'https://rzp.io/i/KKBLjhmr' },
+        expiresAt: { type: 'string', format: 'date-time' },
+        amount: { type: 'number', example: 5000000 },
+        currency: { type: 'string', example: 'INR' }
+      },
+      additionalProperties: false
+    }
+  })
   paymentLink?: {
     id: string;
     shortUrl: string;
@@ -200,7 +287,20 @@ export class CreateBookingResponseDto {
   };
   
   // Next steps for user
-  @ApiProperty({ description: 'Next steps the user should take', type: 'array', items: { type: 'object', required: ['action', 'description'], properties: { action: { type: 'string', enum: ['payment', 'confirmation', 'wait'] }, description: { type: 'string', example: 'Complete payment within 30 minutes' }, deadline: { type: 'string', format: 'date-time' }, paymentUrl: { type: 'string', example: 'https://rzp.io/i/KKBLjhmr' } } } })
+  @ApiProperty({ 
+    description: 'Next steps the user should take', 
+    type: 'array', 
+    items: { 
+      type: 'object', 
+      required: ['action', 'description'], 
+      properties: { 
+        action: { type: 'string', enum: ['payment', 'confirmation', 'wait'] }, 
+        description: { type: 'string', example: 'Complete payment within 30 minutes' }, 
+        deadline: { type: 'string', format: 'date-time' }, 
+        paymentUrl: { type: 'string', example: 'https://rzp.io/i/KKBLjhmr' } 
+      } 
+    } 
+  })
   nextSteps: { action: string; description: string; deadline?: Date; paymentUrl?: string }[];
 }
 
@@ -217,7 +317,24 @@ export class BulkBookingResponseDto {
   @ApiProperty({ description: 'Number of bookings that failed to process', example: 2 })
   failed: number;
   
-  @ApiProperty({ description: 'Results for each booking in the bulk operation', type: 'array', items: { type: 'object', properties: { booking: { $ref: '#/components/schemas/BookingResponseDto' }, error: { type: 'object', properties: { code: { type: 'string', example: 'VENUE_NOT_AVAILABLE' }, message: { type: 'string', example: 'Venue is not available at the requested time' }, details: { type: 'object' } } } } } })
+  @ApiProperty({ 
+    description: 'Results for each booking in the bulk operation', 
+    type: 'array', 
+    items: { 
+      type: 'object', 
+      properties: { 
+        booking: { $ref: '#/components/schemas/BookingResponseDto' }, 
+        error: { 
+          type: 'object', 
+          properties: { 
+            code: { type: 'string', example: 'VENUE_NOT_AVAILABLE' }, 
+            message: { type: 'string', example: 'Venue is not available at the requested time' }, 
+            details: { type: 'object' } 
+          } 
+        } 
+      } 
+    } 
+  })
   results: { booking?: BookingResponseDto; error?: { code: string; message: string; details?: any } }[];
 }
 
