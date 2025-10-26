@@ -48,6 +48,14 @@ export class CacheService {
   }
 
   /**
+   * Alias for delete method to match Redis interface expectations
+   * This is used by payments services that call cacheService.del()
+   */
+  async del(key: string): Promise<void> {
+    return this.delete(key);
+  }
+
+  /**
    * Cache booking with standardized key pattern
    */
   async cacheBooking(booking: any, ttlSeconds: number = 3600): Promise<void> {
