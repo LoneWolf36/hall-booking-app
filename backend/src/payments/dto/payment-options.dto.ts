@@ -166,13 +166,17 @@ export class PaymentOptionsResponseDto {
   @ApiProperty({
     description: 'Customer payment preferences (if known)',
     required: false,
-    type: 'object',
-    properties: {
-      preferredMethod: { type: 'string', example: 'cash' },
-      cityTier: { type: 'string', example: 'tier2' },
-      totalBookings: { type: 'number', example: 3 },
+    additionalProperties: {
+      oneOf: [
+        { type: 'string' },
+        { type: 'number' }
+      ]
     },
-    additionalProperties: false,
+    example: {
+      preferredMethod: 'cash',
+      cityTier: 'tier2',
+      totalBookings: 3,
+    },
   })
   customerPreferences?: {
     preferredMethod: string;
@@ -204,8 +208,8 @@ export class SelectPaymentMethodDto {
 
   @ApiProperty({
     description: 'Additional customer preferences',
-    type: 'object',
     additionalProperties: { type: 'string' },
+    example: { preference1: 'value1', preference2: 'value2' },
   })
   @IsOptional()
   @IsObject()
@@ -406,8 +410,8 @@ export class VenueOnboardingDto {
 
   @ApiProperty({
     description: 'Additional responses to questionnaire',
-    type: 'object',
     additionalProperties: { type: 'string' },
+    example: { question1: 'answer1', question2: 'answer2' },
   })
   additionalResponses?: Record<string, string>;
 }
@@ -465,7 +469,6 @@ export class CommissionSummaryDto {
 
   @ApiProperty({
     description: 'Collection method breakdown',
-    type: 'object',
     additionalProperties: { type: 'number' },
     example: { auto_deduct: 200000, monthly_invoice: 250000, cash_settlement: 0 },
   })
