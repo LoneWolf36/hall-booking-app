@@ -1,0 +1,104 @@
+{
+  "displayName": "Comprehensive Test Suite - All Tests",
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": ".",
+  "testEnvironment": "node",
+  "testRegex": [
+    ".*\\.spec\\.ts$",
+    ".*\\.test\\.ts$",
+    ".*\\.integration\\.spec\\.ts$",
+    ".*\\.e2e-spec\\.ts$"
+  ],
+  "testMatch": [
+    "<rootDir>/../src/**/*.spec.ts",
+    "<rootDir>/**/*.spec.ts",
+    "<rootDir>/**/*.test.ts",
+    "<rootDir>/**/*.integration.spec.ts",
+    "<rootDir>/**/*.e2e-spec.ts"
+  ],
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "collectCoverageFrom": [
+    "../src/**/*.(t|j)s",
+    "!../src/**/*.spec.ts",
+    "!../src/**/*.e2e-spec.ts",
+    "!../src/main.ts",
+    "!../src/**/*.interface.ts",
+    "!../src/**/*.dto.ts",
+    "!../src/**/*.entity.ts",
+    "!../src/**/*.module.ts"
+  ],
+  "coverageDirectory": "../coverage/comprehensive",
+  "coverageReporters": ["text", "lcov", "html", "json-summary"],
+  "coverageThreshold": {
+    "global": {
+      "branches": 70,
+      "functions": 75,
+      "lines": 80,
+      "statements": 80
+    },
+    "../src/payments/": {
+      "branches": 85,
+      "functions": 90,
+      "lines": 90,
+      "statements": 90
+    },
+    "../src/bookings/": {
+      "branches": 80,
+      "functions": 85,
+      "lines": 85,
+      "statements": 85
+    },
+    "../src/users/": {
+      "branches": 75,
+      "functions": 80,
+      "lines": 80,
+      "statements": 80
+    }
+  },
+  "testTimeout": 45000,
+  "setupFilesAfterEnv": ["<rootDir>/setup/test-setup.ts"],
+  "moduleNameMapping": {
+    "^src/(.*)$": "<rootDir>/../src/$1"
+  },
+  "testPathIgnorePatterns": [
+    "<rootDir>/../dist/",
+    "<rootDir>/../node_modules/"
+  ],
+  "verbose": true,
+  "forceExit": true,
+  "detectOpenHandles": true,
+  "maxWorkers": 3,
+  "testSequencer": "<rootDir>/utils/test-sequencer.js",
+  "projects": [
+    {
+      "displayName": "Unit Tests",
+      "testMatch": [
+        "<rootDir>/../src/**/*.spec.ts"
+      ],
+      "testTimeout": 10000
+    },
+    {
+      "displayName": "Integration Tests", 
+      "testMatch": [
+        "<rootDir>/**/*.integration.spec.ts"
+      ],
+      "testTimeout": 20000
+    },
+    {
+      "displayName": "Payment Integration Tests",
+      "testMatch": [
+        "<rootDir>/integration/payment-integration.e2e-spec.ts"
+      ],
+      "testTimeout": 30000
+    },
+    {
+      "displayName": "E2E Tests",
+      "testMatch": [
+        "<rootDir>/**/*.e2e-spec.ts"
+      ],
+      "testTimeout": 25000
+    }
+  ]
+}
