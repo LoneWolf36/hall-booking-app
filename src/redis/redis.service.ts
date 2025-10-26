@@ -62,7 +62,7 @@ export class RedisService implements OnModuleInit {
     }
   }
 
-  private ensureConnection(): asserts this is { redis: Redis } {
+  private ensureConnection(): void {
     if (!this.redis) {
       throw new Error('Redis client is not initialized. Check your environment configuration.');
     }
@@ -74,9 +74,9 @@ export class RedisService implements OnModuleInit {
     try {
       this.logger.debug(`Redis SET key=${key}, ttl=${ttlSeconds}`);
       if (ttlSeconds) {
-        await this.redis.set(key, value, { ex: ttlSeconds });
+        await this.redis!.set(key, value, { ex: ttlSeconds });
       } else {
-        await this.redis.set(key, value);
+        await this.redis!.set(key, value);
       }
     } catch (error) {
       this.logger.error(`Redis SET failed for key: ${key}`, error);
@@ -88,7 +88,7 @@ export class RedisService implements OnModuleInit {
     this.ensureConnection();
     
     try {
-      return await this.redis.get(key);
+      return await this.redis!.get(key);
     } catch (error) {
       this.logger.error(`Redis GET failed for key: ${key}`, error);
       return null;
@@ -99,7 +99,7 @@ export class RedisService implements OnModuleInit {
     this.ensureConnection();
     
     try {
-      await this.redis.del(key);
+      await this.redis!.del(key);
     } catch (error) {
       this.logger.error(`Redis DEL failed for key: ${key}`, error);
       throw new Error(`Failed to delete cache value: ${error.message}`);
@@ -110,7 +110,7 @@ export class RedisService implements OnModuleInit {
     this.ensureConnection();
     
     try {
-      const result = await this.redis.exists(key);
+      const result = await this.redis!.exists(key);
       return result > 0;
     } catch (error) {
       this.logger.error(`Redis EXISTS failed for key: ${key}`, error);
@@ -122,9 +122,9 @@ export class RedisService implements OnModuleInit {
     this.ensureConnection();
     
     try {
-      const newValue = await this.redis.incr(key);
+      const newValue = await this.redis!.incr(key);
       if (newValue === 1 && ttlSeconds) {
-        await this.redis.expire(key, ttlSeconds);
+        await this.redis!.expire(key, ttlSeconds);
       }
       return newValue;
     } catch (error) {
@@ -137,7 +137,7 @@ export class RedisService implements OnModuleInit {
     this.ensureConnection();
     
     try {
-      const result = await this.redis.expire(key, ttlSeconds);
+      const result = await this.redis!.expire(key, ttlSeconds);
       return result === 1;
     } catch (error) {
       this.logger.error(`Redis EXPIRE failed for key: ${key}`, error);
