@@ -24,7 +24,6 @@ import {
   CreateBookingResponseDto,
 } from './dto/booking-response.dto';
 import { UserRole } from '../users/dto/create-user.dto';
-import { Venue } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
 /**
@@ -293,7 +292,7 @@ export class BookingsService {
   private async createBookingWithConstraints(
     tenantId: string,
     bookingData: any,
-    venue: Venue,
+    venue: any,
   ): Promise<any> {
     try {
       const totalAmountCents =
