@@ -1,65 +1,175 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { CalendarIcon, CreditCardIcon, ShieldIcon, UsersIcon } from "lucide-react";
 
-export default function Home() {
+export default function HomePage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="flex flex-col min-h-screen">
+      {/* Hero Section */}
+      <section className="px-4 py-16 md:py-24 lg:py-32 bg-gradient-to-r from-background to-muted">
+        <div className="container mx-auto text-center">
+          <div className="max-w-4xl mx-auto">
+            <Badge variant="secondary" className="mb-4">
+              🚀 Enterprise Grade Hall Booking Platform
+            </Badge>
+            <h1 className="text-4xl md:text-6xl font-bold mb-6">
+              Hall Booking System
+            </h1>
+            <p className="text-xl md:text-2xl text-muted-foreground mb-8">
+              Revolutionary flexible payment system serving all types of venues from cash-only to fully digital
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button asChild size="lg">
+                <Link href="/bookings">Browse Venues</Link>
+              </Button>
+              <Button asChild variant="outline" size="lg">
+                <Link href="/bookings/new">New Booking</Link>
+              </Button>
+            </div>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </section>
+
+      {/* Features Section */}
+      <section className="px-4 py-16">
+        <div className="container mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Why Choose Our Platform?</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Built for Parbhani hall MVP, designed to scale to 100+ venues as SaaS with payment flexibility for all venue types.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card>
+              <CardHeader>
+                <CalendarIcon className="h-8 w-8 text-primary mb-2" />
+                <CardTitle>Zero Double-Bookings</CardTitle>
+                <CardDescription>
+                  Database-level exclusion constraints prevent overlapping bookings guaranteed
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CreditCardIcon className="h-8 w-8 text-primary mb-2" />
+                <CardTitle>Flexible Payments</CardTitle>
+                <CardDescription>
+                  Revolutionary payment profiles from 5% cash-only to 15% full marketplace
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <ShieldIcon className="h-8 w-8 text-primary mb-2" />
+                <CardTitle>Enterprise Security</CardTitle>
+                <CardDescription>
+                  NestJS + TypeScript + Redis caching with production-grade monitoring
+                </CardDescription>
+              </CardHeader>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <UsersIcon className="h-8 w-8 text-primary mb-2" />
+                <CardTitle>Multi-Tenant Ready</CardTitle>
+                <CardDescription>
+                  Built for scalability with multi-tenant architecture and role-based access
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
         </div>
-      </main>
+      </section>
+
+      {/* Payment Profiles Section */}
+      <section className="px-4 py-16 bg-muted/50">
+        <div className="container mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Payment Profiles for Every Venue</h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+              Unlike traditional platforms that exclude 70% of Indian venues, our system serves EVERYONE.
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex justify-between">
+                  Cash Only
+                  <Badge variant="secondary">5% Commission</Badge>
+                </CardTitle>
+                <CardDescription>
+                  Zero tech barrier, manual confirmation
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Perfect for traditional halls and family businesses
+                </p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex justify-between">
+                  Hybrid Flexible
+                  <Badge variant="secondary">8% Commission</Badge>
+                </CardTitle>
+                <CardDescription>
+                  Customer chooses payment method
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Modern venues serving all customer preferences
+                </p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex justify-between">
+                  Full Marketplace
+                  <Badge variant="secondary">15% Commission</Badge>
+                </CardTitle>
+                <CardDescription>
+                  Platform handles everything
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Premium full-service venues with instant confirmation
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="px-4 py-16">
+        <div className="container mx-auto text-center">
+          <div className="max-w-2xl mx-auto">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Ready to Get Started?</h2>
+            <p className="text-lg text-muted-foreground mb-8">
+              Join the revolution in hall booking with our enterprise-grade platform
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button asChild size="lg">
+                <Link href="/bookings/new">Create Your First Booking</Link>
+              </Button>
+              <Button asChild variant="outline" size="lg">
+                <Link href="/venues">Explore Venues</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
