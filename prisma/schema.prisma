@@ -1,13 +1,9 @@
-// Prisma schema for Parbhani Hall Booking MVP
+// Prisma schema for Parbhani Hall Booking MVP with Flexible Payment System
 // Notes:
-// - Prisma does not natively support Postgres range types (e.g., tstzrange).
-//   Industry-standard practice is to store the range in a normal column via
-//   a raw SQL migration and access it via prisma.$queryRaw for reads/writes,
-//   while keeping a shadow JSON representation or start/end columns if needed.
-// - Here we model startTs/endTs as ISO timestamps for Prisma convenience,
-//   and we enforce overlap prevention at the database level using an
-//   exclusion constraint on a native Postgres column `ts_range TSTZRANGE`.
-// - Prisma models include tenant_id for future multi-tenant use (row-based).
+// - Supports multiple payment methods: cash-only, hybrid, full online
+// - Venues can choose their preferred payment profile
+// - Platform handles commission tracking for all payment types
+// - Designed for multi-tenant SaaS expansion
 
 generator client {
   provider = "prisma-client-js"
@@ -27,35 +23,57 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  venues   Venue[]
-  users    User[]
-  bookings Booking[]
-  payments Payment[]
-  Blackout Blackout[]
+  venues                     Venue[]
+  users                      User[]
+  bookings                   Booking[]
+  payments                   Payment[]
+  blackouts                  Blackout[]
+  cashPayments               CashPayment[]
+  commissionRecords          CommissionRecord[]
+  customerPaymentPreferences CustomerPaymentPreference[]
+  venueOnboardingResponses   VenueOnboardingResponse[]
 
   @@map("tenants")
 }
 
-/// Venue is the hall to be booked. MVP uses one venue.
+/// Venue with flexible payment configuration
 model Venue {
-  id             String   @id @default(uuid())
-  tenantId       String
-  name           String
-  address        String?
-  capacity       Int?
-  basePriceCents Int
-  currency       String   @default("INR")
-  timeZone       String   @default("Asia/Kolkata")
-  settings       Json?
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                            String   @id @default(uuid())
+  tenantId                      String
+  name                          String
+  address                       String?
+  capacity                      Int?
+  basePriceCents                Int
+  currency                      String   @default("INR")
+  timeZone                      String   @default("Asia/Kolkata")
+  settings                      Json?
+  isActive                      Boolean  @default(true)
+  // Payment Configuration
+  paymentProfile                String   @default("cash_only") // cash_only|cash_deposit|hybrid|full_online|marketplace
+  allowCashPayments             Boolean  @default(true)
+  cashDiscountPercentage        Decimal? @db.Decimal(5, 2)
+  requiresOnlineDeposit         Boolean  @default(false)
+  depositType                   String   @default("percentage") // percentage|fixed
+  depositAmount                 Int      @default(25) // 25% or fixed amount in cents
+  hasRazorpayAccount            Boolean  @default(false)
+  razorpayKeyId                 String?
+  razorpayKeySecretEncrypted    String?
+  platformHandlesPayments       Boolean  @default(false)
+  confirmationTrigger           String   @default("manual_approval") // deposit_only|full_payment|manual_approval
+  platformCommissionPercentage  Decimal  @default(10.00) @db.Decimal(5, 2)
+  paymentDueDaysBeforeEvent     Int      @default(7)
+  autoExpireUnpaidBookings      Boolean  @default(true)
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
 
-  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  bookings  Booking[]
-  blackouts Blackout[]
+  tenant                   Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bookings                 Booking[]
+  blackouts                Blackout[]
+  commissionRecords        CommissionRecord[]
+  venueOnboardingResponses VenueOnboardingResponse[]
 
   @@unique([tenantId, name])
+  @@index([paymentProfile])
   @@map("venues")
 }
 
@@ -70,56 +88,73 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  bookings Booking[]
+  tenant                     Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bookings                   Booking[]
+  confirmedBookings          Booking[]                   @relation("BookingConfirmedBy")
+  cashPaymentsRecorded       CashPayment[]
+  customerPaymentPreferences CustomerPaymentPreference[]
 
   @@unique([tenantId, phone])
   @@map("users")
 }
 
-/// Booking stores startTs/endTs for Prisma convenience, while actual overlap
-/// prevention is enforced by a native Postgres `ts_range TSTZRANGE` column
-/// added via SQL migration + GIST exclusion constraint.
+/// Enhanced booking with flexible payment support
 model Booking {
-  id               String    @id @default(uuid())
-  tenantId         String
-  venueId          String
-  userId           String
-  bookingNumber    String
-  // Prisma-level timestamps for app logic, always UTC in DB
-  startTs          DateTime
-  endTs            DateTime
-  status           String    @default("temp_hold") // temp_hold|pending|confirmed|cancelled|expired
-  holdExpiresAt    DateTime?
-  totalAmountCents Int?
-  currency         String    @default("INR")
-  paymentStatus    String    @default("pending") // pending|partial|paid|refunded
-  idempotencyKey   String?
-  eventType        String?
-  guestCount       Int?
-  specialRequests  String?
-  meta             Json?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                         String    @id @default(uuid())
+  tenantId                   String
+  venueId                    String
+  userId                     String
+  bookingNumber              String
+  // Timing
+  startTs                    DateTime
+  endTs                      DateTime
+  status                     String    @default("temp_hold") // temp_hold|pending|confirmed|cancelled|expired
+  holdExpiresAt              DateTime?
+  // Pricing
+  totalAmountCents           Int?
+  currency                   String    @default("INR")
+  paymentStatus              String    @default("pending") // pending|partial|paid|refunded
+  // Payment Method Configuration
+  paymentMethod              String? // cash_full|deposit_online|hybrid_flexible|full_online|marketplace
+  onlineAmountDue            Int       @default(0)
+  cashAmountDue              Int       @default(0)
+  cashDiscountApplied        Int       @default(0)
+  paymentDueDate             DateTime?
+  cashPaymentAcknowledged    Boolean   @default(false)
+  // Confirmation
+  requiresManualConfirmation Boolean   @default(false)
+  confirmedBy                String?
+  // Metadata
+  idempotencyKey             String?
+  eventType                  String?
+  guestCount                 Int?
+  specialRequests            String?
+  meta                       Json?
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  venue    Venue     @relation(fields: [venueId], references: [id], onDelete: Cascade)
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  payments Payment[]
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  venue            Venue              @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  confirmedByUser  User?              @relation("BookingConfirmedBy", fields: [confirmedBy], references: [id])
+  payments         Payment[]
+  cashPayments     CashPayment[]
+  commissionRecord CommissionRecord[]
 
   @@unique([tenantId, bookingNumber])
   @@unique([tenantId, idempotencyKey])
   @@index([tenantId, venueId, startTs, endTs])
   @@index([status, holdExpiresAt])
+  @@index([paymentMethod])
+  @@index([requiresManualConfirmation, status])
   @@map("bookings")
 }
 
-/// Blackout periods where the venue is unavailable.
+/// Blackout periods where the venue is unavailable
 model Blackout {
   id            String   @id @default(uuid())
   tenantId      String
   venueId       String
-  // Prisma-level timestamps; DB also keeps native ts_range
   startTs       DateTime
   endTs         DateTime
   reason        String?
@@ -133,12 +168,12 @@ model Blackout {
   @@map("availability_blackouts")
 }
 
-/// Payments linked to bookings and processed via Razorpay or cash
+/// Online payments via Razorpay or other gateways
 model Payment {
   id                String    @id @default(uuid())
   tenantId          String
   bookingId         String
-  provider          String // razorpay|cash|...
+  provider          String // razorpay|cash|manual
   providerPaymentId String?
   amountCents       Int
   currency          String    @default("INR")
@@ -152,4 +187,93 @@ model Payment {
 
   @@index([tenantId, bookingId, status])
   @@map("payments")
+}
+
+/// Cash payment tracking for offline transactions
+model CashPayment {
+  id                 String    @id @default(uuid())
+  tenantId           String
+  bookingId          String
+  amountCents        Int
+  recordedBy         String? // Venue staff who recorded payment
+  recordedAt         DateTime  @default(now())
+  paymentMethod      String    @default("cash") // cash|cheque|bank_transfer|upi_cash
+  notes              String?
+  receiptNumber      String?
+  verificationStatus String    @default("pending") // pending|verified|disputed
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  tenant     Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking    Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  recordedByUser User?   @relation(fields: [recordedBy], references: [id])
+
+  @@index([bookingId])
+  @@index([recordedBy, recordedAt])
+  @@map("cash_payments")
+}
+
+/// Platform commission tracking for all booking types
+model CommissionRecord {
+  id                     String    @id @default(uuid())
+  tenantId               String
+  bookingId              String
+  venueId                String
+  bookingAmountCents     Int
+  commissionPercentage   Decimal   @db.Decimal(5, 2)
+  commissionAmountCents  Int
+  commissionStatus       String    @default("pending") // pending|collected|waived|disputed
+  collectionMethod       String? // auto_deduct|manual_payment|monthly_invoice|cash_settlement
+  collectedAt            DateTime?
+  dueDate                DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  venue   Venue   @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([commissionStatus, dueDate])
+  @@index([venueId, createdAt])
+  @@map("commission_records")
+}
+
+/// Customer payment behavior tracking
+model CustomerPaymentPreference {
+  id                     String   @id @default(uuid())
+  tenantId               String
+  userId                 String
+  preferredMethod        String   @default("cash") // cash|online|hybrid
+  cityTier               String? // tier1|tier2|tier3
+  lastPaymentMethod      String?
+  totalBookings          Int      @default(0)
+  totalOnlinePayments    Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+  @@map("customer_payment_preferences")
+}
+
+/// Venue onboarding questionnaire responses
+model VenueOnboardingResponse {
+  id                      String   @id @default(uuid())
+  tenantId                String
+  venueId                 String
+  paymentPreference       String? // cash_only|mostly_cash|mixed|online_preferred|platform_managed
+  techComfortLevel        String? // no_tech|basic_tech|advanced_tech
+  currentPaymentMethods   Json?
+  monthlyBookingVolume    Int?
+  averageBookingValueCents Int?
+  responses               Json? // All questionnaire responses
+  createdAt               DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  venue  Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@map("venue_onboarding_responses")
 }
