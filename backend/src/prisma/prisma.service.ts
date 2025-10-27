@@ -1,6 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 // Now using TypeScript path mapping for cleaner imports
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../../generated/prisma';
 
 /**
  * Prisma Service - Database connection and client management
