@@ -6005,6 +6005,7 @@ export namespace Prisma {
     cashPaymentAcknowledged: boolean | null
     requiresManualConfirmation: boolean | null
     confirmedBy: string | null
+    confirmedAt: Date | null
     idempotencyKey: string | null
     eventType: string | null
     guestCount: number | null
@@ -6034,6 +6035,7 @@ export namespace Prisma {
     cashPaymentAcknowledged: boolean | null
     requiresManualConfirmation: boolean | null
     confirmedBy: string | null
+    confirmedAt: Date | null
     idempotencyKey: string | null
     eventType: string | null
     guestCount: number | null
@@ -6063,6 +6065,7 @@ export namespace Prisma {
     cashPaymentAcknowledged: number
     requiresManualConfirmation: number
     confirmedBy: number
+    confirmedAt: number
     idempotencyKey: number
     eventType: number
     guestCount: number
@@ -6111,6 +6114,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: true
     requiresManualConfirmation?: true
     confirmedBy?: true
+    confirmedAt?: true
     idempotencyKey?: true
     eventType?: true
     guestCount?: true
@@ -6140,6 +6144,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: true
     requiresManualConfirmation?: true
     confirmedBy?: true
+    confirmedAt?: true
     idempotencyKey?: true
     eventType?: true
     guestCount?: true
@@ -6169,6 +6174,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: true
     requiresManualConfirmation?: true
     confirmedBy?: true
+    confirmedAt?: true
     idempotencyKey?: true
     eventType?: true
     guestCount?: true
@@ -6286,6 +6292,7 @@ export namespace Prisma {
     cashPaymentAcknowledged: boolean
     requiresManualConfirmation: boolean
     confirmedBy: string | null
+    confirmedAt: Date | null
     idempotencyKey: string | null
     eventType: string | null
     guestCount: number | null
@@ -6335,6 +6342,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: boolean
+    confirmedAt?: boolean
     idempotencyKey?: boolean
     eventType?: boolean
     guestCount?: boolean
@@ -6373,6 +6381,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: boolean
+    confirmedAt?: boolean
     idempotencyKey?: boolean
     eventType?: boolean
     guestCount?: boolean
@@ -6407,6 +6416,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: boolean
+    confirmedAt?: boolean
     idempotencyKey?: boolean
     eventType?: boolean
     guestCount?: boolean
@@ -6441,6 +6451,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: boolean
+    confirmedAt?: boolean
     idempotencyKey?: boolean
     eventType?: boolean
     guestCount?: boolean
@@ -6450,7 +6461,7 @@ export namespace Prisma {
     updatedAt?: boolean
   }
 
-  export type BookingOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "tenantId" | "venueId" | "userId" | "bookingNumber" | "startTs" | "endTs" | "status" | "holdExpiresAt" | "totalAmountCents" | "currency" | "paymentStatus" | "paymentMethod" | "onlineAmountDue" | "cashAmountDue" | "cashDiscountApplied" | "paymentDueDate" | "cashPaymentAcknowledged" | "requiresManualConfirmation" | "confirmedBy" | "idempotencyKey" | "eventType" | "guestCount" | "specialRequests" | "meta" | "createdAt" | "updatedAt", ExtArgs["result"]["booking"]>
+  export type BookingOmit<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = $Extensions.GetOmit<"id" | "tenantId" | "venueId" | "userId" | "bookingNumber" | "startTs" | "endTs" | "status" | "holdExpiresAt" | "totalAmountCents" | "currency" | "paymentStatus" | "paymentMethod" | "onlineAmountDue" | "cashAmountDue" | "cashDiscountApplied" | "paymentDueDate" | "cashPaymentAcknowledged" | "requiresManualConfirmation" | "confirmedBy" | "confirmedAt" | "idempotencyKey" | "eventType" | "guestCount" | "specialRequests" | "meta" | "createdAt" | "updatedAt", ExtArgs["result"]["booking"]>
   export type BookingInclude<ExtArgs extends $Extensions.InternalArgs = $Extensions.DefaultArgs> = {
     tenant?: boolean | TenantDefaultArgs<ExtArgs>
     venue?: boolean | VenueDefaultArgs<ExtArgs>
@@ -6506,6 +6517,7 @@ export namespace Prisma {
       cashPaymentAcknowledged: boolean
       requiresManualConfirmation: boolean
       confirmedBy: string | null
+      confirmedAt: Date | null
       idempotencyKey: string | null
       eventType: string | null
       guestCount: number | null
@@ -6963,6 +6975,7 @@ export namespace Prisma {
     readonly cashPaymentAcknowledged: FieldRef<"Booking", 'Boolean'>
     readonly requiresManualConfirmation: FieldRef<"Booking", 'Boolean'>
     readonly confirmedBy: FieldRef<"Booking", 'String'>
+    readonly confirmedAt: FieldRef<"Booking", 'DateTime'>
     readonly idempotencyKey: FieldRef<"Booking", 'String'>
     readonly eventType: FieldRef<"Booking", 'String'>
     readonly guestCount: FieldRef<"Booking", 'Int'>
@@ -14615,6 +14628,7 @@ export namespace Prisma {
     cashPaymentAcknowledged: 'cashPaymentAcknowledged',
     requiresManualConfirmation: 'requiresManualConfirmation',
     confirmedBy: 'confirmedBy',
+    confirmedAt: 'confirmedAt',
     idempotencyKey: 'idempotencyKey',
     eventType: 'eventType',
     guestCount: 'guestCount',
@@ -15233,6 +15247,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFilter<"Booking"> | boolean
     requiresManualConfirmation?: BoolFilter<"Booking"> | boolean
     confirmedBy?: UuidNullableFilter<"Booking"> | string | null
+    confirmedAt?: DateTimeNullableFilter<"Booking"> | Date | string | null
     idempotencyKey?: StringNullableFilter<"Booking"> | string | null
     eventType?: StringNullableFilter<"Booking"> | string | null
     guestCount?: IntNullableFilter<"Booking"> | number | null
@@ -15270,6 +15285,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: SortOrder
     requiresManualConfirmation?: SortOrder
     confirmedBy?: SortOrderInput | SortOrder
+    confirmedAt?: SortOrderInput | SortOrder
     idempotencyKey?: SortOrderInput | SortOrder
     eventType?: SortOrderInput | SortOrder
     guestCount?: SortOrderInput | SortOrder
@@ -15312,6 +15328,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFilter<"Booking"> | boolean
     requiresManualConfirmation?: BoolFilter<"Booking"> | boolean
     confirmedBy?: UuidNullableFilter<"Booking"> | string | null
+    confirmedAt?: DateTimeNullableFilter<"Booking"> | Date | string | null
     idempotencyKey?: StringNullableFilter<"Booking"> | string | null
     eventType?: StringNullableFilter<"Booking"> | string | null
     guestCount?: IntNullableFilter<"Booking"> | number | null
@@ -15349,6 +15366,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: SortOrder
     requiresManualConfirmation?: SortOrder
     confirmedBy?: SortOrderInput | SortOrder
+    confirmedAt?: SortOrderInput | SortOrder
     idempotencyKey?: SortOrderInput | SortOrder
     eventType?: SortOrderInput | SortOrder
     guestCount?: SortOrderInput | SortOrder
@@ -15387,6 +15405,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolWithAggregatesFilter<"Booking"> | boolean
     requiresManualConfirmation?: BoolWithAggregatesFilter<"Booking"> | boolean
     confirmedBy?: UuidNullableWithAggregatesFilter<"Booking"> | string | null
+    confirmedAt?: DateTimeNullableWithAggregatesFilter<"Booking"> | Date | string | null
     idempotencyKey?: StringNullableWithAggregatesFilter<"Booking"> | string | null
     eventType?: StringNullableWithAggregatesFilter<"Booking"> | string | null
     guestCount?: IntNullableWithAggregatesFilter<"Booking"> | number | null
@@ -16357,6 +16376,7 @@ export namespace Prisma {
     paymentDueDate?: Date | string | null
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -16394,6 +16414,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: string | null
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -16423,6 +16444,7 @@ export namespace Prisma {
     paymentDueDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -16460,6 +16482,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
     confirmedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -16493,6 +16516,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: string | null
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -16519,6 +16543,7 @@ export namespace Prisma {
     paymentDueDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -16549,6 +16574,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
     confirmedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -17746,6 +17772,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: SortOrder
     requiresManualConfirmation?: SortOrder
     confirmedBy?: SortOrder
+    confirmedAt?: SortOrder
     idempotencyKey?: SortOrder
     eventType?: SortOrder
     guestCount?: SortOrder
@@ -17784,6 +17811,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: SortOrder
     requiresManualConfirmation?: SortOrder
     confirmedBy?: SortOrder
+    confirmedAt?: SortOrder
     idempotencyKey?: SortOrder
     eventType?: SortOrder
     guestCount?: SortOrder
@@ -17813,6 +17841,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: SortOrder
     requiresManualConfirmation?: SortOrder
     confirmedBy?: SortOrder
+    confirmedAt?: SortOrder
     idempotencyKey?: SortOrder
     eventType?: SortOrder
     guestCount?: SortOrder
@@ -19789,6 +19818,7 @@ export namespace Prisma {
     paymentDueDate?: Date | string | null
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -19824,6 +19854,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: string | null
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -20176,6 +20207,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFilter<"Booking"> | boolean
     requiresManualConfirmation?: BoolFilter<"Booking"> | boolean
     confirmedBy?: UuidNullableFilter<"Booking"> | string | null
+    confirmedAt?: DateTimeNullableFilter<"Booking"> | Date | string | null
     idempotencyKey?: StringNullableFilter<"Booking"> | string | null
     eventType?: StringNullableFilter<"Booking"> | string | null
     guestCount?: IntNullableFilter<"Booking"> | number | null
@@ -20437,6 +20469,7 @@ export namespace Prisma {
     paymentDueDate?: Date | string | null
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -20472,6 +20505,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: string | null
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -20763,6 +20797,7 @@ export namespace Prisma {
     paymentDueDate?: Date | string | null
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -20798,6 +20833,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: string | null
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -20837,6 +20873,7 @@ export namespace Prisma {
     paymentDueDate?: Date | string | null
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -20872,6 +20909,7 @@ export namespace Prisma {
     paymentDueDate?: Date | string | null
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -21893,6 +21931,7 @@ export namespace Prisma {
     paymentDueDate?: Date | string | null
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -21929,6 +21968,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: string | null
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -22018,6 +22058,7 @@ export namespace Prisma {
     paymentDueDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -22054,6 +22095,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
     confirmedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -22121,6 +22163,7 @@ export namespace Prisma {
     paymentDueDate?: Date | string | null
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -22157,6 +22200,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: string | null
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -22279,6 +22323,7 @@ export namespace Prisma {
     paymentDueDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -22315,6 +22360,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
     confirmedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -22421,6 +22467,7 @@ export namespace Prisma {
     paymentDueDate?: Date | string | null
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -22457,6 +22504,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: string | null
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -22615,6 +22663,7 @@ export namespace Prisma {
     paymentDueDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -22651,6 +22700,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
     confirmedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -23179,6 +23229,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: string | null
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -23411,6 +23462,7 @@ export namespace Prisma {
     paymentDueDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -23446,6 +23498,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
     confirmedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -23478,6 +23531,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
     confirmedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -23735,6 +23789,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: string | null
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -23798,6 +23853,7 @@ export namespace Prisma {
     paymentDueDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -23833,6 +23889,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
     confirmedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -23865,6 +23922,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
     confirmedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -24005,6 +24063,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
     confirmedBy?: string | null
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -24034,6 +24093,7 @@ export namespace Prisma {
     paymentDueDate?: Date | string | null
     cashPaymentAcknowledged?: boolean
     requiresManualConfirmation?: boolean
+    confirmedAt?: Date | string | null
     idempotencyKey?: string | null
     eventType?: string | null
     guestCount?: number | null
@@ -24086,6 +24146,7 @@ export namespace Prisma {
     paymentDueDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -24121,6 +24182,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
     confirmedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -24153,6 +24215,7 @@ export namespace Prisma {
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
     confirmedBy?: NullableStringFieldUpdateOperationsInput | string | null
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -24179,6 +24242,7 @@ export namespace Prisma {
     paymentDueDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -24214,6 +24278,7 @@ export namespace Prisma {
     paymentDueDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null
@@ -24246,6 +24311,7 @@ export namespace Prisma {
     paymentDueDate?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     cashPaymentAcknowledged?: BoolFieldUpdateOperationsInput | boolean
     requiresManualConfirmation?: BoolFieldUpdateOperationsInput | boolean
+    confirmedAt?: NullableDateTimeFieldUpdateOperationsInput | Date | string | null
     idempotencyKey?: NullableStringFieldUpdateOperationsInput | string | null
     eventType?: NullableStringFieldUpdateOperationsInput | string | null
     guestCount?: NullableIntFieldUpdateOperationsInput | number | null

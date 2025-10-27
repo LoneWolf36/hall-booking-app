@@ -190,6 +190,7 @@ exports.Prisma.BookingScalarFieldEnum = {
   cashPaymentAcknowledged: 'cashPaymentAcknowledged',
   requiresManualConfirmation: 'requiresManualConfirmation',
   confirmedBy: 'confirmedBy',
+  confirmedAt: 'confirmedAt',
   idempotencyKey: 'idempotencyKey',
   eventType: 'eventType',
   guestCount: 'guestCount',

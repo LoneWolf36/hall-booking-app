@@ -128,7 +128,7 @@ model Booking {
   // Confirmation
   requiresManualConfirmation Boolean                   @default(false)
   confirmedBy                String?                   @db.Uuid
-  confirmedAt                DateTime?                 // NEW: explicit confirmation timestamp
+  confirmedAt                DateTime?                 
   // Metadata
   idempotencyKey             String?
   eventType                  String?
