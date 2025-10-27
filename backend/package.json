@@ -10,6 +10,9 @@
     "npm": ">=8.0.0"
   },
   "scripts": {
+    "setup": "node setup.js",
+    "setup:quick": "npm install && npm run db:generate",
+    "prisma:fix": "npm run db:generate && echo 'Prisma client regenerated successfully'",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
@@ -38,9 +41,13 @@
     "test:summary": "echo 'Running all test suites...' && npm run test:existing-only && npm run test:new-only && npm run test:payments && npm run test:e2e",
     "test:validate-all": "npm run test:existing-only && npm run test:integration && npm run test:payments && npm run test:e2e && npm run test:performance",
     "db:migrate": "npx prisma migrate deploy",
+    "db:migrate:dev": "npx prisma migrate dev",
     "db:generate": "npx prisma generate",
     "db:studio": "npx prisma studio",
+    "db:reset": "npx prisma migrate reset",
+    "db:seed": "npx prisma db seed",
     "db:test-setup": "npm run db:migrate && npm run db:generate",
+    "db:status": "npx prisma migrate status",
     "dev": "next dev --port 3001",
     "type-check": "tsc --noEmit",
     "lint:fix": "eslint --fix .",
