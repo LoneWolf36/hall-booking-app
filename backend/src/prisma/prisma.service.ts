@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+// Import from the custom generator output path instead of @prisma/client
+import { PrismaClient } from '../../../generated/prisma';
 
 /**
  * Prisma Service - Database connection and client management
@@ -94,4 +95,25 @@ export class PrismaService
  * 3. **Configuration**: Environment-specific settings
  * 4. **Monitoring**: Built-in logging and health checks
  * 5. **Error Handling**: Proper exception handling
+ */
+
+/**
+ * IMPORTANT: Custom Generator Output Path
+ * 
+ * This service imports from '../../../generated/prisma' because the 
+ * Prisma schema has a custom output configuration:
+ * 
+ * generator client {
+ *   provider = "prisma-client-js"
+ *   output   = "../generated/prisma"
+ * }
+ * 
+ * This means the generated client is located at:
+ * backend/generated/prisma/ (relative to backend/prisma/)
+ * 
+ * From backend/src/prisma/prisma.service.ts, the path is:
+ * ../../../generated/prisma
+ * 
+ * Alternative: Remove the custom output from schema.prisma and use
+ * the default import: import { PrismaClient } from '@prisma/client'
  */
