@@ -1,5 +1,5 @@
-import { api } from '@/lib/api';
-import type { AxiosResponse } from '@/lib/api';
+import { api } from '../lib/api';
+import type { AxiosResponse } from '../lib/api';
 
 export interface AvailabilityRequest {
   venueId: string;
@@ -123,9 +123,6 @@ export class AvailabilityService {
         month: 'long',
         day: 'numeric',
       });
-    } catch (error) {
-      console.warn('Failed to format date:', dateString);
-      return dateString;
     }
   }
 
