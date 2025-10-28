@@ -1,3 +1,3 @@
-// Export all context providers
-export * from './auth-context';
-export * from './booking-context';
+// Context providers (if needed in future)
+// Currently using Zustand for state management
+// See src/stores/ for global state

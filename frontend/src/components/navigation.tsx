@@ -3,148 +3,57 @@
 import Link from "next/link"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
-import {
-  NavigationMenu,
-  NavigationMenuContent,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  NavigationMenuTrigger,
-} from "@/components/ui/navigation-menu"
-import { MoonIcon, SunIcon, CalendarIcon, SearchIcon } from "lucide-react"
+import { MoonIcon, SunIcon, CalendarIcon, PhoneIcon } from "lucide-react"
 
 export function Navigation() {
   const { setTheme, theme } = useTheme()
 
+  // Venue info (would come from configuration)
+  const venueName = "Grand Celebration Hall";
+
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 items-center">
-        <div className="mr-4 hidden md:flex">
-          <Link className="mr-6 flex items-center space-x-2" href="/">
-            <CalendarIcon className="h-6 w-6" />
-            <span className="hidden font-bold sm:inline-block">
-              Hall Booking System
-            </span>
-          </Link>
-          <NavigationMenu>
-            <NavigationMenuList>
-              <NavigationMenuItem>
-                <NavigationMenuLink asChild>
-                  <Link
-                    className="group inline-flex h-10 w-max items-center justify-center rounded-md bg-background px-4 py-2 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground focus:outline-none disabled:pointer-events-none disabled:opacity-50"
-                    href="/availability"
-                  >
-                    <SearchIcon className="mr-2 h-4 w-4" />
-                    Check Availability
-                  </Link>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-              <NavigationMenuItem>
-                <NavigationMenuTrigger>Bookings</NavigationMenuTrigger>
-                <NavigationMenuContent>
-                  <ul className="grid gap-3 p-6 md:w-[400px] lg:w-[500px] lg:grid-cols-[.75fr_1fr]">
-                    <li className="row-span-3">
-                      <NavigationMenuLink asChild>
-                        <Link
-                          className="flex h-full w-full select-none flex-col justify-end rounded-md bg-gradient-to-b from-muted/50 to-muted p-6 no-underline outline-none focus:shadow-md"
-                          href="/bookings"
-                        >
-                          <CalendarIcon className="h-6 w-6" />
-                          <div className="mb-2 mt-4 text-lg font-medium">
-                            Manage Bookings
-                          </div>
-                          <p className="text-sm leading-tight text-muted-foreground">
-                            View and manage all your hall bookings with flexible payment options
-                          </p>
-                        </Link>
-                      </NavigationMenuLink>
-                    </li>
-                    <li>
-                      <NavigationMenuLink asChild>
-                        <Link
-                          className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                          href="/bookings/new"
-                        >
-                          <div className="text-sm font-medium leading-none">New Booking</div>
-                          <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                            Create a new hall booking
-                          </p>
-                        </Link>
-                      </NavigationMenuLink>
-                    </li>
-                    <li>
-                      <NavigationMenuLink asChild>
-                        <Link
-                          className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                          href="/payments"
-                        >
-                          <div className="text-sm font-medium leading-none">Payments</div>
-                          <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                            Track payment status and history
-                          </p>
-                        </Link>
-                      </NavigationMenuLink>
-                    </li>
-                  </ul>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
-              <NavigationMenuItem>
-                <NavigationMenuTrigger>Venues</NavigationMenuTrigger>
-                <NavigationMenuContent>
-                  <ul className="grid w-[400px] gap-3 p-4 md:w-[500px] md:grid-cols-2 lg:w-[600px]">
-                    <li>
-                      <NavigationMenuLink asChild>
-                        <Link
-                          className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                          href="/venues"
-                        >
-                          <div className="text-sm font-medium leading-none">Browse Venues</div>
-                          <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                            Explore available halls and venues
-                          </p>
-                        </Link>
-                      </NavigationMenuLink>
-                    </li>
-                    <li>
-                      <NavigationMenuLink asChild>
-                        <Link
-                          className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                          href="/availability"
-                        >
-                          <div className="text-sm font-medium leading-none">Check Availability</div>
-                          <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                            Real-time availability checking
-                          </p>
-                        </Link>
-                      </NavigationMenuLink>
-                    </li>
-                  </ul>
-                </NavigationMenuContent>
-              </NavigationMenuItem>
-            </NavigationMenuList>
-          </NavigationMenu>
-        </div>
-        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
-          <div className="w-full flex-1 md:w-auto md:flex-none">
-            {/* Search can be added here later */}
+    <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/90 backdrop-blur-xl supports-[backdrop-filter]:bg-background/75 shadow-sm">
+      <div className="container mx-auto px-6 flex h-16 items-center justify-between">
+        {/* Logo/Brand */}
+        <Link href="/" className="flex items-center space-x-3 group transition-all">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center shadow-md group-hover:shadow-lg group-hover:scale-105 transition-all duration-300">
+            <CalendarIcon className="h-5 w-5 text-primary-foreground" />
           </div>
-          <nav className="flex items-center gap-2">
-            <Button asChild variant="outline" size="sm" className="hidden md:inline-flex">
-              <Link href="/availability">
-                <SearchIcon className="mr-2 h-4 w-4" />
-                Check Availability
-              </Link>
+          <span className="hidden font-semibold text-lg sm:inline-block bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text">
+            {venueName}
+          </span>
+        </Link>
+
+        {/* Right Section */}
+        <div className="flex items-center gap-3">
+          {/* Contact Button */}
+          <Link href="tel:+919876543210" className="hidden sm:inline-flex">
+            <Button variant="ghost" size="sm" className="gap-2 hover:bg-primary/10 transition-all duration-300 font-medium rounded-lg">
+              <PhoneIcon className="h-4 w-4" />
+              Contact
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-            >
-              <SunIcon className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-              <MoonIcon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-              <span className="sr-only">Toggle theme</span>
+          </Link>
+
+          {/* Book Now Button */}
+          <Link href="/booking">
+            <Button size="sm" className="gap-2 shadow-md hover:shadow-lg transition-all duration-300 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 font-medium px-5 rounded-lg">
+              <CalendarIcon className="h-4 w-4" />
+              <span className="hidden sm:inline">Book Now</span>
+              <span className="sm:hidden">Book</span>
             </Button>
-          </nav>
+          </Link>
+
+          {/* Theme Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+            className="rounded-xl hover:bg-primary/10 transition-colors"
+          >
+            <SunIcon className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+            <MoonIcon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            <span className="sr-only">Toggle theme</span>
+          </Button>
         </div>
       </div>
     </header>

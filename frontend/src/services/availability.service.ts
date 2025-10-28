@@ -123,6 +123,9 @@ export class AvailabilityService {
         month: 'long',
         day: 'numeric',
       });
+    } catch (error) {
+      console.warn('Failed to format date:', dateString);
+      return dateString;
     }
   }
 

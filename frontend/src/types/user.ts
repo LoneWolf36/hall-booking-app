@@ -1,44 +1,82 @@
-// User types for authentication and management
+/**
+ * User Type Definitions
+ * 
+ * Types for user profiles, preferences, and related data.
+ */
+
+import type { UserRole } from './auth';
+
+/**
+ * User profile data
+ */
 export interface User {
   id: string;
   phone: string;
-  firstName: string;
-  lastName: string;
+  name: string;
   email?: string;
   role: UserRole;
   tenantId: string;
-  isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  lastLoginAt?: string;
+  isActive: boolean;
+  preferences?: UserPreferences;
+  metadata?: Record<string, any>;
 }
 
-export enum UserRole {
-  CUSTOMER = 'CUSTOMER',
-  VENUE_ADMIN = 'VENUE_ADMIN',
-  SUPER_ADMIN = 'SUPER_ADMIN',
+/**
+ * User preferences
+ */
+export interface UserPreferences {
+  language: string;
+  timezone: string;
+  notifications: {
+    email: boolean;
+    sms: boolean;
+    whatsapp: boolean;
+  };
+  theme: 'light' | 'dark' | 'system';
 }
 
+/**
+ * User profile update DTO
+ */
+export interface UpdateUserDto {
+  name?: string;
+  email?: string;
+  preferences?: Partial<UserPreferences>;
+}
+
+/**
+ * User creation DTO (during OTP verification)
+ */
 export interface CreateUserDto {
   phone: string;
-  firstName: string;
-  lastName: string;
+  name: string;
   email?: string;
   role?: UserRole;
+  tenantId: string;
 }
 
-export interface UpdateUserDto {
-  firstName?: string;
-  lastName?: string;
-  email?: string;
+/**
+ * User statistics for dashboard
+ */
+export interface UserStats {
+  totalBookings: number;
+  upcomingBookings: number;
+  completedBookings: number;
+  cancelledBookings: number;
+  totalSpent: number;
+  currency: string;
 }
 
-export interface AuthResponse {
-  user: User;
-  token: string;
-  refreshToken: string;
-}
-
-export interface LoginDto {
-  phone: string;
-  otp?: string;
+/**
+ * User notification preferences
+ */
+export interface NotificationSettings {
+  bookingConfirmation: boolean;
+  bookingReminder: boolean;
+  paymentReceipt: boolean;
+  promotions: boolean;
+  newsletter: boolean;
 }

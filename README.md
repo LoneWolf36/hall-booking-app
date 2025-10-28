@@ -1,8 +1,23 @@
-# Parbhani Hall Booking System
+# Hall Booking System - White Label Platform
 
-**Enterprise-grade hall booking system with zero double-bookings guaranteed and revolutionary flexible payment system**
+**Enterprise-grade white-label booking system for individual venues with zero double-bookings and flexible payment options**
 
-Built for Parbhani hall MVP, designed to scale to 100+ venues as SaaS with payment flexibility for all venue types.
+Designed as a **white-label solution** where each venue gets their own branded booking interface. Built for Parbhani hall MVP, architected to scale as SaaS serving 100+ independent venue instances.
+
+## 🎯 Core Concept
+
+### White-Label Architecture
+- **One Venue Per Instance**: Each deployment serves a single venue
+- **Custom Branding**: Venue name, colors, and contact info
+- **Multi-Day Booking**: Customers select one or multiple full days
+- **Simple Flow**: Calendar → Event Details → Login → Payment → Confirmation
+
+### NOT a Marketplace
+This is explicitly **NOT** a marketplace platform. Each venue operates independently with their own:
+- Branded interface
+- Booking calendar  
+- Payment settings
+- Customer base
 
 ## 🏗️ System Architecture
 
@@ -54,21 +69,22 @@ graph TB
     H --> M
 ```
 
-## 🚀 Implementation Status
+## 🚀 Current Implementation Status
 
-| Module | Status | Description |
-|--------|--------|-------------|
-| **Backend API** | ✅ Complete | NestJS + TypeScript production-ready |
-| **Database Schema** | ✅ Complete | PostgreSQL with exclusion constraints + flexible payment schema |
-| **Booking Engine** | ✅ Complete | Zero double-bookings with availability checks |
-| **Payment System** | ✅ Complete | Revolutionary flexible payment profiles |
-| **User Management** | ✅ Complete | Phone-based auth with role management |
-| **Redis Caching** | ✅ Complete | Performance optimization layer |
-| **API Documentation** | ✅ Complete | Swagger/OpenAPI integration |
-| **Health Monitoring** | ✅ Complete | Production health checks |
-| **Frontend App** | 🔄 Planned | React/Next.js customer interface |
-| **Admin Dashboard** | 🔄 Planned | Venue management interface |
-| **Mobile App** | ⏳ Future | React Native mobile experience |
+| Component | Status | Description |
+|-----------|--------|-------------|
+| **Backend API** | ✅ Complete | NestJS + TypeScript, production-ready |
+| **Database Schema** | ✅ Complete | PostgreSQL with exclusion constraints |
+| **Payment System** | ✅ Complete | Flexible payment profiles (5 types) |
+| **User Auth** | ✅ Complete | Phone-based OTP authentication |
+| **Frontend - Landing** | ✅ Complete | Venue-focused homepage |
+| **Frontend - Calendar** | ✅ Complete | Multi-day date selection |
+| **Frontend - Event Details** | ✅ Complete | Event info collection |
+| **Frontend - Auth Flow** | ✅ Complete | OTP-based login |
+| **Frontend - Payment** | 🔄 In Progress | Payment method selection |
+| **Frontend - Confirmation** | ⏳ Planned | Booking review screen |
+| **Admin Dashboard** | ⏳ Planned | Venue management |
+| **Mobile App** | ⏳ Future | React Native |
 
 ## 💻 Tech Stack
 
@@ -81,12 +97,14 @@ graph TB
 - **Validation**: class-validator + class-transformer
 - **Logging**: Winston with structured logging
 
-### Frontend (Planned)
-- **Framework**: React with Next.js 14
-- **Styling**: Tailwind CSS
-- **State Management**: Zustand
-- **Forms**: React Hook Form + Zod
-- **UI Components**: shadcn/ui
+### Frontend (In Progress - 70% Complete)
+- **Framework**: Next.js 14 (App Router)
+- **Styling**: TailwindCSS v4 with modern purple/indigo palette
+- **UI Components**: ShadCN UI
+- **State Management**: Zustand with localStorage persistence
+- **Forms**: React Hook Form + Zod validation
+- **Date Selection**: react-day-picker (multi-date support)
+- **Notifications**: Sonner (toast notifications)
 
 ### DevOps & Infrastructure
 - **Database Hosting**: Supabase (PostgreSQL)
@@ -114,134 +132,85 @@ Traditional booking platforms force venues to accept online payments only, exclu
 
 ```
 hall-booking-app/
-├── src/
-│   ├── app.module.ts              # Main application module
-│   ├── main.ts                    # Application bootstrap
-│   ├── bookings/                  # ✅ Core booking domain
-│   │   ├── bookings.controller.ts # Main booking controller
-│   │   ├── bookings.service.ts    # Core booking service
-│   │   ├── bookings.module.ts     # Booking module configuration
-│   │   ├── controllers/           # Additional controllers
-│   │   ├── services/              # Specialized services
-│   │   │   ├── availability.service.ts  # Availability checking
-│   │   │   └── booking-number.service.ts # Booking number generation
-│   │   ├── dto/                   # Data transfer objects
-│   │   └── utils/                 # Booking utilities
-│   ├── payments/                  # ✅ Flexible payment system
-│   │   ├── payments.controller.ts # Payment API endpoints
-│   │   ├── payments.service.ts    # Payment orchestration
-│   │   ├── payments.module.ts     # Payment module configuration
-│   │   ├── services/              # Payment services
-│   │   │   ├── flexible-payment.service.ts # Core payment logic
-│   │   │   └── razorpay.service.ts        # Razorpay integration
-│   │   └── dto/                   # Payment DTOs
-│   ├── users/                     # ✅ User management & auth
-│   │   ├── users.controller.ts    # User API endpoints
-│   │   ├── users.service.ts       # User business logic
-│   │   └── users.module.ts        # User module configuration
-│   ├── common/                    # ✅ Shared utilities
-│   │   ├── constants/             # Application constants
-│   │   ├── decorators/            # Custom decorators
-│   │   ├── dto/                   # Common DTOs
-│   │   ├── filters/               # Exception filters
-│   │   ├── interceptors/          # Request/response interceptors
-│   │   ├── pipes/                 # Validation pipes
-│   │   ├── services/              # Shared services
-│   │   └── types/                 # TypeScript type definitions
-│   ├── config/                    # ✅ Configuration management
-│   ├── health/                    # ✅ Health check endpoints
-│   ├── prisma/                    # ✅ Database access layer
-│   └── redis/                     # ✅ Redis caching module
-├── prisma/
-│   ├── schema.prisma              # Database schema
-│   └── migrations/                # Database migrations
-├── test/                          # E2E tests
-│   ├── app.e2e-spec.ts           # End-to-end test suite
-│   └── jest-e2e.json             # E2E test configuration
-└── package.json                   # Dependencies & scripts
+├── backend/                       # NestJS API Server
+│   ├── src/
+│   │   ├── bookings/             # ✅ Booking management
+│   │   ├── payments/             # ✅ Payment processing
+│   │   ├── users/                # ✅ User & auth management
+│   │   ├── auth/                 # ✅ OTP authentication  
+│   │   ├── prisma/               # ✅ Database access
+│   │   ├── redis/                # ✅ Caching layer
+│   │   └── common/               # ✅ Shared utilities
+│   └── prisma/
+│       ├── schema.prisma         # Database schema
+│       └── migrations/           # DB migrations
+├── frontend/                      # Next.js 14 Customer App
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── page.tsx          # ✅ Landing page
+│   │   │   ├── booking/          # ✅ Multi-day calendar
+│   │   │   ├── event-details/    # ✅ Event info form
+│   │   │   ├── auth/             # ✅ OTP login
+│   │   │   ├── payment/          # 🔄 Payment selection
+│   │   │   ├── confirmation/     # ⏳ Booking review
+│   │   │   └── success/          # ⏳ Confirmation screen
+│   │   ├── components/
+│   │   │   ├── ui/               # ✅ ShadCN components
+│   │   │   ├── booking/          # ✅ Booking components
+│   │   │   ├── auth/             # ✅ Auth components
+│   │   │   └── navigation.tsx    # ✅ Header
+│   │   ├── stores/
+│   │   │   ├── booking-store.ts  # ✅ Booking state
+│   │   │   └── auth-store.ts     # ✅ Auth state
+│   │   ├── services/             # ✅ API services
+│   │   └── types/                # ✅ TypeScript types
+│   └── ui-tasks.json             # ✅ Development tracker
+└── README.md                      # This file
 ```
 
 ## 🚀 Quick Start
 
-### Prerequisites
-
-- Node.js 18+
-- PostgreSQL database (Supabase recommended)
-- Redis instance (Upstash recommended)
-- **Optional**: Razorpay account (only for venues wanting online payments)
-
-### Installation
+### Backend Setup
 
 ```bash
-# 1. Clone repository
-git clone https://github.com/LoneWolf36/hall-booking-app
-cd hall-booking-app
+# 1. Navigate to backend
+cd backend
 
 # 2. Install dependencies
 npm install
 
-# 3. Environment setup
+# 3. Setup environment
 cp .env.example .env
 # Edit .env with your configuration
-```
 
-### Environment Configuration
-
-```bash
-# Database (Required)
-DATABASE_URL="postgresql://username:password@host:5432/database"
-
-# Redis (Required)
-UPSTASH_REDIS_REST_URL="https://your-redis.upstash.io"
-UPSTASH_REDIS_REST_TOKEN="your-token"
-
-# JWT Authentication (Required)
-JWT_SECRET="your-super-secret-jwt-key-at-least-32-characters"
-
-# Razorpay (Optional - only for online payments)
-RAZORPAY_KEY_ID="rzp_test_your_key_id"
-RAZORPAY_KEY_SECRET="your_razorpay_secret"
-RAZORPAY_WEBHOOK_SECRET="your_webhook_secret"
-
-# Application
-NODE_ENV="development"
-PORT=3000
-```
-
-### Database Setup
-
-```bash
-# Generate Prisma client
+# 4. Setup database
 npx prisma generate
-
-# Run database migrations
 npx prisma migrate deploy
 
-# Optional: View database in Prisma Studio
-npx prisma studio
-```
-
-### Development
-
-```bash
-# Start development server
+# 5. Start server
 npm run start:dev
 
-# The server will start on http://localhost:3000
-# API endpoints available at: http://localhost:3000/api/v1/
-# Swagger documentation at: http://localhost:3000/api/v1/docs
+# Backend runs at http://localhost:3000
+# API docs at http://localhost:3000/api/v1/docs
+```
 
-# Run tests
-npm run test
+### Frontend Setup
 
-# Run e2e tests
-npm run test:e2e
+```bash
+# 1. Navigate to frontend
+cd frontend
 
-# Format code
-npm run format
+# 2. Install dependencies  
+npm install
 
-# Lint code
-npm run lint
+# 3. Setup environment
+cp .env.example .env.local
+# Configure API_URL and other settings
+
+# 4. Start development server
+npm run dev
+
+# Frontend runs at http://localhost:3001
 ```
 
 ## 🔗 API Overview
@@ -353,26 +322,36 @@ Based on 100 venues, 10 bookings/month average, ₹10,000 average booking value:
 - [x] Comprehensive API documentation
 - [x] Production health monitoring
 
-### Phase 2: Frontend Development (🔄 Planned)
-- [ ] Customer booking interface (React/Next.js)
-- [ ] Venue admin dashboard
-- [ ] Real-time availability updates
-- [ ] Payment flow implementation
-- [ ] Mobile-responsive design
-
-### Phase 3: Enhanced Features (⏳ Planned)
+### Phase 2: Frontend Development (🔄 70% Complete - In Active Development)
+- [x] Modern design system with purple/indigo palette
+- [x] Landing page (venue-focused, white-label ready)
+- [x] Multi-day calendar selection
+- [x] Event details form
+- [x] OTP-based authentication flow
+- [x] Zustand state management
+- [x] TypeScript type definitions
+- [ ] Payment method selection page
+- [ ] Booking confirmation screen
+- [ ] Success/confirmation page
+- [ ] Real-time availability integration
 - [ ] WhatsApp/SMS notifications
-- [ ] Advanced analytics and reporting
-- [ ] Mobile app (React Native)
-- [ ] Multi-language support
-- [ ] Advanced venue management
+- [ ] Mobile-responsive polish
 
-### Phase 4: SaaS Expansion (⏳ Future)
-- [ ] Multi-tenant onboarding flow
+### Phase 3: White-Label Features (⏳ Planned)
+- [ ] Venue configuration system (name, colors, contact)
+- [ ] Custom domain support
+- [ ] Branded email templates
+- [ ] Venue-specific pricing rules
+- [ ] Custom terms & conditions
+- [ ] Analytics dashboard per venue
+
+### Phase 4: SaaS & Scaling (⏳ Future)
+- [ ] Multi-venue instance management
+- [ ] Automated venue onboarding
+- [ ] Centralized admin panel
+- [ ] Usage analytics across venues
 - [ ] Advanced commission management
-- [ ] Marketplace features
 - [ ] Enterprise integrations
-- [ ] API rate limiting and usage tracking
 
 ## 🤝 Contributing
 

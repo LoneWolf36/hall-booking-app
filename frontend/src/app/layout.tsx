@@ -45,7 +45,7 @@ export default function RootLayout({
               <Navigation />
               <main className="flex-1">{children}</main>
             </div>
-            <Toaster />
+            <Toaster position="top-center" richColors closeButton />
           </ThemeProvider>
         </QueryProvider>
       </body>
