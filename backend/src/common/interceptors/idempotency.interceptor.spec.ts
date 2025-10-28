@@ -1,45 +1,53 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ExecutionContext, CallHandler, BadRequestException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  CallHandler,
+  BadRequestException,
+} from '@nestjs/common';
 import { of } from 'rxjs';
 import { IdempotencyInterceptor } from './idempotency.interceptor';
-import { RedisService } from '../../redis/redis.service';
+import { CacheService } from '../services/cache.service';
 
 /**
  * Idempotency Interceptor Tests
- * 
+ *
  * Teaching Points:
  * 1. Testing interceptors with mock ExecutionContext
- * 2. Redis service mocking strategies
+ * 2. CacheService mocking strategies
  * 3. Observable testing patterns with RxJS
  * 4. Error handling in interceptor tests
  * 5. Async interceptor testing patterns
  */
 describe('IdempotencyInterceptor', () => {
   let interceptor: IdempotencyInterceptor;
-  let redisService: jest.Mocked<RedisService>;
+  let cacheService: jest.Mocked<CacheService>;
   let mockExecutionContext: jest.Mocked<ExecutionContext>;
   let mockCallHandler: jest.Mocked<CallHandler>;
-  let mockRequest: any;
+  let mockRequest: {
+    method: string;
+    headers: Record<string, string | string[]>;
+  };
 
   beforeEach(async () => {
-    // Mock Redis service
-    const mockRedisService = {
+    // Mock Cache service
+    const mockCacheService = {
       get: jest.fn(),
       set: jest.fn(),
+      delete: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IdempotencyInterceptor,
         {
-          provide: RedisService,
-          useValue: mockRedisService,
+          provide: CacheService,
+          useValue: mockCacheService,
         },
       ],
     }).compile();
 
     interceptor = module.get<IdempotencyInterceptor>(IdempotencyInterceptor);
-    redisService = module.get(RedisService);
+    cacheService = module.get(CacheService);
 
     // Setup mock request object
     mockRequest = {
@@ -52,7 +60,7 @@ describe('IdempotencyInterceptor', () => {
       switchToHttp: jest.fn().mockReturnValue({
         getRequest: () => mockRequest,
       }),
-    } as any;
+    } as unknown as jest.Mocked<ExecutionContext>;
 
     // Setup mock call handler
     mockCallHandler = {
@@ -74,35 +82,40 @@ describe('IdempotencyInterceptor', () => {
         mockCallHandler,
       );
 
-      // Should pass through without Redis interaction
-      expect(redisService.get).not.toHaveBeenCalled();
+      // Should pass through without Cache interaction
+      expect(cacheService.get).not.toHaveBeenCalled();
       expect(mockCallHandler.handle).toHaveBeenCalled();
+
+      // Verify observable completes
+      await result.toPromise();
     });
 
     it('should apply idempotency for POST requests', async () => {
       mockRequest.method = 'POST';
-      mockRequest.headers['x-idempotency-key'] = '550e8400-e29b-41d4-a716-446655440000';
-      
-      redisService.get.mockResolvedValue(null); // No cached response
+      mockRequest.headers['x-idempotency-key'] =
+        '550e8400-e29b-41d4-a716-446655440000';
+
+      cacheService.get.mockResolvedValue(null); // No cached response
       mockCallHandler.handle.mockReturnValue(of({ success: true }));
 
       await interceptor.intercept(mockExecutionContext, mockCallHandler);
 
-      expect(redisService.get).toHaveBeenCalledWith(
-        'idempotency:550e8400-e29b-41d4-a716-446655440000'
+      expect(cacheService.get).toHaveBeenCalledWith(
+        'idempotency:550e8400-e29b-41d4-a716-446655440000',
       );
     });
 
     it('should apply idempotency for PUT requests', async () => {
       mockRequest.method = 'PUT';
-      mockRequest.headers['x-idempotency-key'] = '550e8400-e29b-41d4-a716-446655440000';
-      
-      redisService.get.mockResolvedValue(null);
+      mockRequest.headers['x-idempotency-key'] =
+        '550e8400-e29b-41d4-a716-446655440000';
+
+      cacheService.get.mockResolvedValue(null);
       mockCallHandler.handle.mockReturnValue(of({ success: true }));
 
       await interceptor.intercept(mockExecutionContext, mockCallHandler);
 
-      expect(redisService.get).toHaveBeenCalled();
+      expect(cacheService.get).toHaveBeenCalled();
     });
   });
 
@@ -112,20 +125,23 @@ describe('IdempotencyInterceptor', () => {
     });
 
     it('should accept valid UUID idempotency keys', async () => {
-      mockRequest.headers['x-idempotency-key'] = '550e8400-e29b-41d4-a716-446655440000';
-      redisService.get.mockResolvedValue(null);
+      mockRequest.headers['x-idempotency-key'] =
+        '550e8400-e29b-41d4-a716-446655440000';
+      cacheService.get.mockResolvedValue(null);
       mockCallHandler.handle.mockReturnValue(of({ success: true }));
 
-      await expect(
-        interceptor.intercept(mockExecutionContext, mockCallHandler)
-      ).resolves.toBeDefined();
+      const result = await interceptor.intercept(
+        mockExecutionContext,
+        mockCallHandler,
+      );
+      await expect(result.toPromise()).resolves.toBeDefined();
     });
 
     it('should reject invalid UUID format', async () => {
       mockRequest.headers['x-idempotency-key'] = 'invalid-uuid';
 
       await expect(
-        interceptor.intercept(mockExecutionContext, mockCallHandler)
+        interceptor.intercept(mockExecutionContext, mockCallHandler),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -133,7 +149,7 @@ describe('IdempotencyInterceptor', () => {
       mockRequest.headers['x-idempotency-key'] = ['array-value'];
 
       await expect(
-        interceptor.intercept(mockExecutionContext, mockCallHandler)
+        interceptor.intercept(mockExecutionContext, mockCallHandler),
       ).rejects.toThrow('X-Idempotency-Key must be a string');
     });
 
@@ -141,7 +157,7 @@ describe('IdempotencyInterceptor', () => {
       mockRequest.headers['x-idempotency-key'] = 'a'.repeat(101);
 
       await expect(
-        interceptor.intercept(mockExecutionContext, mockCallHandler)
+        interceptor.intercept(mockExecutionContext, mockCallHandler),
       ).rejects.toThrow('X-Idempotency-Key is too long');
     });
 
@@ -149,9 +165,13 @@ describe('IdempotencyInterceptor', () => {
       // No idempotency key header
       mockCallHandler.handle.mockReturnValue(of({ success: true }));
 
-      await interceptor.intercept(mockExecutionContext, mockCallHandler);
+      const result = await interceptor.intercept(
+        mockExecutionContext,
+        mockCallHandler,
+      );
+      await result.toPromise();
 
-      expect(redisService.get).not.toHaveBeenCalled();
+      expect(cacheService.get).not.toHaveBeenCalled();
       expect(mockCallHandler.handle).toHaveBeenCalled();
     });
   });
@@ -166,7 +186,7 @@ describe('IdempotencyInterceptor', () => {
 
     it('should return cached response if available', async () => {
       const cachedResponse = { success: true, cached: true };
-      redisService.get.mockResolvedValue(JSON.stringify(cachedResponse));
+      cacheService.get.mockResolvedValue(cachedResponse);
 
       const result$ = await interceptor.intercept(
         mockExecutionContext,
@@ -174,16 +194,16 @@ describe('IdempotencyInterceptor', () => {
       );
 
       const result = await result$.toPromise();
-      
+
       expect(result).toEqual(cachedResponse);
       expect(mockCallHandler.handle).not.toHaveBeenCalled();
     });
 
     it('should process request and cache response if not cached', async () => {
       const response = { success: true, data: 'new-response' };
-      
-      redisService.get.mockResolvedValue(null); // No cache
-      redisService.set.mockResolvedValue('OK');
+
+      cacheService.get.mockResolvedValue(null); // No cache
+      cacheService.set.mockResolvedValue(undefined);
       mockCallHandler.handle.mockReturnValue(of(response));
 
       const result$ = await interceptor.intercept(
@@ -195,17 +215,17 @@ describe('IdempotencyInterceptor', () => {
       await result$.toPromise();
 
       expect(mockCallHandler.handle).toHaveBeenCalled();
-      expect(redisService.set).toHaveBeenCalledWith(
+      expect(cacheService.set).toHaveBeenCalledWith(
         `idempotency:${validKey}`,
-        JSON.stringify(response),
-        24 * 60 * 60, // 24 hours TTL
+        response,
+        86400, // 24 hours TTL from CACHE_CONSTANTS.IDEMPOTENCY_TTL_SECONDS
       );
     });
 
     it('should not cache error responses', async () => {
       const errorResponse = { success: false, error: 'Something failed' };
-      
-      redisService.get.mockResolvedValue(null);
+
+      cacheService.get.mockResolvedValue(null);
       mockCallHandler.handle.mockReturnValue(of(errorResponse));
 
       const result$ = await interceptor.intercept(
@@ -215,13 +235,13 @@ describe('IdempotencyInterceptor', () => {
 
       await result$.toPromise();
 
-      expect(redisService.set).not.toHaveBeenCalled();
+      expect(cacheService.set).not.toHaveBeenCalled();
     });
 
     it('should not cache responses with statusCode >= 400', async () => {
       const errorResponse = { statusCode: 400, message: 'Bad Request' };
-      
-      redisService.get.mockResolvedValue(null);
+
+      cacheService.get.mockResolvedValue(null);
       mockCallHandler.handle.mockReturnValue(of(errorResponse));
 
       const result$ = await interceptor.intercept(
@@ -231,7 +251,7 @@ describe('IdempotencyInterceptor', () => {
 
       await result$.toPromise();
 
-      expect(redisService.set).not.toHaveBeenCalled();
+      expect(cacheService.set).not.toHaveBeenCalled();
     });
   });
 
@@ -243,8 +263,8 @@ describe('IdempotencyInterceptor', () => {
       mockRequest.headers['x-idempotency-key'] = validKey;
     });
 
-    it('should handle Redis get failures gracefully', async () => {
-      redisService.get.mockRejectedValue(new Error('Redis connection failed'));
+    it('should handle Cache get failures gracefully', async () => {
+      cacheService.get.mockRejectedValue(new Error('Cache connection failed'));
       mockCallHandler.handle.mockReturnValue(of({ success: true }));
 
       const result$ = await interceptor.intercept(
@@ -256,9 +276,9 @@ describe('IdempotencyInterceptor', () => {
       expect(mockCallHandler.handle).toHaveBeenCalled();
     });
 
-    it('should handle Redis set failures gracefully', async () => {
-      redisService.get.mockResolvedValue(null);
-      redisService.set.mockRejectedValue(new Error('Redis write failed'));
+    it('should handle Cache set failures gracefully', async () => {
+      cacheService.get.mockResolvedValue(null);
+      cacheService.set.mockRejectedValue(new Error('Cache write failed'));
       mockCallHandler.handle.mockReturnValue(of({ success: true }));
 
       const result$ = await interceptor.intercept(
@@ -266,12 +286,12 @@ describe('IdempotencyInterceptor', () => {
         mockCallHandler,
       );
 
-      // Should complete successfully despite Redis failure
+      // Should complete successfully despite Cache failure
       await expect(result$.toPromise()).resolves.toEqual({ success: true });
     });
 
-    it('should handle invalid JSON in cache gracefully', async () => {
-      redisService.get.mockResolvedValue('invalid-json{');
+    it('should handle invalid data in cache gracefully', async () => {
+      cacheService.get.mockResolvedValue(undefined);
       mockCallHandler.handle.mockReturnValue(of({ success: true }));
 
       const result$ = await interceptor.intercept(
@@ -280,7 +300,7 @@ describe('IdempotencyInterceptor', () => {
       );
 
       await result$.toPromise();
-      
+
       // Should fall back to processing the request
       expect(mockCallHandler.handle).toHaveBeenCalled();
     });
@@ -293,12 +313,12 @@ describe('IdempotencyInterceptor', () => {
       mockRequest.headers['x-idempotency-key'] = validKey;
 
       // First request - no cache
-      redisService.get.mockResolvedValueOnce(null);
-      redisService.set.mockResolvedValue('OK');
-      
+      cacheService.get.mockResolvedValueOnce(null);
+      cacheService.set.mockResolvedValue(undefined);
+
       // Second request - has cache
       const cachedResponse = { success: true, bookingId: 'booking-123' };
-      redisService.get.mockResolvedValueOnce(JSON.stringify(cachedResponse));
+      cacheService.get.mockResolvedValueOnce(cachedResponse);
 
       mockCallHandler.handle.mockReturnValue(of(cachedResponse));
 
@@ -324,22 +344,22 @@ describe('IdempotencyInterceptor', () => {
 
 /**
  * Teaching Notes on Interceptor Testing:
- * 
+ *
  * 1. **Mock Strategy**: Mock the execution context and call handler
  *    to simulate NestJS request lifecycle.
- * 
+ *
  * 2. **Observable Testing**: Use RxJS testing patterns with toPromise()
  *    to handle async observable streams.
- * 
- * 3. **Redis Mocking**: Mock external dependencies like Redis
+ *
+ * 3. **Cache Mocking**: Mock external dependencies like CacheService
  *    to test business logic in isolation.
- * 
- * 4. **Edge Cases**: Test error scenarios like Redis failures,
- *    invalid JSON, network timeouts.
- * 
+ *
+ * 4. **Edge Cases**: Test error scenarios like Cache failures,
+ *    invalid data, network timeouts.
+ *
  * 5. **Concurrency**: Test concurrent request scenarios to ensure
  *    idempotency works correctly under load.
- * 
+ *
  * 6. **State Verification**: Verify both return values and side effects
- *    (Redis calls, caching behavior).
+ *    (Cache calls, caching behavior).
  */

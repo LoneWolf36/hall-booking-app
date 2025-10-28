@@ -1,13 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ValidationService } from '../common/services/validation.service';
 import { CreateUserDto, UserRole } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 
 /**
  * Unit Tests for UsersService
- * 
+ *
  * Test Categories:
  * 1. User upsert functionality
  * 2. Phone number normalization
@@ -49,6 +54,12 @@ describe('UsersService', () => {
     },
   };
 
+  const mockValidationService = {
+    validateCustomerName: jest.fn(),
+    validatePhoneNumber: jest.fn(),
+    validateEmail: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -57,12 +68,16 @@ describe('UsersService', () => {
           provide: PrismaService,
           useValue: mockPrismaService,
         },
+        {
+          provide: ValidationService,
+          useValue: mockValidationService,
+        },
       ],
     }).compile();
 
     service = module.get<UsersService>(UsersService);
     prisma = module.get<PrismaService>(PrismaService);
-    
+
     // Clear mocks before each test
     jest.clearAllMocks();
   });
@@ -77,12 +92,17 @@ describe('UsersService', () => {
 
     it('should create a new user when phone does not exist', async () => {
       // Mock tenant exists
-      mockPrismaService.tenant.findUnique.mockResolvedValue({ id: mockTenantId });
-      
+      mockPrismaService.tenant.findUnique.mockResolvedValue({
+        id: mockTenantId,
+      });
+
       // Mock user creation
       mockPrismaService.user.upsert.mockResolvedValue(mockUser);
 
-      const result = await service.upsertUserByPhone(mockTenantId, createUserDto);
+      const result = await service.upsertUserByPhone(
+        mockTenantId,
+        createUserDto,
+      );
 
       expect(mockPrismaService.user.upsert).toHaveBeenCalledWith({
         where: {
@@ -117,18 +137,25 @@ describe('UsersService', () => {
     });
 
     it('should update existing user when phone exists', async () => {
-      mockPrismaService.tenant.findUnique.mockResolvedValue({ id: mockTenantId });
-      
+      mockPrismaService.tenant.findUnique.mockResolvedValue({
+        id: mockTenantId,
+      });
+
       const updatedUser = { ...mockUser, name: 'John Updated' };
       mockPrismaService.user.upsert.mockResolvedValue(updatedUser);
 
-      const result = await service.upsertUserByPhone(mockTenantId, createUserDto);
+      const result = await service.upsertUserByPhone(
+        mockTenantId,
+        createUserDto,
+      );
 
       expect(result.name).toBe('John Updated');
     });
 
     it('should normalize phone number correctly', async () => {
-      mockPrismaService.tenant.findUnique.mockResolvedValue({ id: mockTenantId });
+      mockPrismaService.tenant.findUnique.mockResolvedValue({
+        id: mockTenantId,
+      });
       mockPrismaService.user.upsert.mockResolvedValue(mockUser);
 
       const testCases = [
@@ -141,8 +168,9 @@ describe('UsersService', () => {
       for (const testCase of testCases) {
         const dto = { ...createUserDto, phone: testCase.input };
         await service.upsertUserByPhone(mockTenantId, dto);
-        
-        const lastCall = mockPrismaService.user.upsert.mock.calls.slice(-1)[0][0];
+
+        const lastCall =
+          mockPrismaService.user.upsert.mock.calls.slice(-1)[0][0];
         expect(lastCall.where.tenantId_phone.phone).toBe(testCase.expected);
         expect(lastCall.create.phone).toBe(testCase.expected);
       }
@@ -157,8 +185,10 @@ describe('UsersService', () => {
     });
 
     it('should handle Prisma constraint errors', async () => {
-      mockPrismaService.tenant.findUnique.mockResolvedValue({ id: mockTenantId });
-      
+      mockPrismaService.tenant.findUnique.mockResolvedValue({
+        id: mockTenantId,
+      });
+
       const prismaError = new Error('Constraint violation');
       (prismaError as any).code = 'P2002';
       mockPrismaService.user.upsert.mockRejectedValue(prismaError);
@@ -184,7 +214,7 @@ describe('UsersService', () => {
         },
       });
       expect(result).toBeDefined();
-      expect(result.id).toBe(mockUser.id);
+      expect(result?.id).toBe(mockUser.id);
     });
 
     it('should return null when user not found', async () => {
@@ -205,11 +235,15 @@ describe('UsersService', () => {
     it('should update user successfully', async () => {
       // Mock finding existing user
       mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
-      
+
       const updatedUser = { ...mockUser, ...updateDto };
       mockPrismaService.user.update.mockResolvedValue(updatedUser);
 
-      const result = await service.updateUser(mockTenantId, mockUserId, updateDto);
+      const result = await service.updateUser(
+        mockTenantId,
+        mockUserId,
+        updateDto,
+      );
 
       expect(mockPrismaService.user.update).toHaveBeenCalledWith({
         where: { id: mockUserId },
@@ -302,7 +336,7 @@ describe('UsersService', () => {
 
 /**
  * Test Design Principles:
- * 
+ *
  * 1. **Isolation**: Each test is independent with mocked dependencies
  * 2. **Comprehensive Coverage**: Test happy path, edge cases, and errors
  * 3. **Realistic Data**: Use representative mock data

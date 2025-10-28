@@ -29,7 +29,7 @@ interface NextStep {
 
 /**
  * Flexible Payment Service - Core orchestrator for all payment methods
- * 
+ *
  * Responsibilities:
  * 1. Generate payment options based on venue profile
  * 2. Handle cash-only, hybrid, and online payment flows
@@ -45,7 +45,7 @@ export class FlexiblePaymentService {
     private readonly prisma: PrismaService,
     private readonly cacheService: CacheService,
     private readonly razorpayService: RazorpayService,
-  ) { }
+  ) {}
 
   /**
    * Generate payment options for a booking based on venue profile
@@ -56,9 +56,12 @@ export class FlexiblePaymentService {
     customerLocation?: string,
   ): Promise<PaymentOptionsResponseDto> {
     const cacheKey = `payment-options:${bookingId}`;
-    const cached = await this.cacheService.get<PaymentOptionsResponseDto>(cacheKey);
+    const cached =
+      await this.cacheService.get<PaymentOptionsResponseDto>(cacheKey);
     if (cached) {
-      this.logger.debug(`Returning cached payment options for booking ${bookingId}`);
+      this.logger.debug(
+        `Returning cached payment options for booking ${bookingId}`,
+      );
       return cached;
     }
 
@@ -103,7 +106,9 @@ export class FlexiblePaymentService {
       // Cache for 10 minutes
       await this.cacheService.set(cacheKey, response, this.OPTIONS_CACHE_TTL);
 
-      this.logger.log(`Generated ${options.length} payment options for booking ${bookingId}`);
+      this.logger.log(
+        `Generated ${options.length} payment options for booking ${bookingId}`,
+      );
       return response;
     } catch (error) {
       this.logger.error('Failed to generate payment options', {
@@ -135,7 +140,7 @@ export class FlexiblePaymentService {
 
       if (booking.status !== 'temp_hold') {
         throw new ConflictException(
-          `Cannot select payment method for booking in ${booking.status} status`
+          `Cannot select payment method for booking in ${booking.status} status`,
         );
       }
 
@@ -159,17 +164,16 @@ export class FlexiblePaymentService {
             selection.selectedMethod,
             booking.venue,
           ),
-          status: this.determineNewStatus(selection.selectedMethod, booking.venue),
+          status: this.determineNewStatus(
+            selection.selectedMethod,
+            booking.venue,
+          ),
         },
         include: { venue: true, user: true },
       });
 
       // Update customer preferences
-      await this.updateCustomerPreferences(
-        tenantId,
-        booking.userId,
-        selection,
-      );
+      await this.updateCustomerPreferences(tenantId, booking.userId, selection);
 
       // Generate next steps
       const nextSteps = await this.generateNextSteps(
@@ -232,7 +236,7 @@ export class FlexiblePaymentService {
 
       if (totalCashPaid + paymentData.amountCents > booking.cashAmountDue) {
         throw new BadRequestException(
-          `Payment amount exceeds remaining balance. Due: ₹${(booking.cashAmountDue - totalCashPaid) / 100}, Attempting: ₹${paymentData.amountCents / 100}`
+          `Payment amount exceeds remaining balance. Due: ₹${(booking.cashAmountDue - totalCashPaid) / 100}, Attempting: ₹${paymentData.amountCents / 100}`,
         );
       }
 
@@ -324,7 +328,8 @@ export class FlexiblePaymentService {
       });
 
       // Generate recommendation based on responses
-      const recommendation = this.generatePaymentProfileRecommendation(responses);
+      const recommendation =
+        this.generatePaymentProfileRecommendation(responses);
 
       // Update venue with recommended configuration
       await this.prisma.venue.update({
@@ -337,7 +342,8 @@ export class FlexiblePaymentService {
           depositType: recommendation.config.depositType,
           depositAmount: recommendation.config.depositAmount,
           confirmationTrigger: recommendation.config.confirmationTrigger,
-          platformCommissionPercentage: recommendation.config.platformCommissionPercentage,
+          platformCommissionPercentage:
+            recommendation.config.platformCommissionPercentage,
         },
       });
 
@@ -485,7 +491,7 @@ export class FlexiblePaymentService {
     venue: any,
   ): PaymentOptionDto {
     const cashDiscount = Math.floor(
-      totalAmount * ((venue.cashDiscountPercentage || 0) / 100)
+      totalAmount * ((venue.cashDiscountPercentage || 0) / 100),
     );
     const finalAmount = totalAmount - cashDiscount;
 
@@ -501,12 +507,17 @@ export class FlexiblePaymentService {
       benefits: [
         'No online transaction fees',
         'Venue will confirm manually',
-        ...(cashDiscount > 0 ? [`₹${this.formatCurrency(cashDiscount)} cash discount`] : []),
+        ...(cashDiscount > 0
+          ? [`₹${this.formatCurrency(cashDiscount)} cash discount`]
+          : []),
       ],
     };
   }
 
-  private createDepositOption(totalAmount: number, venue: any): PaymentOptionDto {
+  private createDepositOption(
+    totalAmount: number,
+    venue: any,
+  ): PaymentOptionDto {
     const depositAmount = this.calculateDeposit(
       totalAmount,
       venue.depositType,
@@ -520,7 +531,8 @@ export class FlexiblePaymentService {
       cashAmount: cashBalance,
       discount: 0,
       label: `Pay ₹${this.formatCurrency(depositAmount)} online + ₹${this.formatCurrency(cashBalance)} cash`,
-      description: 'Secure your booking with online deposit, pay balance in cash',
+      description:
+        'Secure your booking with online deposit, pay balance in cash',
       confirmationMethod: ConfirmationTrigger.DEPOSIT_ONLY,
       isRecommended: true,
       benefits: [
@@ -531,12 +543,15 @@ export class FlexiblePaymentService {
     };
   }
 
-  private createHybridOptions(totalAmount: number, venue: any): PaymentOptionDto[] {
+  private createHybridOptions(
+    totalAmount: number,
+    venue: any,
+  ): PaymentOptionDto[] {
     const options: PaymentOptionDto[] = [];
 
     // Option 1: Cash with discount
     const cashDiscount = Math.floor(
-      totalAmount * ((venue.cashDiscountPercentage || 0) / 100)
+      totalAmount * ((venue.cashDiscountPercentage || 0) / 100),
     );
     if (cashDiscount > 0) {
       options.push({
@@ -547,7 +562,10 @@ export class FlexiblePaymentService {
         label: `Pay ₹${this.formatCurrency(totalAmount - cashDiscount)} in cash (₹${this.formatCurrency(cashDiscount)} discount)`,
         description: 'Save money with cash payment',
         confirmationMethod: ConfirmationTrigger.MANUAL_APPROVAL,
-        benefits: [`₹${this.formatCurrency(cashDiscount)} cash discount`, 'No transaction fees'],
+        benefits: [
+          `₹${this.formatCurrency(cashDiscount)} cash discount`,
+          'No transaction fees',
+        ],
       });
     }
 
@@ -563,10 +581,15 @@ export class FlexiblePaymentService {
       cashAmount: totalAmount - depositAmount,
       discount: 0,
       label: `Pay ₹${this.formatCurrency(depositAmount)} online + ₹${this.formatCurrency(totalAmount - depositAmount)} cash`,
-      description: 'Best of both worlds - instant confirmation with cash savings',
+      description:
+        'Best of both worlds - instant confirmation with cash savings',
       confirmationMethod: ConfirmationTrigger.DEPOSIT_ONLY,
       isRecommended: true,
-      benefits: ['Instant confirmation', 'Lower upfront cost', 'Cash balance at venue'],
+      benefits: [
+        'Instant confirmation',
+        'Lower upfront cost',
+        'Cash balance at venue',
+      ],
     });
 
     // Option 3: Full Online (if venue supports it)
@@ -579,7 +602,11 @@ export class FlexiblePaymentService {
         label: `Pay full ₹${this.formatCurrency(totalAmount)} online`,
         description: 'Complete payment now, nothing to pay at venue',
         confirmationMethod: ConfirmationTrigger.FULL_PAYMENT,
-        benefits: ['Instant confirmation', 'No cash needed at venue', 'Digital receipt'],
+        benefits: [
+          'Instant confirmation',
+          'No cash needed at venue',
+          'Digital receipt',
+        ],
       });
     }
 
@@ -670,7 +697,7 @@ export class FlexiblePaymentService {
     switch (method) {
       case PaymentMethod.CASH_FULL:
         const cashDiscount = Math.floor(
-          totalAmount * ((venue.cashDiscountPercentage || 0) / 100)
+          totalAmount * ((venue.cashDiscountPercentage || 0) / 100),
         );
         return {
           onlineAmount: 0,
@@ -734,7 +761,8 @@ export class FlexiblePaymentService {
       case PaymentMethod.CASH_FULL:
         steps.push({
           action: 'venue_contact',
-          description: 'Venue will contact you within 2 hours to confirm booking',
+          description:
+            'Venue will contact you within 2 hours to confirm booking',
           deadline: new Date(Date.now() + 2 * 60 * 60 * 1000),
         });
         steps.push({
@@ -804,9 +832,10 @@ export class FlexiblePaymentService {
   }
 
   private async createCommissionRecord(booking: any) {
-    const commissionPercentage = booking.venue.platformCommissionPercentage || 10;
+    const commissionPercentage =
+      booking.venue.platformCommissionPercentage || 10;
     const commissionAmount = Math.floor(
-      (booking.totalAmountCents * commissionPercentage) / 100
+      (booking.totalAmountCents * commissionPercentage) / 100,
     );
 
     await this.prisma.commissionRecord.create({
@@ -868,7 +897,10 @@ export class FlexiblePaymentService {
       };
       reasoning.push('Platform handles all payments and customer service');
       reasoning.push('Higher commission for full-service management');
-    } else if (paymentPreference === 'online_preferred' && techComfortLevel === 'advanced_tech') {
+    } else if (
+      paymentPreference === 'online_preferred' &&
+      techComfortLevel === 'advanced_tech'
+    ) {
       profile = VenuePaymentProfile.FULL_ONLINE;
       config = {
         allowCashPayments: false,
@@ -912,14 +944,32 @@ export class FlexiblePaymentService {
   private inferCityTier(location?: string): string {
     if (!location) return 'tier2';
 
-    const tier1Cities = ['mumbai', 'delhi', 'bangalore', 'chennai', 'kolkata', 'pune', 'hyderabad', 'ahmedabad'];
-    const tier2Cities = ['jaipur', 'lucknow', 'kanpur', 'nagpur', 'indore', 'thane', 'bhopal', 'visakhapatnam'];
+    const tier1Cities = [
+      'mumbai',
+      'delhi',
+      'bangalore',
+      'chennai',
+      'kolkata',
+      'pune',
+      'hyderabad',
+      'ahmedabad',
+    ];
+    const tier2Cities = [
+      'jaipur',
+      'lucknow',
+      'kanpur',
+      'nagpur',
+      'indore',
+      'thane',
+      'bhopal',
+      'visakhapatnam',
+    ];
 
     const lowercaseLocation = location.toLowerCase();
 
-    if (tier1Cities.some(city => lowercaseLocation.includes(city))) {
+    if (tier1Cities.some((city) => lowercaseLocation.includes(city))) {
       return 'tier1';
-    } else if (tier2Cities.some(city => lowercaseLocation.includes(city))) {
+    } else if (tier2Cities.some((city) => lowercaseLocation.includes(city))) {
       return 'tier2';
     } else {
       return 'tier3';

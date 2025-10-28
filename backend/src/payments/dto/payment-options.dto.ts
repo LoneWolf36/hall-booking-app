@@ -19,11 +19,11 @@ import { Type } from 'class-transformer';
  * Venue Payment Profile Enums
  */
 export enum VenuePaymentProfile {
-  CASH_ONLY = 'cash_only',           // No online payments at all
+  CASH_ONLY = 'cash_only', // No online payments at all
   CASH_WITH_DEPOSIT = 'cash_deposit', // Small online deposit, rest cash
-  HYBRID_FLEXIBLE = 'hybrid',         // Customer chooses online/cash
-  FULL_ONLINE = 'full_online',       // All payments online
-  MARKETPLACE = 'marketplace'         // Platform handles everything
+  HYBRID_FLEXIBLE = 'hybrid', // Customer chooses online/cash
+  FULL_ONLINE = 'full_online', // All payments online
+  MARKETPLACE = 'marketplace', // Platform handles everything
 }
 
 export enum PaymentMethod {
@@ -31,13 +31,13 @@ export enum PaymentMethod {
   DEPOSIT_ONLINE = 'deposit_online',
   HYBRID_FLEXIBLE = 'hybrid_flexible',
   FULL_ONLINE = 'full_online',
-  MARKETPLACE = 'marketplace'
+  MARKETPLACE = 'marketplace',
 }
 
 export enum ConfirmationTrigger {
   DEPOSIT_ONLY = 'deposit_only',
   FULL_PAYMENT = 'full_payment',
-  MANUAL_APPROVAL = 'manual_approval'
+  MANUAL_APPROVAL = 'manual_approval',
 }
 
 /**
@@ -47,7 +47,7 @@ export class PaymentOptionDto {
   @ApiProperty({
     description: 'Payment method identifier',
     enum: PaymentMethod,
-    example: PaymentMethod.DEPOSIT_ONLINE
+    example: PaymentMethod.DEPOSIT_ONLINE,
   })
   @IsEnum(PaymentMethod)
   method: PaymentMethod;
@@ -55,7 +55,7 @@ export class PaymentOptionDto {
   @ApiProperty({
     description: 'Amount to be paid online (in cents)',
     example: 125000,
-    minimum: 0
+    minimum: 0,
   })
   @IsInt()
   @Min(0)
@@ -64,7 +64,7 @@ export class PaymentOptionDto {
   @ApiProperty({
     description: 'Amount to be paid in cash (in cents)',
     example: 375000,
-    minimum: 0
+    minimum: 0,
   })
   @IsInt()
   @Min(0)
@@ -74,7 +74,7 @@ export class PaymentOptionDto {
     description: 'Discount applied for this payment method (in cents)',
     example: 25000,
     minimum: 0,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsInt()
@@ -83,7 +83,7 @@ export class PaymentOptionDto {
 
   @ApiProperty({
     description: 'Human-readable label for this option',
-    example: 'Pay ₹1,250 online + ₹3,750 cash at venue'
+    example: 'Pay ₹1,250 online + ₹3,750 cash at venue',
   })
   @IsString()
   label: string;
@@ -91,7 +91,7 @@ export class PaymentOptionDto {
   @ApiProperty({
     description: 'Detailed description of this payment method',
     example: 'Secure your booking with online deposit, pay balance in cash',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -100,7 +100,7 @@ export class PaymentOptionDto {
   @ApiProperty({
     description: 'How booking gets confirmed with this method',
     enum: ConfirmationTrigger,
-    example: ConfirmationTrigger.DEPOSIT_ONLY
+    example: ConfirmationTrigger.DEPOSIT_ONLY,
   })
   @IsEnum(ConfirmationTrigger)
   confirmationMethod: ConfirmationTrigger;
@@ -108,7 +108,7 @@ export class PaymentOptionDto {
   @ApiProperty({
     description: 'Whether this is the recommended option',
     example: true,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsBoolean()
@@ -118,7 +118,7 @@ export class PaymentOptionDto {
     description: 'Benefits/features of this payment method',
     type: [String],
     example: ['Instant confirmation', 'Lower upfront cost', 'Cash discount'],
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsArray()
@@ -133,14 +133,14 @@ export class PaymentOptionsResponseDto {
   @ApiProperty({
     description: 'Booking ID these options are for',
     example: '123e4567-e89b-12d3-a456-426614174000',
-    format: 'uuid'
+    format: 'uuid',
   })
   @IsUUID()
   bookingId: string;
 
   @ApiProperty({
     description: 'Total booking amount (in cents)',
-    example: 500000
+    example: 500000,
   })
   @IsInt()
   @Min(0)
@@ -148,7 +148,7 @@ export class PaymentOptionsResponseDto {
 
   @ApiProperty({
     description: 'Available payment options',
-    type: [PaymentOptionDto]
+    type: [PaymentOptionDto],
   })
   @IsArray()
   @ValidateNested({ each: true })
@@ -158,7 +158,7 @@ export class PaymentOptionsResponseDto {
   @ApiProperty({
     description: 'Venue payment profile',
     enum: VenuePaymentProfile,
-    example: VenuePaymentProfile.HYBRID_FLEXIBLE
+    example: VenuePaymentProfile.HYBRID_FLEXIBLE,
   })
   @IsEnum(VenuePaymentProfile)
   venueProfile: VenuePaymentProfile;
@@ -167,10 +167,7 @@ export class PaymentOptionsResponseDto {
     description: 'Customer payment preferences (if known)',
     required: false,
     additionalProperties: {
-      oneOf: [
-        { type: 'string' },
-        { type: 'number' }
-      ]
+      oneOf: [{ type: 'string' }, { type: 'number' }],
     },
     example: {
       preferredMethod: 'cash',
@@ -192,7 +189,7 @@ export class SelectPaymentMethodDto {
   @ApiProperty({
     description: 'Selected payment method',
     enum: PaymentMethod,
-    example: PaymentMethod.DEPOSIT_ONLINE
+    example: PaymentMethod.DEPOSIT_ONLINE,
   })
   @IsEnum(PaymentMethod)
   selectedMethod: PaymentMethod;
@@ -200,7 +197,7 @@ export class SelectPaymentMethodDto {
   @ApiProperty({
     description: 'Customer acknowledgment of cash payment terms',
     example: true,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsBoolean()
@@ -223,14 +220,14 @@ export class VenuePaymentConfigDto {
   @ApiProperty({
     description: 'Venue payment profile',
     enum: VenuePaymentProfile,
-    example: VenuePaymentProfile.CASH_WITH_DEPOSIT
+    example: VenuePaymentProfile.CASH_WITH_DEPOSIT,
   })
   @IsEnum(VenuePaymentProfile)
   paymentProfile: VenuePaymentProfile;
 
   @ApiProperty({
     description: 'Whether venue accepts cash payments',
-    example: true
+    example: true,
   })
   @IsBoolean()
   allowCashPayments: boolean;
@@ -240,7 +237,7 @@ export class VenuePaymentConfigDto {
     example: 3.0,
     minimum: 0,
     maximum: 50,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsDecimal({ decimal_digits: '0,2' })
@@ -248,7 +245,7 @@ export class VenuePaymentConfigDto {
 
   @ApiProperty({
     description: 'Whether online deposit is required',
-    example: true
+    example: true,
   })
   @IsBoolean()
   requiresOnlineDeposit: boolean;
@@ -256,7 +253,7 @@ export class VenuePaymentConfigDto {
   @ApiProperty({
     description: 'Deposit calculation type',
     enum: ['percentage', 'fixed'],
-    example: 'percentage'
+    example: 'percentage',
   })
   @IsString()
   depositType: 'percentage' | 'fixed';
@@ -264,7 +261,7 @@ export class VenuePaymentConfigDto {
   @ApiProperty({
     description: 'Deposit amount (percentage or cents)',
     example: 25,
-    minimum: 1
+    minimum: 1,
   })
   @IsInt()
   @Min(1)
@@ -272,14 +269,14 @@ export class VenuePaymentConfigDto {
 
   @ApiProperty({
     description: 'Venue has own Razorpay account',
-    example: false
+    example: false,
   })
   @IsBoolean()
   hasRazorpayAccount: boolean;
 
   @ApiProperty({
     description: 'Platform handles all payments for venue',
-    example: false
+    example: false,
   })
   @IsBoolean()
   platformHandlesPayments: boolean;
@@ -287,7 +284,7 @@ export class VenuePaymentConfigDto {
   @ApiProperty({
     description: 'How bookings get confirmed',
     enum: ConfirmationTrigger,
-    example: ConfirmationTrigger.MANUAL_APPROVAL
+    example: ConfirmationTrigger.MANUAL_APPROVAL,
   })
   @IsEnum(ConfirmationTrigger)
   confirmationTrigger: ConfirmationTrigger;
@@ -296,7 +293,7 @@ export class VenuePaymentConfigDto {
     description: 'Platform commission percentage (0-50)',
     example: 10.0,
     minimum: 0,
-    maximum: 50
+    maximum: 50,
   })
   @IsDecimal({ decimal_digits: '0,2' })
   platformCommissionPercentage: number;
@@ -304,7 +301,7 @@ export class VenuePaymentConfigDto {
   @ApiProperty({
     description: 'Days before event when full payment is due',
     example: 7,
-    minimum: 0
+    minimum: 0,
   })
   @IsInt()
   @Min(0)
@@ -318,7 +315,7 @@ export class RecordCashPaymentDto {
   @ApiProperty({
     description: 'Amount paid in cash (in cents)',
     example: 375000,
-    minimum: 1
+    minimum: 1,
   })
   @IsInt()
   @Min(1)
@@ -327,7 +324,7 @@ export class RecordCashPaymentDto {
   @ApiProperty({
     description: 'Cash payment method',
     enum: ['cash', 'cheque', 'bank_transfer', 'upi_cash'],
-    example: 'cash'
+    example: 'cash',
   })
   @IsString()
   paymentMethod: 'cash' | 'cheque' | 'bank_transfer' | 'upi_cash';
@@ -335,7 +332,7 @@ export class RecordCashPaymentDto {
   @ApiProperty({
     description: 'Receipt or reference number',
     example: 'CASH-001234',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -344,7 +341,7 @@ export class RecordCashPaymentDto {
   @ApiProperty({
     description: 'Additional notes about the payment',
     example: 'Customer paid exact amount',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -354,7 +351,7 @@ export class RecordCashPaymentDto {
     description: 'When payment was received (ISO 8601)',
     example: '2024-12-25T14:30:00.000Z',
     format: 'date-time',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsDateString()
@@ -367,16 +364,27 @@ export class RecordCashPaymentDto {
 export class VenueOnboardingDto {
   @ApiProperty({
     description: 'Current payment preference',
-    enum: ['cash_only', 'mostly_cash', 'mixed', 'online_preferred', 'platform_managed'],
-    example: 'mostly_cash'
+    enum: [
+      'cash_only',
+      'mostly_cash',
+      'mixed',
+      'online_preferred',
+      'platform_managed',
+    ],
+    example: 'mostly_cash',
   })
   @IsString()
-  paymentPreference: 'cash_only' | 'mostly_cash' | 'mixed' | 'online_preferred' | 'platform_managed';
+  paymentPreference:
+    | 'cash_only'
+    | 'mostly_cash'
+    | 'mixed'
+    | 'online_preferred'
+    | 'platform_managed';
 
   @ApiProperty({
     description: 'Technical comfort level',
     enum: ['no_tech', 'basic_tech', 'advanced_tech'],
-    example: 'basic_tech'
+    example: 'basic_tech',
   })
   @IsString()
   techComfortLevel: 'no_tech' | 'basic_tech' | 'advanced_tech';
@@ -384,7 +392,7 @@ export class VenueOnboardingDto {
   @ApiProperty({
     description: 'Current payment methods used',
     type: [String],
-    example: ['cash', 'bank_transfer']
+    example: ['cash', 'bank_transfer'],
   })
   @IsArray()
   @IsString({ each: true })
@@ -393,7 +401,7 @@ export class VenueOnboardingDto {
   @ApiProperty({
     description: 'Monthly booking volume',
     example: 25,
-    minimum: 0
+    minimum: 0,
   })
   @IsInt()
   @Min(0)
@@ -402,7 +410,7 @@ export class VenueOnboardingDto {
   @ApiProperty({
     description: 'Average booking value in cents',
     example: 500000,
-    minimum: 0
+    minimum: 0,
   })
   @IsInt()
   @Min(0)
@@ -422,14 +430,14 @@ export class VenueOnboardingDto {
 export class CommissionSummaryDto {
   @ApiProperty({
     description: 'Venue ID',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   @IsUUID()
   venueId: string;
 
   @ApiProperty({
     description: 'Total bookings in period',
-    example: 15
+    example: 15,
   })
   @IsInt()
   @Min(0)
@@ -437,7 +445,7 @@ export class CommissionSummaryDto {
 
   @ApiProperty({
     description: 'Total booking amount (in cents)',
-    example: 7500000
+    example: 7500000,
   })
   @IsInt()
   @Min(0)
@@ -445,7 +453,7 @@ export class CommissionSummaryDto {
 
   @ApiProperty({
     description: 'Total commission owed (in cents)',
-    example: 750000
+    example: 750000,
   })
   @IsInt()
   @Min(0)
@@ -453,7 +461,7 @@ export class CommissionSummaryDto {
 
   @ApiProperty({
     description: 'Commission already collected (in cents)',
-    example: 300000
+    example: 300000,
   })
   @IsInt()
   @Min(0)
@@ -461,7 +469,7 @@ export class CommissionSummaryDto {
 
   @ApiProperty({
     description: 'Outstanding commission (in cents)',
-    example: 450000
+    example: 450000,
   })
   @IsInt()
   @Min(0)
@@ -470,7 +478,11 @@ export class CommissionSummaryDto {
   @ApiProperty({
     description: 'Collection method breakdown',
     additionalProperties: { type: 'number' },
-    example: { auto_deduct: 200000, monthly_invoice: 250000, cash_settlement: 0 },
+    example: {
+      auto_deduct: 200000,
+      monthly_invoice: 250000,
+      cash_settlement: 0,
+    },
   })
   collectionMethodBreakdown: Record<string, number>;
 }

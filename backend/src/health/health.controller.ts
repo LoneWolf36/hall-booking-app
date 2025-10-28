@@ -18,12 +18,12 @@ export class HealthController {
       cache: await this.checkCache(),
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV,
-      version: process.env.npm_package_version || '1.0.0'
+      version: process.env.npm_package_version || '1.0.0',
     };
     const isHealthy = checks.database.healthy && checks.cache.healthy;
     return {
       status: isHealthy ? 'ok' : 'error',
-      checks
+      checks,
     };
   }
   private async checkDatabase() {
@@ -41,9 +41,9 @@ export class HealthController {
       await this.cacheService.set(testKey, 'ok', 10);
       const result = await this.cacheService.get<string>(testKey);
       await this.cacheService.delete(testKey);
-      return { 
-        healthy: result === 'ok', 
-        message: result === 'ok' ? 'Connected' : 'Connection failed' 
+      return {
+        healthy: result === 'ok',
+        message: result === 'ok' ? 'Connected' : 'Connection failed',
       };
     } catch (error) {
       this.logger.error('Cache health check failed', error);

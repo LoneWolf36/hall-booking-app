@@ -9,16 +9,20 @@ import {
 import { Observable, from } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { CacheService } from '../services/cache.service';
-import { CACHE_CONSTANTS, CACHE_PREFIXES, VALIDATION_CONSTANTS } from '../constants/app.constants';
+import {
+  CACHE_CONSTANTS,
+  CACHE_PREFIXES,
+  VALIDATION_CONSTANTS,
+} from '../constants/app.constants';
 
 let validateUUID: (s: string) => boolean;
 try {
   // Prefer esm-compatible import when available
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+
   validateUUID = require('uuid').validate;
 } catch {
   // Fallback for environments where require is not available
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+
   const uuid = require('uuid');
   validateUUID = uuid.validate ?? ((s: string) => false);
 }
@@ -50,7 +54,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
     try {
       const cachedResponse = await this.cacheService.get(cacheKey);
       if (cachedResponse) {
-        this.logger.log(`Returning cached response for idempotency key: ${idempotencyKey}`);
+        this.logger.log(
+          `Returning cached response for idempotency key: ${idempotencyKey}`,
+        );
         return from([cachedResponse]);
       }
 
@@ -62,7 +68,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
               response,
               CACHE_CONSTANTS.IDEMPOTENCY_TTL_SECONDS,
             );
-            this.logger.log(`Cached response for idempotency key: ${idempotencyKey}`);
+            this.logger.log(
+              `Cached response for idempotency key: ${idempotencyKey}`,
+            );
           }
         }),
       );
@@ -84,7 +92,9 @@ export class IdempotencyInterceptor implements NestInterceptor {
       throw new BadRequestException('X-Idempotency-Key must be a valid UUID');
     }
 
-    if (idempotencyKey.length > VALIDATION_CONSTANTS.MAX_IDEMPOTENCY_KEY_LENGTH) {
+    if (
+      idempotencyKey.length > VALIDATION_CONSTANTS.MAX_IDEMPOTENCY_KEY_LENGTH
+    ) {
       throw new BadRequestException('X-Idempotency-Key is too long');
     }
 
@@ -92,6 +102,10 @@ export class IdempotencyInterceptor implements NestInterceptor {
   }
 
   private isErrorResponse(response: any): boolean {
-    return response?.success === false || response?.error || response?.statusCode >= 400;
+    return (
+      response?.success === false ||
+      response?.error ||
+      response?.statusCode >= 400
+    );
   }
 }

@@ -1,4 +1,11 @@
-import { IsEmail, IsEnum, IsOptional, IsPhoneNumber, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsPhoneNumber,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -9,7 +16,7 @@ export enum UserRole {
 
 /**
  * DTO for creating a new user
- * 
+ *
  * Design Decisions:
  * 1. Phone number is required and validated for Indian format
  * 2. Email is optional (many customers don't have/provide email)
@@ -22,7 +29,7 @@ export class CreateUserDto {
     description: 'Full name of the user',
     example: 'John Doe',
     minLength: 2,
-    required: true
+    required: true,
   })
   @IsString()
   @MinLength(2, { message: 'Name must be at least 2 characters long' })
@@ -32,16 +39,18 @@ export class CreateUserDto {
   @ApiProperty({
     description: 'Indian phone number with country code',
     example: '+919876543210',
-    required: true
+    required: true,
   })
-  @IsPhoneNumber('IN', { message: 'Phone number must be a valid Indian phone number' })
+  @IsPhoneNumber('IN', {
+    message: 'Phone number must be a valid Indian phone number',
+  })
   @Transform(({ value }) => value?.replace(/[\s\-\(\)]/g, '')) // Normalize phone number
   phone: string;
 
   @ApiProperty({
     description: 'Email address (optional)',
     example: 'john.doe@example.com',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsEmail({}, { message: 'Email must be valid' })
@@ -53,7 +62,7 @@ export class CreateUserDto {
     enum: UserRole,
     example: UserRole.CUSTOMER,
     default: UserRole.CUSTOMER,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsEnum(UserRole, { message: 'Role must be either customer or admin' })
@@ -62,7 +71,7 @@ export class CreateUserDto {
 
 /**
  * Why these validations?
- * 
+ *
  * 1. @IsPhoneNumber('IN'): Ensures Indian phone format (+91XXXXXXXXXX)
  * 2. @Transform(): Normalizes data (trim spaces, lowercase email, clean phone)
  * 3. @MinLength(2): Prevents single-character names

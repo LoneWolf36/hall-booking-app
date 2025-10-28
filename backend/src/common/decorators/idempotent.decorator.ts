@@ -4,13 +4,13 @@ import { ApiHeader, ApiResponse } from '@nestjs/swagger';
 
 /**
  * Idempotent Decorator - Simplifies applying idempotency to endpoints
- * 
+ *
  * Teaching Points:
  * 1. Decorator composition pattern in NestJS
  * 2. How to combine multiple decorators into one
  * 3. Automatic Swagger documentation generation
  * 4. Clean API design principles
- * 
+ *
  * Usage:
  * @Idempotent()
  * @Post('bookings')
@@ -22,29 +22,30 @@ export function Idempotent(options: { required?: boolean } = {}) {
   return applyDecorators(
     // Apply the idempotency interceptor
     UseInterceptors(IdempotencyInterceptor),
-    
+
     // Auto-generate Swagger documentation
     ApiHeader({
       name: 'X-Idempotency-Key',
-      description: 'UUID for idempotent request handling. Prevents duplicate processing of the same request.',
+      description:
+        'UUID for idempotent request handling. Prevents duplicate processing of the same request.',
       required,
       schema: {
         type: 'string',
         format: 'uuid',
-        example: '550e8400-e29b-41d4-a716-446655440000'
-      }
+        example: '550e8400-e29b-41d4-a716-446655440000',
+      },
     }),
-    
+
     // Document possible idempotency responses
     ApiResponse({
       status: 400,
-      description: 'Bad Request - Invalid idempotency key format'
+      description: 'Bad Request - Invalid idempotency key format',
     }),
-    
+
     ApiResponse({
       status: 409,
-      description: 'Conflict - Request already processed with different result'
-    })
+      description: 'Conflict - Request already processed with different result',
+    }),
   );
 }
 
@@ -66,18 +67,18 @@ export function OptionalIdempotency() {
 
 /**
  * Teaching Notes:
- * 
+ *
  * 1. **Decorator Composition**: We're using applyDecorators() to combine
  *    multiple decorators into a single, reusable decorator. This is a
  *    powerful pattern for creating clean, maintainable APIs.
- * 
+ *
  * 2. **Swagger Integration**: By including ApiHeader and ApiResponse,
  *    we automatically generate proper API documentation that shows
  *    developers how to use idempotency correctly.
- * 
+ *
  * 3. **Flexibility**: We provide both required and optional variants
  *    so different endpoints can have different idempotency policies.
- * 
+ *
  * 4. **Type Safety**: TypeScript ensures we can't pass invalid options
  *    to the decorator, catching errors at compile time.
  */

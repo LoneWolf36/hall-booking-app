@@ -86,15 +86,15 @@ export class MockRazorpayWebhook {
             notes: {
               booking_id: params.bookingId,
               tenant_id: params.tenantId || 'test-tenant-id',
-              payment_type: 'booking_payment'
+              payment_type: 'booking_payment',
             },
             fee: Math.round(params.amount * 0.02), // 2% gateway fee
             tax: Math.round(params.amount * 0.0036), // 18% GST on fee
-            created_at: Math.floor(Date.now() / 1000)
-          }
-        }
+            created_at: Math.floor(Date.now() / 1000),
+          },
+        },
       },
-      created_at: Math.floor(Date.now() / 1000)
+      created_at: Math.floor(Date.now() / 1000),
     };
 
     const payloadString = JSON.stringify(payload);
@@ -103,7 +103,7 @@ export class MockRazorpayWebhook {
     return {
       payload,
       signature,
-      payloadString
+      payloadString,
     };
   }
 
@@ -142,18 +142,20 @@ export class MockRazorpayWebhook {
             notes: {
               booking_id: params.bookingId,
               tenant_id: params.tenantId || 'test-tenant-id',
-              payment_type: 'booking_payment'
+              payment_type: 'booking_payment',
             },
             error_code: params.errorCode,
-            error_description: params.errorDescription || 'Payment failed due to insufficient funds',
+            error_description:
+              params.errorDescription ||
+              'Payment failed due to insufficient funds',
             error_source: 'customer',
             error_step: 'payment_authentication',
             error_reason: 'payment_failed',
-            created_at: Math.floor(Date.now() / 1000)
-          }
-        }
+            created_at: Math.floor(Date.now() / 1000),
+          },
+        },
       },
-      created_at: Math.floor(Date.now() / 1000)
+      created_at: Math.floor(Date.now() / 1000),
     };
 
     const payloadString = JSON.stringify(payload);
@@ -162,7 +164,7 @@ export class MockRazorpayWebhook {
     return {
       payload,
       signature,
-      payloadString
+      payloadString,
     };
   }
 
@@ -199,13 +201,13 @@ export class MockRazorpayWebhook {
             notes: {
               booking_id: params.bookingId,
               tenant_id: params.tenantId || 'test-tenant-id',
-              payment_type: 'deposit_authorization'
+              payment_type: 'deposit_authorization',
             },
-            created_at: Math.floor(Date.now() / 1000)
-          }
-        }
+            created_at: Math.floor(Date.now() / 1000),
+          },
+        },
       },
-      created_at: Math.floor(Date.now() / 1000)
+      created_at: Math.floor(Date.now() / 1000),
     };
 
     const payloadString = JSON.stringify(payload);
@@ -214,7 +216,7 @@ export class MockRazorpayWebhook {
     return {
       payload,
       signature,
-      payloadString
+      payloadString,
     };
   }
 
@@ -244,18 +246,18 @@ export class MockRazorpayWebhook {
             notes: {
               booking_id: params.bookingId,
               tenant_id: params.tenantId || 'test-tenant-id',
-              refund_reason: 'booking_cancelled'
+              refund_reason: 'booking_cancelled',
             },
             receipt: `refund_${Date.now()}`,
             acquirer_data: {},
             status: 'processed',
             speed_processed: 'normal',
             speed_requested: 'normal',
-            created_at: Math.floor(Date.now() / 1000)
-          }
-        }
+            created_at: Math.floor(Date.now() / 1000),
+          },
+        },
       },
-      created_at: Math.floor(Date.now() / 1000)
+      created_at: Math.floor(Date.now() / 1000),
     };
 
     const payloadString = JSON.stringify(payload);
@@ -264,7 +266,7 @@ export class MockRazorpayWebhook {
     return {
       payload,
       signature,
-      payloadString
+      payloadString,
     };
   }
 
@@ -277,10 +279,10 @@ export class MockRazorpayWebhook {
     bookingId: string;
   }) {
     const validWebhook = this.createPaymentSuccessWebhook(params);
-    
+
     return {
       ...validWebhook,
-      signature: 'invalid_signature_for_testing'
+      signature: 'invalid_signature_for_testing',
     };
   }
 
@@ -292,7 +294,7 @@ export class MockRazorpayWebhook {
       .createHmac('sha256', this.webhookSecret)
       .update(payload)
       .digest('hex');
-    
+
     return expectedSignature;
   }
 
@@ -303,31 +305,34 @@ export class MockRazorpayWebhook {
     const expectedSignature = this.generateSignature(payload);
     return crypto.timingSafeEqual(
       Buffer.from(signature, 'hex'),
-      Buffer.from(expectedSignature, 'hex')
+      Buffer.from(expectedSignature, 'hex'),
     );
   }
 
   /**
    * Creates a batch of webhooks for load testing
    */
-  createBatchWebhooks(count: number, baseParams: {
-    amount: number;
-    bookingIdPrefix: string;
-    tenantId?: string;
-  }) {
+  createBatchWebhooks(
+    count: number,
+    baseParams: {
+      amount: number;
+      bookingIdPrefix: string;
+      tenantId?: string;
+    },
+  ) {
     const webhooks = [];
-    
+
     for (let i = 0; i < count; i++) {
       const webhook = this.createPaymentSuccessWebhook({
         paymentId: `pay_test_batch_${i}_${Date.now()}`,
         amount: baseParams.amount,
         bookingId: `${baseParams.bookingIdPrefix}_${i}`,
-        tenantId: baseParams.tenantId
+        tenantId: baseParams.tenantId,
       });
-      
+
       webhooks.push(webhook);
     }
-    
+
     return webhooks;
   }
 
@@ -341,10 +346,10 @@ export class MockRazorpayWebhook {
     method: 'card' | 'upi' | 'netbanking' | 'wallet';
   }) {
     const baseWebhook = this.createPaymentSuccessWebhook(params);
-    
+
     // Modify payment method in the payload
     baseWebhook.payload.payload.payment.entity.method = params.method;
-    
+
     // Add method-specific data
     switch (params.method) {
       case 'card':
@@ -360,15 +365,15 @@ export class MockRazorpayWebhook {
         baseWebhook.payload.payload.payment.entity.wallet = 'paytm';
         break;
     }
-    
+
     // Regenerate signature with modified payload
     const payloadString = JSON.stringify(baseWebhook.payload);
     const signature = this.generateSignature(payloadString);
-    
+
     return {
       payload: baseWebhook.payload,
       signature,
-      payloadString
+      payloadString,
     };
   }
 
@@ -382,21 +387,21 @@ export class MockRazorpayWebhook {
     notes: Record<string, any>;
   }) {
     const webhook = this.createPaymentSuccessWebhook(params);
-    
+
     // Merge custom notes with default notes
     webhook.payload.payload.payment.entity.notes = {
       ...webhook.payload.payload.payment.entity.notes,
-      ...params.notes
+      ...params.notes,
     };
-    
+
     // Regenerate signature
     const payloadString = JSON.stringify(webhook.payload);
     const signature = this.generateSignature(payloadString);
-    
+
     return {
       payload: webhook.payload,
       signature,
-      payloadString
+      payloadString,
     };
   }
 
@@ -414,31 +419,38 @@ export class MockRazorpayWebhook {
           id: 'pay_malformed_test',
           // Missing entity structure
           amount: 'invalid_amount', // Should be number
-          status: 'captured'
-        }
-      }
+          status: 'captured',
+        },
+      },
     };
-    
+
     const payloadString = JSON.stringify(malformedPayload);
     const signature = this.generateSignature(payloadString);
-    
+
     return {
       payload: malformedPayload,
       signature,
-      payloadString
+      payloadString,
     };
   }
 }
 
 // Export utility functions for use in tests
-export const createMockWebhookSignature = (payload: string, secret: string): string => {
+export const createMockWebhookSignature = (
+  payload: string,
+  secret: string,
+): string => {
   return crypto.createHmac('sha256', secret).update(payload).digest('hex');
 };
 
-export const validateMockWebhookSignature = (payload: string, signature: string, secret: string): boolean => {
+export const validateMockWebhookSignature = (
+  payload: string,
+  signature: string,
+  secret: string,
+): boolean => {
   const expectedSignature = createMockWebhookSignature(payload, secret);
   return crypto.timingSafeEqual(
     Buffer.from(signature, 'hex'),
-    Buffer.from(expectedSignature, 'hex')
+    Buffer.from(expectedSignature, 'hex'),
   );
 };

@@ -1,6 +1,6 @@
 /**
  * Application Constants - Centralized configuration values
- * 
+ *
  * This file consolidates all constants used across the application
  * to eliminate duplication and provide a single source of truth.
  */
@@ -23,8 +23,8 @@ export const TIME_CONSTANTS = {
 // ========================================
 
 export const CACHE_CONSTANTS = {
-  BOOKING_TTL_SECONDS: 3600,      // 1 hour
-  AVAILABILITY_TTL_SECONDS: 300,  // 5 minutes
+  BOOKING_TTL_SECONDS: 3600, // 1 hour
+  AVAILABILITY_TTL_SECONDS: 300, // 5 minutes
   IDEMPOTENCY_TTL_SECONDS: 86400, // 24 hours
   SEQUENCE_TTL_SECONDS: 31536000, // 1 year
 } as const;

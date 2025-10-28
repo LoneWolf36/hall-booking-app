@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { CallHandler, ExecutionContext, NestInterceptor, Logger } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  NestInterceptor,
+  Logger,
+} from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 
@@ -14,17 +19,41 @@ export class LoggingInterceptor implements NestInterceptor {
     const idempotencyKey = headers['x-idempotency-key'];
     const started = Date.now();
 
-    this.logger.log({ msg: 'request', method, url, tenantId, idempotencyKey, params, query });
+    this.logger.log({
+      msg: 'request',
+      method,
+      url,
+      tenantId,
+      idempotencyKey,
+      params,
+      query,
+    });
 
     return next.handle().pipe(
       tap({
         next: (response) => {
           const duration = Date.now() - started;
-          this.logger.log({ msg: 'response', method, url, status: response?.statusCode ?? 200, duration, tenantId });
+          this.logger.log({
+            msg: 'response',
+            method,
+            url,
+            status: response?.statusCode ?? 200,
+            duration,
+            tenantId,
+          });
         },
         error: (err) => {
           const duration = Date.now() - started;
-          this.logger.error({ msg: 'error', method, url, duration, tenantId, code: err?.code, status: err?.status, error: err?.message });
+          this.logger.error({
+            msg: 'error',
+            method,
+            url,
+            duration,
+            tenantId,
+            code: err?.code,
+            status: err?.status,
+            error: err?.message,
+          });
         },
       }),
     );

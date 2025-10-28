@@ -27,7 +27,9 @@ describe('Payment System Integration (E2E)', () => {
     app = moduleFixture.createNestApplication();
     prisma = moduleFixture.get<PrismaService>(PrismaService);
     paymentsService = moduleFixture.get<PaymentsService>(PaymentsService);
-    flexiblePaymentService = moduleFixture.get<FlexiblePaymentService>(FlexiblePaymentService);
+    flexiblePaymentService = moduleFixture.get<FlexiblePaymentService>(
+      FlexiblePaymentService,
+    );
     razorpayService = moduleFixture.get<RazorpayService>(RazorpayService);
 
     testEnv = new PaymentTestEnvironment(prisma);
@@ -63,7 +65,7 @@ describe('Payment System Integration (E2E)', () => {
       expect(venue.paymentProfile).toBe('cash_only');
       expect(venue.allowCashPayments).toBe(true);
       expect(venue.hasRazorpayAccount).toBe(false);
-      expect(venue.platformCommissionPercentage).toEqual(5.00);
+      expect(venue.platformCommissionPercentage).toEqual(5.0);
 
       // 2. Create booking
       const bookingData = {
@@ -72,7 +74,7 @@ describe('Payment System Integration (E2E)', () => {
         startTs: new Date('2025-11-01T10:00:00Z'),
         endTs: new Date('2025-11-01T18:00:00Z'),
         totalAmountCents: 10000, // ₹100
-        eventType: 'wedding'
+        eventType: 'wedding',
       };
 
       const booking = await testEnv.createBooking(bookingData);
@@ -106,7 +108,7 @@ describe('Payment System Integration (E2E)', () => {
           amountCents: 10000,
           paymentMethod: 'cash',
           receiptNumber: 'RCPT-001',
-          notes: 'Paid in full at venue'
+          notes: 'Paid in full at venue',
         })
         .expect(201);
 
@@ -115,7 +117,7 @@ describe('Payment System Integration (E2E)', () => {
 
       // 7. Verify booking status updated
       const updatedBooking = await prisma.booking.findUnique({
-        where: { id: booking.id }
+        where: { id: booking.id },
       });
       expect(updatedBooking.paymentStatus).toBe('paid');
       expect(updatedBooking.status).toBe('confirmed');
@@ -123,10 +125,10 @@ describe('Payment System Integration (E2E)', () => {
 
       // 8. Verify commission record created
       const commissionRecord = await prisma.commissionRecord.findFirst({
-        where: { bookingId: booking.id }
+        where: { bookingId: booking.id },
       });
       expect(commissionRecord).toBeTruthy();
-      expect(commissionRecord.commissionPercentage).toEqual(5.00);
+      expect(commissionRecord.commissionPercentage).toEqual(5.0);
       expect(commissionRecord.commissionAmountCents).toBe(500); // 5% of ₹100
       expect(commissionRecord.commissionStatus).toBe('pending');
     });
@@ -137,7 +139,7 @@ describe('Payment System Integration (E2E)', () => {
         userId: customer.id,
         startTs: new Date('2025-11-01T10:00:00Z'),
         endTs: new Date('2025-11-01T18:00:00Z'),
-        totalAmountCents: 10000
+        totalAmountCents: 10000,
       });
 
       // Attempt to select online payment should fail
@@ -170,7 +172,7 @@ describe('Payment System Integration (E2E)', () => {
       expect(venue.paymentProfile).toBe('cash_plus_deposit');
       expect(venue.requiresOnlineDeposit).toBe(true);
       expect(venue.depositAmount).toBe(25); // 25%
-      expect(venue.platformCommissionPercentage).toEqual(7.00);
+      expect(venue.platformCommissionPercentage).toEqual(7.0);
 
       // 2. Create booking
       const booking = await testEnv.createBooking({
@@ -178,7 +180,7 @@ describe('Payment System Integration (E2E)', () => {
         userId: customer.id,
         startTs: new Date('2025-11-01T10:00:00Z'),
         endTs: new Date('2025-11-01T18:00:00Z'),
-        totalAmountCents: 20000 // ₹200
+        totalAmountCents: 20000, // ₹200
       });
 
       // 3. Get payment options
@@ -208,7 +210,7 @@ describe('Payment System Integration (E2E)', () => {
       const webhook = mockWebhook.createPaymentSuccessWebhook({
         paymentId: 'pay_test_deposit_123',
         amount: 5000,
-        bookingId: booking.id
+        bookingId: booking.id,
       });
 
       await request(app.getHttpServer())
@@ -219,7 +221,7 @@ describe('Payment System Integration (E2E)', () => {
 
       // 7. Verify partial payment status
       const partiallyPaidBooking = await prisma.booking.findUnique({
-        where: { id: booking.id }
+        where: { id: booking.id },
       });
       expect(partiallyPaidBooking.paymentStatus).toBe('partial');
       expect(partiallyPaidBooking.onlineAmountDue).toBe(0);
@@ -231,22 +233,22 @@ describe('Payment System Integration (E2E)', () => {
         .send({
           amountCents: 15000,
           paymentMethod: 'cash',
-          receiptNumber: 'RCPT-002'
+          receiptNumber: 'RCPT-002',
         })
         .expect(201);
 
       // 9. Verify full payment completion
       const fullyPaidBooking = await prisma.booking.findUnique({
-        where: { id: booking.id }
+        where: { id: booking.id },
       });
       expect(fullyPaidBooking.paymentStatus).toBe('paid');
       expect(fullyPaidBooking.status).toBe('confirmed');
 
       // 10. Verify commission calculation (7%)
       const commissionRecord = await prisma.commissionRecord.findFirst({
-        where: { bookingId: booking.id }
+        where: { bookingId: booking.id },
       });
-      expect(commissionRecord.commissionPercentage).toEqual(7.00);
+      expect(commissionRecord.commissionPercentage).toEqual(7.0);
       expect(commissionRecord.commissionAmountCents).toBe(1400); // 7% of ₹200
     });
   });
@@ -265,14 +267,14 @@ describe('Payment System Integration (E2E)', () => {
 
     it('should allow customer to choose between cash and online payment', async () => {
       expect(venue.paymentProfile).toBe('hybrid_flexible');
-      expect(venue.platformCommissionPercentage).toEqual(8.00);
+      expect(venue.platformCommissionPercentage).toEqual(8.0);
 
       const booking = await testEnv.createBooking({
         venueId: venue.id,
         userId: customer.id,
         startTs: new Date('2025-11-01T10:00:00Z'),
         endTs: new Date('2025-11-01T18:00:00Z'),
-        totalAmountCents: 15000
+        totalAmountCents: 15000,
       });
 
       // Get payment options - should show both methods
@@ -308,15 +310,15 @@ describe('Payment System Integration (E2E)', () => {
         .send({
           amountCents: 15000,
           paymentMethod: 'cash',
-          receiptNumber: 'RCPT-003'
+          receiptNumber: 'RCPT-003',
         })
         .expect(201);
 
       // Verify commission is still 8% regardless of payment method
       const commissionRecord = await prisma.commissionRecord.findFirst({
-        where: { bookingId: booking.id }
+        where: { bookingId: booking.id },
       });
-      expect(commissionRecord.commissionPercentage).toEqual(8.00);
+      expect(commissionRecord.commissionPercentage).toEqual(8.0);
       expect(commissionRecord.commissionAmountCents).toBe(1200); // 8% of ₹150
     });
 
@@ -328,7 +330,7 @@ describe('Payment System Integration (E2E)', () => {
           userId: customer.id,
           startTs: new Date(`2025-11-0${i + 1}T10:00:00Z`),
           endTs: new Date(`2025-11-0${i + 1}T18:00:00Z`),
-          totalAmountCents: 10000
+          totalAmountCents: 10000,
         });
 
         await request(app.getHttpServer())
@@ -340,7 +342,7 @@ describe('Payment System Integration (E2E)', () => {
           .post(`/api/v1/payments/bookings/${booking.id}/cash-payment`)
           .send({
             amountCents: 10000,
-            paymentMethod: 'cash'
+            paymentMethod: 'cash',
           })
           .expect(201);
       }
@@ -351,7 +353,7 @@ describe('Payment System Integration (E2E)', () => {
         userId: customer.id,
         startTs: new Date('2025-11-05T10:00:00Z'),
         endTs: new Date('2025-11-05T18:00:00Z'),
-        totalAmountCents: 10000
+        totalAmountCents: 10000,
       });
 
       const optionsResponse = await request(app.getHttpServer())
@@ -362,7 +364,7 @@ describe('Payment System Integration (E2E)', () => {
 
       // Verify preference record
       const preference = await prisma.customerPaymentPreference.findFirst({
-        where: { userId: customer.id }
+        where: { userId: customer.id },
       });
       expect(preference.preferredMethod).toBe('cash');
       expect(preference.totalBookings).toBe(4);
@@ -385,7 +387,7 @@ describe('Payment System Integration (E2E)', () => {
     it('should handle full online payment with instant confirmation', async () => {
       expect(venue.paymentProfile).toBe('full_online');
       expect(venue.hasRazorpayAccount).toBe(true);
-      expect(venue.platformCommissionPercentage).toEqual(10.00);
+      expect(venue.platformCommissionPercentage).toEqual(10.0);
       expect(venue.confirmationTrigger).toBe('full_payment');
 
       const booking = await testEnv.createBooking({
@@ -393,7 +395,7 @@ describe('Payment System Integration (E2E)', () => {
         userId: customer.id,
         startTs: new Date('2025-11-01T10:00:00Z'),
         endTs: new Date('2025-11-01T18:00:00Z'),
-        totalAmountCents: 25000
+        totalAmountCents: 25000,
       });
 
       // Should only offer online payment
@@ -416,7 +418,7 @@ describe('Payment System Integration (E2E)', () => {
       const webhook = mockWebhook.createPaymentSuccessWebhook({
         paymentId: 'pay_test_full_online_123',
         amount: 25000,
-        bookingId: booking.id
+        bookingId: booking.id,
       });
 
       await request(app.getHttpServer())
@@ -427,7 +429,7 @@ describe('Payment System Integration (E2E)', () => {
 
       // Verify instant confirmation
       const confirmedBooking = await prisma.booking.findUnique({
-        where: { id: booking.id }
+        where: { id: booking.id },
       });
       expect(confirmedBooking.status).toBe('confirmed');
       expect(confirmedBooking.paymentStatus).toBe('paid');
@@ -435,9 +437,9 @@ describe('Payment System Integration (E2E)', () => {
 
       // Verify 10% commission
       const commissionRecord = await prisma.commissionRecord.findFirst({
-        where: { bookingId: booking.id }
+        where: { bookingId: booking.id },
       });
-      expect(commissionRecord.commissionPercentage).toEqual(10.00);
+      expect(commissionRecord.commissionPercentage).toEqual(10.0);
       expect(commissionRecord.commissionAmountCents).toBe(2500); // 10% of ₹250
     });
 
@@ -447,7 +449,7 @@ describe('Payment System Integration (E2E)', () => {
         userId: customer.id,
         startTs: new Date('2025-11-01T10:00:00Z'),
         endTs: new Date('2025-11-01T18:00:00Z'),
-        totalAmountCents: 25000
+        totalAmountCents: 25000,
       });
 
       // Attempt cash payment should fail
@@ -455,7 +457,7 @@ describe('Payment System Integration (E2E)', () => {
         .post(`/api/v1/payments/bookings/${booking.id}/cash-payment`)
         .send({
           amountCents: 25000,
-          paymentMethod: 'cash'
+          paymentMethod: 'cash',
         })
         .expect(400);
     });
@@ -476,14 +478,14 @@ describe('Payment System Integration (E2E)', () => {
     it('should handle marketplace model with platform-managed payments', async () => {
       expect(venue.paymentProfile).toBe('marketplace');
       expect(venue.platformHandlesPayments).toBe(true);
-      expect(venue.platformCommissionPercentage).toEqual(15.00);
+      expect(venue.platformCommissionPercentage).toEqual(15.0);
 
       const booking = await testEnv.createBooking({
         venueId: venue.id,
         userId: customer.id,
         startTs: new Date('2025-11-01T10:00:00Z'),
         endTs: new Date('2025-11-01T18:00:00Z'),
-        totalAmountCents: 30000
+        totalAmountCents: 30000,
       });
 
       // Platform handles all payment processing
@@ -506,7 +508,7 @@ describe('Payment System Integration (E2E)', () => {
       const webhook = mockWebhook.createPaymentSuccessWebhook({
         paymentId: 'pay_test_marketplace_123',
         amount: 30000,
-        bookingId: booking.id
+        bookingId: booking.id,
       });
 
       await request(app.getHttpServer())
@@ -517,9 +519,9 @@ describe('Payment System Integration (E2E)', () => {
 
       // Verify 15% commission
       const commissionRecord = await prisma.commissionRecord.findFirst({
-        where: { bookingId: booking.id }
+        where: { bookingId: booking.id },
       });
-      expect(commissionRecord.commissionPercentage).toEqual(15.00);
+      expect(commissionRecord.commissionPercentage).toEqual(15.0);
       expect(commissionRecord.commissionAmountCents).toBe(4500); // 15% of ₹300
       expect(commissionRecord.collectionMethod).toBe('auto_deduct');
     });
@@ -530,13 +532,13 @@ describe('Payment System Integration (E2E)', () => {
       const testBooking = await testEnv.createBooking({
         venueId: 'test-venue-id',
         userId: 'test-customer-id',
-        totalAmountCents: 10000
+        totalAmountCents: 10000,
       });
 
       const validWebhook = mockWebhook.createPaymentSuccessWebhook({
         paymentId: 'pay_test_signature_123',
         amount: 10000,
-        bookingId: testBooking.id
+        bookingId: testBooking.id,
       });
 
       // Valid signature should succeed
@@ -558,13 +560,13 @@ describe('Payment System Integration (E2E)', () => {
       const testBooking = await testEnv.createBooking({
         venueId: 'test-venue-id',
         userId: 'test-customer-id',
-        totalAmountCents: 10000
+        totalAmountCents: 10000,
       });
 
       const webhook = mockWebhook.createPaymentSuccessWebhook({
         paymentId: 'pay_test_duplicate_123',
         amount: 10000,
-        bookingId: testBooking.id
+        bookingId: testBooking.id,
       });
 
       // Send webhook twice
@@ -582,7 +584,7 @@ describe('Payment System Integration (E2E)', () => {
 
       // Verify only one payment record
       const payments = await prisma.payment.findMany({
-        where: { bookingId: testBooking.id }
+        where: { bookingId: testBooking.id },
       });
       expect(payments).toHaveLength(1);
     });
@@ -591,14 +593,14 @@ describe('Payment System Integration (E2E)', () => {
       const testBooking = await testEnv.createBooking({
         venueId: 'test-venue-id',
         userId: 'test-customer-id',
-        totalAmountCents: 10000
+        totalAmountCents: 10000,
       });
 
       const failureWebhook = mockWebhook.createPaymentFailureWebhook({
         paymentId: 'pay_test_failure_123',
         amount: 10000,
         bookingId: testBooking.id,
-        errorCode: 'BAD_REQUEST_ERROR'
+        errorCode: 'BAD_REQUEST_ERROR',
       });
 
       await request(app.getHttpServer())
@@ -609,13 +611,13 @@ describe('Payment System Integration (E2E)', () => {
 
       // Verify payment failure recorded
       const payment = await prisma.payment.findFirst({
-        where: { bookingId: testBooking.id }
+        where: { bookingId: testBooking.id },
       });
       expect(payment.status).toBe('failed');
 
       // Verify booking remains in temp_hold status
       const booking = await prisma.booking.findUnique({
-        where: { id: testBooking.id }
+        where: { id: testBooking.id },
       });
       expect(booking.status).toBe('temp_hold');
       expect(booking.paymentStatus).toBe('pending');
@@ -631,7 +633,7 @@ describe('Payment System Integration (E2E)', () => {
     beforeEach(async () => {
       const testDataA = await testEnv.createTenantWithVenue('tenant-a');
       const testDataB = await testEnv.createTenantWithVenue('tenant-b');
-      
+
       tenantA = testDataA.tenant;
       venueA = testDataA.venue;
       tenantB = testDataB.tenant;
@@ -644,14 +646,14 @@ describe('Payment System Integration (E2E)', () => {
         tenantId: tenantA.id,
         venueId: venueA.id,
         userId: 'customer-a',
-        totalAmountCents: 10000
+        totalAmountCents: 10000,
       });
 
       const bookingB = await testEnv.createBooking({
         tenantId: tenantB.id,
         venueId: venueB.id,
         userId: 'customer-b',
-        totalAmountCents: 20000
+        totalAmountCents: 20000,
       });
 
       // Record payments for both
@@ -675,10 +677,10 @@ describe('Payment System Integration (E2E)', () => {
 
       // Verify commission records are isolated
       const commissionsA = await prisma.commissionRecord.findMany({
-        where: { tenantId: tenantA.id }
+        where: { tenantId: tenantA.id },
       });
       const commissionsB = await prisma.commissionRecord.findMany({
-        where: { tenantId: tenantB.id }
+        where: { tenantId: tenantB.id },
       });
 
       expect(commissionsA).toHaveLength(1);
@@ -692,14 +694,14 @@ describe('Payment System Integration (E2E)', () => {
         tenantId: tenantA.id,
         venueId: venueA.id,
         userId: 'customer-a',
-        totalAmountCents: 10000
+        totalAmountCents: 10000,
       });
 
       const webhook = mockWebhook.createPaymentSuccessWebhook({
         paymentId: 'pay_test_tenant_routing_123',
         amount: 10000,
         bookingId: bookingA.id,
-        tenantId: tenantA.id
+        tenantId: tenantA.id,
       });
 
       await request(app.getHttpServer())
@@ -710,20 +712,20 @@ describe('Payment System Integration (E2E)', () => {
 
       // Verify payment recorded for correct tenant
       const payment = await prisma.payment.findFirst({
-        where: { 
+        where: {
           bookingId: bookingA.id,
-          tenantId: tenantA.id
-        }
+          tenantId: tenantA.id,
+        },
       });
       expect(payment).toBeTruthy();
       expect(payment.tenantId).toBe(tenantA.id);
 
       // Verify no cross-tenant payment leakage
       const crossTenantPayment = await prisma.payment.findFirst({
-        where: { 
+        where: {
           bookingId: bookingA.id,
-          tenantId: tenantB.id
-        }
+          tenantId: tenantB.id,
+        },
       });
       expect(crossTenantPayment).toBeNull();
     });
@@ -731,65 +733,92 @@ describe('Payment System Integration (E2E)', () => {
 
   describe('8. Commission Calculation Accuracy', () => {
     const testCases = [
-      { profile: 'cash_only', expectedRate: 5.00, amount: 10000, expectedCommission: 500 },
-      { profile: 'cash_plus_deposit', expectedRate: 7.00, amount: 15000, expectedCommission: 1050 },
-      { profile: 'hybrid_flexible', expectedRate: 8.00, amount: 20000, expectedCommission: 1600 },
-      { profile: 'full_online', expectedRate: 10.00, amount: 25000, expectedCommission: 2500 },
-      { profile: 'marketplace', expectedRate: 15.00, amount: 30000, expectedCommission: 4500 }
+      {
+        profile: 'cash_only',
+        expectedRate: 5.0,
+        amount: 10000,
+        expectedCommission: 500,
+      },
+      {
+        profile: 'cash_plus_deposit',
+        expectedRate: 7.0,
+        amount: 15000,
+        expectedCommission: 1050,
+      },
+      {
+        profile: 'hybrid_flexible',
+        expectedRate: 8.0,
+        amount: 20000,
+        expectedCommission: 1600,
+      },
+      {
+        profile: 'full_online',
+        expectedRate: 10.0,
+        amount: 25000,
+        expectedCommission: 2500,
+      },
+      {
+        profile: 'marketplace',
+        expectedRate: 15.0,
+        amount: 30000,
+        expectedCommission: 4500,
+      },
     ];
 
-    testCases.forEach(({ profile, expectedRate, amount, expectedCommission }) => {
-      it(`should calculate ${expectedRate}% commission for ${profile} profile`, async () => {
-        const testData = await testEnv.createVenueWithProfile(profile);
-        
-        const booking = await testEnv.createBooking({
-          venueId: testData.venue.id,
-          userId: testData.customer.id,
-          totalAmountCents: amount
-        });
+    testCases.forEach(
+      ({ profile, expectedRate, amount, expectedCommission }) => {
+        it(`should calculate ${expectedRate}% commission for ${profile} profile`, async () => {
+          const testData = await testEnv.createVenueWithProfile(profile);
 
-        // Complete payment based on profile
-        if (profile.includes('online') || profile === 'marketplace') {
-          const webhook = mockWebhook.createPaymentSuccessWebhook({
-            paymentId: `pay_test_commission_${profile}`,
-            amount,
-            bookingId: booking.id
+          const booking = await testEnv.createBooking({
+            venueId: testData.venue.id,
+            userId: testData.customer.id,
+            totalAmountCents: amount,
           });
 
-          await request(app.getHttpServer())
-            .post('/api/v1/payments/webhook/razorpay')
-            .set('X-Razorpay-Signature', webhook.signature)
-            .send(webhook.payload)
-            .expect(200);
-        } else {
-          await request(app.getHttpServer())
-            .post(`/api/v1/payments/bookings/${booking.id}/cash-payment`)
-            .send({ amountCents: amount, paymentMethod: 'cash' })
-            .expect(201);
-        }
+          // Complete payment based on profile
+          if (profile.includes('online') || profile === 'marketplace') {
+            const webhook = mockWebhook.createPaymentSuccessWebhook({
+              paymentId: `pay_test_commission_${profile}`,
+              amount,
+              bookingId: booking.id,
+            });
 
-        // Verify commission calculation
-        const commission = await prisma.commissionRecord.findFirst({
-          where: { bookingId: booking.id }
+            await request(app.getHttpServer())
+              .post('/api/v1/payments/webhook/razorpay')
+              .set('X-Razorpay-Signature', webhook.signature)
+              .send(webhook.payload)
+              .expect(200);
+          } else {
+            await request(app.getHttpServer())
+              .post(`/api/v1/payments/bookings/${booking.id}/cash-payment`)
+              .send({ amountCents: amount, paymentMethod: 'cash' })
+              .expect(201);
+          }
+
+          // Verify commission calculation
+          const commission = await prisma.commissionRecord.findFirst({
+            where: { bookingId: booking.id },
+          });
+
+          expect(commission).toBeTruthy();
+          expect(commission.commissionPercentage).toEqual(expectedRate);
+          expect(commission.commissionAmountCents).toBe(expectedCommission);
+          expect(commission.bookingAmountCents).toBe(amount);
+          expect(commission.commissionStatus).toBe('pending');
         });
-
-        expect(commission).toBeTruthy();
-        expect(commission.commissionPercentage).toEqual(expectedRate);
-        expect(commission.commissionAmountCents).toBe(expectedCommission);
-        expect(commission.bookingAmountCents).toBe(amount);
-        expect(commission.commissionStatus).toBe('pending');
-      });
-    });
+      },
+    );
   });
 
   describe('9. Performance Benchmarks', () => {
     it('should process payment operations within target response times', async () => {
       const testData = await testEnv.createHybridVenue();
-      
+
       const booking = await testEnv.createBooking({
         venueId: testData.venue.id,
         userId: testData.customer.id,
-        totalAmountCents: 10000
+        totalAmountCents: 10000,
       });
 
       // Test payment options generation (target: <100ms)
@@ -812,7 +841,7 @@ describe('Payment System Integration (E2E)', () => {
       // Test commission calculation (target: <25ms)
       const commissionStart = Date.now();
       const commission = await prisma.commissionRecord.findFirst({
-        where: { bookingId: booking.id }
+        where: { bookingId: booking.id },
       });
       const commissionTime = Date.now() - commissionStart;
       expect(commissionTime).toBeLessThan(25);

@@ -10,7 +10,7 @@ export class RedisSetDto {
   @ApiProperty({
     description: 'The value to store in Redis',
     example: 'Hello World',
-    required: true
+    required: true,
   })
   @IsNotEmpty({ message: 'Value is required' })
   value: any;
@@ -19,7 +19,7 @@ export class RedisSetDto {
     description: 'Time-to-live in seconds (optional)',
     example: 3600,
     minimum: 1,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsNumber({}, { message: 'TTL must be a number' })

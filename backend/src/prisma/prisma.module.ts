@@ -3,7 +3,7 @@ import { PrismaService } from './prisma.service';
 
 /**
  * Prisma Module - Global database service module
- * 
+ *
  * Design Decisions:
  * 1. @Global decorator makes it available throughout the app
  * 2. No need to import in every module that needs database access
@@ -19,7 +19,7 @@ export class PrismaModule {}
 
 /**
  * Why @Global?
- * 
+ *
  * 1. **Convenience**: No need to import in every module
  * 2. **Singleton**: Single database connection pool
  * 3. **Performance**: Avoid multiple connection instances

@@ -4,20 +4,20 @@ export enum BookingStatus {
   PENDING = 'pending',
   CONFIRMED = 'confirmed',
   CANCELLED = 'cancelled',
-  EXPIRED = 'expired'
+  EXPIRED = 'expired',
 }
 
 export enum PaymentStatus {
   PENDING = 'pending',
   PARTIAL = 'partial',
   PAID = 'paid',
-  REFUNDED = 'refunded'
+  REFUNDED = 'refunded',
 }
 
 export enum UserRole {
   CUSTOMER = 'customer',
   ADMIN = 'admin',
-  OWNER = 'owner'
+  OWNER = 'owner',
 }
 
 // Request context

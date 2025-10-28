@@ -18,7 +18,7 @@ export class CreatePaymentLinkDto {
   @ApiProperty({
     description: 'Booking ID for which payment link is being created',
     example: '123e4567-e89b-12d3-a456-426614174000',
-    format: 'uuid'
+    format: 'uuid',
   })
   @IsUUID(4, { message: 'Booking ID must be a valid UUID' })
   bookingId: string;
@@ -26,7 +26,7 @@ export class CreatePaymentLinkDto {
   @ApiProperty({
     description: 'Payment amount in cents (paise for INR)',
     example: 5000000,
-    minimum: 100
+    minimum: 100,
   })
   @IsInt()
   @Min(100, { message: 'Amount must be at least ₹1 (100 paise)' })
@@ -35,7 +35,7 @@ export class CreatePaymentLinkDto {
   @ApiProperty({
     description: 'Currency code',
     example: 'INR',
-    default: 'INR'
+    default: 'INR',
   })
   @IsString()
   currency: string = 'INR';
@@ -43,7 +43,7 @@ export class CreatePaymentLinkDto {
   @ApiProperty({
     description: 'Payment link description',
     example: 'Payment for Hall Booking #HB-2024-001',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -51,14 +51,14 @@ export class CreatePaymentLinkDto {
 
   @ApiProperty({
     description: 'Customer name for payment',
-    example: 'John Doe'
+    example: 'John Doe',
   })
   @IsString()
   customerName: string;
 
   @ApiProperty({
     description: 'Customer phone number',
-    example: '+919876543210'
+    example: '+919876543210',
   })
   @IsString()
   customerPhone: string;
@@ -66,7 +66,7 @@ export class CreatePaymentLinkDto {
   @ApiProperty({
     description: 'Customer email (optional)',
     example: 'john.doe@example.com',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -76,7 +76,7 @@ export class CreatePaymentLinkDto {
     description: 'Payment link expiry time (ISO 8601)',
     example: '2024-12-25T15:00:00.000Z',
     format: 'date-time',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsDateString()
@@ -85,7 +85,7 @@ export class CreatePaymentLinkDto {
   @ApiProperty({
     description: 'Success callback URL',
     example: 'https://yourdomain.com/payment/success',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsUrl()
@@ -94,7 +94,7 @@ export class CreatePaymentLinkDto {
   @ApiProperty({
     description: 'Cancel callback URL',
     example: 'https://yourdomain.com/payment/cancel',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsUrl()
@@ -103,7 +103,7 @@ export class CreatePaymentLinkDto {
   @ApiProperty({
     description: 'Additional metadata for the payment',
     example: { venueId: 'venue-123', eventType: 'wedding' },
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsObject()
@@ -116,55 +116,55 @@ export class CreatePaymentLinkDto {
 export class PaymentLinkResponseDto {
   @ApiProperty({
     description: 'Payment link ID from Razorpay',
-    example: 'plink_KKBLjhmrasdf23'
+    example: 'plink_KKBLjhmrasdf23',
   })
   id: string;
 
   @ApiProperty({
     description: 'Payment link URL',
-    example: 'https://rzp.io/i/KKBLjhmr'
+    example: 'https://rzp.io/i/KKBLjhmr',
   })
   shortUrl: string;
 
   @ApiProperty({
     description: 'Payment amount in cents',
-    example: 5000000
+    example: 5000000,
   })
   amount: number;
 
   @ApiProperty({
     description: 'Currency code',
-    example: 'INR'
+    example: 'INR',
   })
   currency: string;
 
   @ApiProperty({
     description: 'Payment status',
-    example: 'created'
+    example: 'created',
   })
   status: string;
 
   @ApiProperty({
     description: 'Payment link expiry timestamp',
-    example: '2024-12-25T15:00:00.000Z'
+    example: '2024-12-25T15:00:00.000Z',
   })
   expireBy: Date;
 
   @ApiProperty({
     description: 'Internal payment record ID',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   paymentId: string;
 
   @ApiProperty({
     description: 'Associated booking ID',
-    example: '123e4567-e89b-12d3-a456-426614174000'
+    example: '123e4567-e89b-12d3-a456-426614174000',
   })
   bookingId: string;
 
   @ApiProperty({
     description: 'Minutes until expiry',
-    example: 15
+    example: 15,
   })
   expiresInMinutes: number;
 }
@@ -175,12 +175,12 @@ export class PaymentLinkResponseDto {
 export class RazorpayWebhookDto {
   @ApiProperty({
     description: 'Webhook event type',
-    example: 'payment_link.paid'
+    example: 'payment_link.paid',
   })
   event: string;
 
   @ApiProperty({
-    description: 'Webhook payload data'
+    description: 'Webhook payload data',
   })
   payload: {
     payment_link: {
@@ -193,7 +193,7 @@ export class RazorpayWebhookDto {
 
   @ApiProperty({
     description: 'Webhook creation timestamp',
-    example: 1640995200
+    example: 1640995200,
   })
   created_at: number;
 }

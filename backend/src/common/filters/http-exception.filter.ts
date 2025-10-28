@@ -4,7 +4,7 @@ import {
   ArgumentsHost,
   HttpException,
   HttpStatus,
-  Logger
+  Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 
@@ -24,7 +24,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const errorResponse = exception.getResponse();
-      
+
       if (typeof errorResponse === 'object') {
         message = (errorResponse as any).message || 'Unknown error';
         error = (errorResponse as any).error || exception.name;
@@ -36,11 +36,11 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       status = HttpStatus.INTERNAL_SERVER_ERROR;
       message = 'Internal server error';
       error = 'InternalServerError';
-      
+
       // Log unexpected errors
       this.logger.error(
         `Unexpected error: ${(exception as any).message}`,
-        (exception as any).stack
+        (exception as any).stack,
       );
     }
 
@@ -52,8 +52,8 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       path: request.url,
       method: request.method,
       ...(process.env.NODE_ENV === 'development' && {
-        stack: (exception as any).stack
-      })
+        stack: (exception as any).stack,
+      }),
     };
 
     response.status(status).json(errorResponse);

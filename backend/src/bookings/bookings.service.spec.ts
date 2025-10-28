@@ -7,7 +7,11 @@ import {
 import { BookingsService } from './bookings.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
-import { RedisService } from '../redis/redis.service';
+import { ErrorHandlerService } from '../common/services/error-handler.service';
+import { CacheService } from '../common/services/cache.service';
+import { ValidationService } from '../common/services/validation.service';
+import { BookingNumberService } from './services/booking-number.service';
+import { AvailabilityService } from './services/availability.service';
 import {
   CreateBookingDto,
   BookingStatus,
@@ -17,7 +21,7 @@ import { UserRole } from '../users/dto/create-user.dto';
 
 /**
  * Unit Tests for BookingsService
- * 
+ *
  * Test Categories:
  * 1. Booking creation with exclusion constraints
  * 2. Timestamp validation and normalization
@@ -32,14 +36,18 @@ describe('BookingsService', () => {
   let service: BookingsService;
   let prisma: PrismaService;
   let usersService: UsersService;
-  let redisService: RedisService;
+  let errorHandler: ErrorHandlerService;
+  let cacheService: CacheService;
+  let validationService: ValidationService;
+  let bookingNumberService: BookingNumberService;
+  let availabilityService: AvailabilityService;
 
   // Mock data
   const mockTenantId = 'tenant-123';
   const mockVenueId = 'venue-123';
   const mockUserId = 'user-123';
   const mockBookingId = 'booking-123';
-  
+
   const mockVenue = {
     id: mockVenueId,
     tenantId: mockTenantId,
@@ -92,6 +100,8 @@ describe('BookingsService', () => {
       create: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
+      update: jest.fn(),
+      count: jest.fn(),
     },
     $queryRaw: jest.fn(),
   };
@@ -101,9 +111,42 @@ describe('BookingsService', () => {
     upsertUserByPhone: jest.fn(),
   };
 
-  const mockRedisService = {
-    incr: jest.fn(),
+  const mockErrorHandlerService = {
+    handleBookingError: jest.fn((error) => error),
+  };
+
+  const mockCacheService = {
+    get: jest.fn(),
     set: jest.fn(),
+    cacheBooking: jest.fn(),
+    getCachedBooking: jest.fn(),
+    cacheAvailability: jest.fn(),
+    getCachedAvailability: jest.fn(),
+    invalidateBookingCache: jest.fn(),
+  };
+
+  const mockValidationService = {
+    validateAndNormalizeTimestamps: jest.fn((startTs, endTs) => ({
+      startTs: new Date(startTs),
+      endTs: new Date(endTs),
+    })),
+    validateVenue: jest.fn().mockResolvedValue(mockVenue),
+    validateBusinessRules: jest.fn(),
+    calculateDurationHours: jest.fn(() => 16),
+  };
+
+  const mockBookingNumberService = {
+    generateBookingNumber: jest.fn().mockResolvedValue('TST-2025-0001'),
+  };
+
+  const mockAvailabilityService = {
+    checkAvailability: jest.fn().mockResolvedValue({
+      isAvailable: true,
+      conflictingBookings: [],
+      blackoutPeriods: [],
+      suggestedAlternatives: [],
+    }),
+    alternativesOnConflict: jest.fn().mockResolvedValue([]),
   };
 
   beforeEach(async () => {
@@ -119,8 +162,24 @@ describe('BookingsService', () => {
           useValue: mockUsersService,
         },
         {
-          provide: RedisService,
-          useValue: mockRedisService,
+          provide: ErrorHandlerService,
+          useValue: mockErrorHandlerService,
+        },
+        {
+          provide: CacheService,
+          useValue: mockCacheService,
+        },
+        {
+          provide: ValidationService,
+          useValue: mockValidationService,
+        },
+        {
+          provide: BookingNumberService,
+          useValue: mockBookingNumberService,
+        },
+        {
+          provide: AvailabilityService,
+          useValue: mockAvailabilityService,
         },
       ],
     }).compile();
@@ -128,7 +187,12 @@ describe('BookingsService', () => {
     service = module.get<BookingsService>(BookingsService);
     prisma = module.get<PrismaService>(PrismaService);
     usersService = module.get<UsersService>(UsersService);
-    redisService = module.get<RedisService>(RedisService);
+    errorHandler = module.get<ErrorHandlerService>(ErrorHandlerService);
+    cacheService = module.get<CacheService>(CacheService);
+    validationService = module.get<ValidationService>(ValidationService);
+    bookingNumberService =
+      module.get<BookingNumberService>(BookingNumberService);
+    availabilityService = module.get<AvailabilityService>(AvailabilityService);
 
     // Clear mocks before each test
     jest.clearAllMocks();
@@ -143,39 +207,36 @@ describe('BookingsService', () => {
         email: 'rahul@example.com',
       },
       startTs: '2025-12-25T04:30:00.000Z', // Indian morning time
-      endTs: '2025-12-25T20:30:00.000Z',   // Indian evening time
+      endTs: '2025-12-25T20:30:00.000Z', // Indian evening time
       eventType: 'wedding',
       guestCount: 300,
       specialRequests: 'Decoration setup needed',
     };
 
     it('should create booking successfully with new customer', async () => {
-      // Mock venue validation
-      mockPrismaService.venue.findFirst.mockResolvedValue(mockVenue);
-      
+      // Mock venue validation returns venue (already done by validateVenue mock)
       // Mock customer creation
       mockUsersService.upsertUserByPhone.mockResolvedValue(mockUser);
-      
-      // Mock booking number generation
-      mockRedisService.incr.mockResolvedValue(1);
-      mockPrismaService.tenant.findUnique.mockResolvedValue({
-        id: mockTenantId,
-        name: 'Test Hall',
-      });
-      
+
+      // Mock idempotency check
+      mockPrismaService.booking.findFirst.mockResolvedValue(null);
+
       // Mock booking creation
       mockPrismaService.booking.create.mockResolvedValue(mockBooking);
-      
-      const result = await service.createBooking(mockTenantId, createBookingDto);
 
-      // Verify venue validation
-      expect(mockPrismaService.venue.findFirst).toHaveBeenCalledWith({
-        where: {
-          id: mockVenueId,
-          tenantId: mockTenantId,
-          isActive: true,
-        },
-      });
+      // Mock cache operations
+      mockCacheService.cacheBooking.mockResolvedValue(undefined);
+
+      const result = await service.createBooking(
+        mockTenantId,
+        createBookingDto,
+      );
+
+      // Verify validation service was called
+      expect(mockValidationService.validateVenue).toHaveBeenCalledWith(
+        mockTenantId,
+        mockVenueId,
+      );
 
       // Verify customer creation
       expect(mockUsersService.upsertUserByPhone).toHaveBeenCalledWith(
@@ -189,13 +250,13 @@ describe('BookingsService', () => {
       );
 
       // Verify booking number generation
-      expect(mockRedisService.incr).toHaveBeenCalledWith(
-        'booking_sequence:tenant-123:2025',
-      );
+      expect(
+        mockBookingNumberService.generateBookingNumber,
+      ).toHaveBeenCalledWith(mockTenantId);
 
       // Verify booking creation
       expect(mockPrismaService.booking.create).toHaveBeenCalled();
-      
+
       // Verify response format
       expect(result.success).toBe(true);
       expect(result.booking.id).toBe(mockBookingId);
@@ -204,16 +265,17 @@ describe('BookingsService', () => {
     });
 
     it('should handle exclusion constraint violation (double booking)', async () => {
-      // Mock venue and customer setup
-      mockPrismaService.venue.findFirst.mockResolvedValue(mockVenue);
+      // Mock customer setup
       mockUsersService.upsertUserByPhone.mockResolvedValue(mockUser);
-      mockRedisService.incr.mockResolvedValue(1);
-      mockPrismaService.tenant.findUnique.mockResolvedValue({ id: mockTenantId });
-      
+      mockPrismaService.booking.findFirst.mockResolvedValue(null);
+
       // Mock exclusion constraint violation
       const constraintError = new Error('Exclusion constraint violation');
       (constraintError as any).code = '23P01'; // PostgreSQL exclusion constraint
       mockPrismaService.booking.create.mockRejectedValue(constraintError);
+
+      // Mock alternative suggestions
+      mockAvailabilityService.alternativesOnConflict.mockResolvedValue([]);
 
       await expect(
         service.createBooking(mockTenantId, createBookingDto),
@@ -224,8 +286,15 @@ describe('BookingsService', () => {
       const invalidDto = {
         ...createBookingDto,
         startTs: '2025-12-25T20:30:00.000Z', // End time
-        endTs: '2025-12-25T04:30:00.000Z',   // Start time (reversed)
+        endTs: '2025-12-25T04:30:00.000Z', // Start time (reversed)
       };
+
+      // Mock validation service to throw error for invalid timestamps
+      mockValidationService.validateAndNormalizeTimestamps.mockImplementationOnce(
+        () => {
+          throw new BadRequestException('Start time must be before end time');
+        },
+      );
 
       await expect(
         service.createBooking(mockTenantId, invalidDto),
@@ -239,18 +308,29 @@ describe('BookingsService', () => {
         endTs: '2025-12-25T10:30:00.000Z', // Only 30 minutes
       };
 
+      // Mock validation to throw for short duration
+      mockValidationService.calculateDurationHours.mockReturnValueOnce(0.5);
+      mockValidationService.validateBusinessRules.mockImplementationOnce(() => {
+        throw new BadRequestException('Minimum booking duration is 1 hour');
+      });
+
       await expect(
         service.createBooking(mockTenantId, shortBookingDto),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('should validate guest count against venue capacity', async () => {
-      mockPrismaService.venue.findFirst.mockResolvedValue(mockVenue);
-      
       const overcapacityDto = {
         ...createBookingDto,
         guestCount: 600, // Venue capacity is 500
       };
+
+      // Mock validation to throw for overcapacity
+      mockValidationService.validateBusinessRules.mockImplementationOnce(() => {
+        throw new BadRequestException(
+          'Guest count (600) exceeds venue capacity (500)',
+        );
+      });
 
       await expect(
         service.createBooking(mockTenantId, overcapacityDto),
@@ -264,11 +344,10 @@ describe('BookingsService', () => {
         customer: undefined,
       };
 
-      mockPrismaService.venue.findFirst.mockResolvedValue(mockVenue);
       mockUsersService.findById.mockResolvedValue(mockUser);
-      mockRedisService.incr.mockResolvedValue(2);
-      mockPrismaService.tenant.findUnique.mockResolvedValue({ id: mockTenantId });
+      mockPrismaService.booking.findFirst.mockResolvedValue(null);
       mockPrismaService.booking.create.mockResolvedValue(mockBooking);
+      mockCacheService.cacheBooking.mockResolvedValue(undefined);
 
       const result = await service.createBooking(mockTenantId, existingUserDto);
 
@@ -276,29 +355,27 @@ describe('BookingsService', () => {
         mockTenantId,
         mockUserId,
       );
-      expect(result.isNewCustomer).toBe(false);
+      // Service doesn't return isNewCustomer anymore, so remove this assertion
+      expect(result.success).toBe(true);
     });
 
     it('should generate sequential booking numbers', async () => {
-      mockPrismaService.venue.findFirst.mockResolvedValue(mockVenue);
       mockUsersService.upsertUserByPhone.mockResolvedValue(mockUser);
-      mockPrismaService.tenant.findUnique.mockResolvedValue({
-        id: mockTenantId,
-        name: 'Parbhani Hall',
-      });
+      mockPrismaService.booking.findFirst.mockResolvedValue(null);
       mockPrismaService.booking.create.mockResolvedValue({
         ...mockBooking,
         bookingNumber: 'PAR-2025-0005', // 5th booking of the year
       });
-      
-      // Mock Redis returning sequence number 5
-      mockRedisService.incr.mockResolvedValue(5);
-
-      const result = await service.createBooking(mockTenantId, createBookingDto);
-
-      expect(mockRedisService.incr).toHaveBeenCalledWith(
-        'booking_sequence:tenant-123:2025',
+      mockCacheService.cacheBooking.mockResolvedValue(undefined);
+      mockBookingNumberService.generateBookingNumber.mockResolvedValue(
+        'PAR-2025-0005',
       );
+
+      const result = await service.createBooking(
+        mockTenantId,
+        createBookingDto,
+      );
+
       expect(result.booking.bookingNumber).toBe('PAR-2025-0005');
     });
   });
@@ -311,12 +388,20 @@ describe('BookingsService', () => {
     };
 
     it('should return available when no conflicts', async () => {
-      // Mock no conflicting bookings
-      mockPrismaService.$queryRaw
-        .mockResolvedValueOnce([]) // No conflicting bookings
-        .mockResolvedValueOnce([]); // No blackout periods
+      // Mock availability service to return available
+      mockAvailabilityService.checkAvailability.mockResolvedValue({
+        isAvailable: true,
+        conflictingBookings: [],
+        blackoutPeriods: [],
+        suggestedAlternatives: [],
+      });
+      mockCacheService.getCachedAvailability.mockResolvedValue(null);
+      mockCacheService.cacheAvailability.mockResolvedValue(undefined);
 
-      const result = await service.checkAvailability(mockTenantId, timeRangeDto);
+      const result = await service.checkAvailability(
+        mockTenantId,
+        timeRangeDto,
+      );
 
       expect(result.isAvailable).toBe(true);
       expect(result.conflictingBookings).toHaveLength(0);
@@ -333,15 +418,23 @@ describe('BookingsService', () => {
         customerName: 'John Doe',
       };
 
-      mockPrismaService.$queryRaw
-        .mockResolvedValueOnce([conflictingBooking]) // Conflicting booking
-        .mockResolvedValueOnce([]); // No blackout periods
+      mockAvailabilityService.checkAvailability.mockResolvedValue({
+        isAvailable: false,
+        conflictingBookings: [conflictingBooking],
+        blackoutPeriods: [],
+        suggestedAlternatives: [],
+      });
+      mockCacheService.getCachedAvailability.mockResolvedValue(null);
+      mockCacheService.cacheAvailability.mockResolvedValue(undefined);
 
-      const result = await service.checkAvailability(mockTenantId, timeRangeDto);
+      const result = await service.checkAvailability(
+        mockTenantId,
+        timeRangeDto,
+      );
 
       expect(result.isAvailable).toBe(false);
       expect(result.conflictingBookings).toHaveLength(1);
-      expect(result.conflictingBookings[0].customerName).toBe('John Doe');
+      expect(result.conflictingBookings?.[0]?.customerName).toBe('John Doe');
     });
 
     it('should detect blackout periods', async () => {
@@ -353,11 +446,19 @@ describe('BookingsService', () => {
         isMaintenance: true,
       };
 
-      mockPrismaService.$queryRaw
-        .mockResolvedValueOnce([]) // No conflicting bookings
-        .mockResolvedValueOnce([blackoutPeriod]); // Blackout period
+      mockAvailabilityService.checkAvailability.mockResolvedValue({
+        isAvailable: false,
+        conflictingBookings: [],
+        blackoutPeriods: [blackoutPeriod],
+        suggestedAlternatives: [],
+      });
+      mockCacheService.getCachedAvailability.mockResolvedValue(null);
+      mockCacheService.cacheAvailability.mockResolvedValue(undefined);
 
-      const result = await service.checkAvailability(mockTenantId, timeRangeDto);
+      const result = await service.checkAvailability(
+        mockTenantId,
+        timeRangeDto,
+      );
 
       expect(result.isAvailable).toBe(false);
       expect(result.blackoutPeriods).toHaveLength(1);
@@ -382,7 +483,7 @@ describe('BookingsService', () => {
           payments: true,
         },
       });
-      
+
       expect(result).toBeDefined();
       expect(result!.id).toBe(mockBookingId);
       expect(result!.customer.name).toBe(mockUser.name);
@@ -404,9 +505,10 @@ describe('BookingsService', () => {
         basePriceCents: 5000, // ₹50 per hour
       });
       mockUsersService.upsertUserByPhone.mockResolvedValue(mockUser);
-      mockRedisService.incr.mockResolvedValue(1);
-      mockPrismaService.tenant.findUnique.mockResolvedValue({ id: mockTenantId });
-      
+      mockPrismaService.tenant.findUnique.mockResolvedValue({
+        id: mockTenantId,
+      });
+
       // 6-hour booking: 10:00 to 16:00
       const sixHourBooking = {
         venueId: mockVenueId,
@@ -416,14 +518,14 @@ describe('BookingsService', () => {
           email: 'rahul@example.com',
         },
         startTs: '2025-12-25T04:30:00.000Z', // 10:00 IST
-        endTs: '2025-12-25T10:30:00.000Z',   // 16:00 IST
+        endTs: '2025-12-25T10:30:00.000Z', // 16:00 IST
       };
-      
+
       const expectedBooking = {
         ...mockBooking,
         totalAmountCents: 30000, // 6 hours * ₹50
       };
-      
+
       mockPrismaService.booking.create.mockResolvedValue(expectedBooking);
 
       const result = await service.createBooking(mockTenantId, sixHourBooking);
@@ -441,8 +543,9 @@ describe('BookingsService', () => {
 
       mockPrismaService.venue.findFirst.mockResolvedValue(mockVenue);
       mockUsersService.upsertUserByPhone.mockResolvedValue(mockUser);
-      mockRedisService.incr.mockResolvedValue(1);
-      mockPrismaService.tenant.findUnique.mockResolvedValue({ id: mockTenantId });
+      mockPrismaService.tenant.findUnique.mockResolvedValue({
+        id: mockTenantId,
+      });
       mockPrismaService.booking.create.mockResolvedValue(tempHoldBooking);
 
       const createBookingDto: CreateBookingDto = {
@@ -459,18 +562,404 @@ describe('BookingsService', () => {
         specialRequests: 'Decoration setup needed',
       };
 
-      const result = await service.createBooking(mockTenantId, createBookingDto);
+      const result = await service.createBooking(
+        mockTenantId,
+        createBookingDto,
+      );
 
       expect(result.booking.holdExpiresAt).toBeDefined();
       expect(result.holdExpiresIn).toBeGreaterThan(0);
       expect(result.holdExpiresIn).toBeLessThanOrEqual(15);
     });
   });
+
+  describe('confirmBooking', () => {
+    it('should confirm a pending booking successfully', async () => {
+      const pendingBooking = {
+        ...mockBooking,
+        status: BookingStatus.PENDING,
+        paymentStatus: PaymentStatus.PENDING,
+        confirmedAt: null,
+        confirmedBy: null,
+      };
+
+      mockPrismaService.booking.findFirst.mockResolvedValue(pendingBooking);
+      mockPrismaService.booking.update.mockResolvedValue({
+        ...pendingBooking,
+        status: BookingStatus.CONFIRMED,
+        paymentStatus: PaymentStatus.PAID,
+        confirmedAt: new Date(),
+        confirmedBy: 'admin-123',
+      });
+      mockCacheService.invalidateBookingCache.mockResolvedValue(undefined);
+      mockCacheService.cacheBooking.mockResolvedValue(undefined);
+
+      const result = await service.confirmBooking(
+        mockTenantId,
+        mockBookingId,
+        'admin-123',
+      );
+
+      expect(mockPrismaService.booking.update).toHaveBeenCalledWith({
+        where: { id: mockBookingId },
+        data: {
+          status: BookingStatus.CONFIRMED,
+          paymentStatus: PaymentStatus.PAID,
+          confirmedAt: expect.any(Date),
+          confirmedBy: 'admin-123',
+          holdExpiresAt: null,
+        },
+        include: { user: true, venue: true, payments: true },
+      });
+
+      expect(result.status).toBe(BookingStatus.CONFIRMED);
+      expect(mockCacheService.invalidateBookingCache).toHaveBeenCalledWith(
+        mockBookingId,
+      );
+    });
+
+    it('should handle already confirmed booking (idempotent)', async () => {
+      const confirmedBooking = {
+        ...mockBooking,
+        status: BookingStatus.CONFIRMED,
+        paymentStatus: PaymentStatus.PAID,
+        confirmedAt: new Date(),
+      };
+
+      mockPrismaService.booking.findFirst.mockResolvedValue(confirmedBooking);
+
+      const result = await service.confirmBooking(mockTenantId, mockBookingId);
+
+      // Should not call update for already confirmed booking
+      expect(mockPrismaService.booking.update).not.toHaveBeenCalled();
+      expect(result.status).toBe(BookingStatus.CONFIRMED);
+    });
+
+    it('should throw NotFoundException for non-existent booking', async () => {
+      mockPrismaService.booking.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.confirmBooking(mockTenantId, 'non-existent-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException for cancelled booking', async () => {
+      const cancelledBooking = {
+        ...mockBooking,
+        status: BookingStatus.CANCELLED,
+      };
+
+      mockPrismaService.booking.findFirst.mockResolvedValue(cancelledBooking);
+
+      await expect(
+        service.confirmBooking(mockTenantId, mockBookingId),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('cancelBooking', () => {
+    it('should cancel booking with full refund (>72 hours)', async () => {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 5); // 5 days in future
+
+      const futureBooking = {
+        ...mockBooking,
+        startTs: futureDate,
+        totalAmountCents: 100000, // ₹1000
+        status: BookingStatus.CONFIRMED,
+      };
+
+      mockPrismaService.booking.findFirst.mockResolvedValue(futureBooking);
+      mockPrismaService.booking.update.mockResolvedValue({
+        ...futureBooking,
+        status: BookingStatus.CANCELLED,
+      });
+      mockCacheService.invalidateBookingCache.mockResolvedValue(undefined);
+
+      const result = await service.cancelBooking(
+        mockTenantId,
+        mockBookingId,
+        'Customer request',
+      );
+
+      expect(result.refundPercentage).toBe(100);
+      expect(result.refundAmount).toBe(100000); // Full refund
+      expect(mockPrismaService.booking.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: mockBookingId },
+          data: expect.objectContaining({
+            status: BookingStatus.CANCELLED,
+            meta: expect.objectContaining({
+              cancellation: expect.objectContaining({
+                reason: 'Customer request',
+                refundPercentage: 100,
+                refundAmountCents: 100000,
+              }),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('should cancel booking with 50% refund (24-72 hours)', async () => {
+      const nearFutureDate = new Date();
+      nearFutureDate.setHours(nearFutureDate.getHours() + 48); // 48 hours
+
+      const nearFutureBooking = {
+        ...mockBooking,
+        startTs: nearFutureDate,
+        totalAmountCents: 100000,
+        status: BookingStatus.CONFIRMED,
+      };
+
+      mockPrismaService.booking.findFirst.mockResolvedValue(nearFutureBooking);
+      mockPrismaService.booking.update.mockResolvedValue({
+        ...nearFutureBooking,
+        status: BookingStatus.CANCELLED,
+      });
+      mockCacheService.invalidateBookingCache.mockResolvedValue(undefined);
+
+      const result = await service.cancelBooking(mockTenantId, mockBookingId);
+
+      expect(result.refundPercentage).toBe(50);
+      expect(result.refundAmount).toBe(50000); // 50% refund
+    });
+
+    it('should cancel booking with no refund (<24 hours)', async () => {
+      const soonDate = new Date();
+      soonDate.setHours(soonDate.getHours() + 12); // 12 hours
+
+      const soonBooking = {
+        ...mockBooking,
+        startTs: soonDate,
+        totalAmountCents: 100000,
+        status: BookingStatus.CONFIRMED,
+      };
+
+      mockPrismaService.booking.findFirst.mockResolvedValue(soonBooking);
+      mockPrismaService.booking.update.mockResolvedValue({
+        ...soonBooking,
+        status: BookingStatus.CANCELLED,
+      });
+      mockCacheService.invalidateBookingCache.mockResolvedValue(undefined);
+
+      const result = await service.cancelBooking(mockTenantId, mockBookingId);
+
+      expect(result.refundPercentage).toBe(0);
+      expect(result.refundAmount).toBe(0); // No refund
+    });
+
+    it('should throw NotFoundException for non-existent booking', async () => {
+      mockPrismaService.booking.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.cancelBooking(mockTenantId, 'non-existent-id'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException for already cancelled booking', async () => {
+      const cancelledBooking = {
+        ...mockBooking,
+        status: BookingStatus.CANCELLED,
+      };
+
+      mockPrismaService.booking.findFirst.mockResolvedValue(cancelledBooking);
+
+      await expect(
+        service.cancelBooking(mockTenantId, mockBookingId),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getVenueAvailabilityCalendar', () => {
+    it('should return 7-day calendar with bookings', async () => {
+      const startDate = new Date('2025-12-25');
+      const existingBookings = [
+        {
+          id: 'booking-1',
+          bookingNumber: 'TST-2025-0001',
+          startTs: new Date('2025-12-25T10:00:00.000Z'),
+          endTs: new Date('2025-12-25T18:00:00.000Z'),
+          status: 'confirmed',
+          user: { name: 'John Doe' },
+        },
+        {
+          id: 'booking-2',
+          bookingNumber: 'TST-2025-0002',
+          startTs: new Date('2025-12-27T14:00:00.000Z'),
+          endTs: new Date('2025-12-27T22:00:00.000Z'),
+          status: 'pending',
+          user: { name: 'Jane Smith' },
+        },
+      ];
+
+      mockPrismaService.booking.findMany.mockResolvedValue(existingBookings);
+
+      const result = await service.getVenueAvailabilityCalendar(
+        mockTenantId,
+        mockVenueId,
+        startDate,
+        7,
+      );
+
+      expect(result).toHaveLength(7);
+      expect(result[0].date).toBe('2025-12-25');
+      expect(result[0].isAvailable).toBe(false); // Has booking
+      expect(result[0].bookings).toHaveLength(1);
+      expect(result[0].bookings[0].customerName).toBe('John Doe');
+
+      expect(result[2].date).toBe('2025-12-27');
+      expect(result[2].isAvailable).toBe(false); // Has booking
+      expect(result[2].bookings).toHaveLength(1);
+
+      expect(result[1].isAvailable).toBe(true); // No bookings on Dec 26
+      expect(result[1].bookings).toHaveLength(0);
+    });
+
+    it('should limit calendar to 90 days maximum', async () => {
+      mockPrismaService.booking.findMany.mockResolvedValue([]);
+
+      const result = await service.getVenueAvailabilityCalendar(
+        mockTenantId,
+        mockVenueId,
+        new Date(),
+        200, // Request 200 days
+      );
+
+      // Should only return 90 days
+      expect(result.length).toBeLessThanOrEqual(90);
+    });
+
+    it('should throw NotFoundException for invalid venue', async () => {
+      mockValidationService.validateVenue.mockRejectedValue(
+        new NotFoundException('Venue not found'),
+      );
+
+      await expect(
+        service.getVenueAvailabilityCalendar(
+          mockTenantId,
+          'invalid-venue',
+          new Date(),
+          7,
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('listBookings', () => {
+    it('should list bookings with pagination', async () => {
+      const mockBookings = [
+        { ...mockBooking, id: 'booking-1' },
+        { ...mockBooking, id: 'booking-2' },
+      ];
+
+      mockPrismaService.booking.findMany.mockResolvedValue(mockBookings);
+      mockPrismaService.booking.count.mockResolvedValue(10);
+
+      const result = await service.listBookings(
+        mockTenantId,
+        {},
+        { page: 1, limit: 20 },
+      );
+
+      expect(result.data).toHaveLength(2);
+      expect(result.pagination.total).toBe(10);
+      expect(result.pagination.page).toBe(1);
+      expect(result.pagination.limit).toBe(20);
+      expect(result.pagination.totalPages).toBe(1);
+    });
+
+    it('should filter by status', async () => {
+      mockPrismaService.booking.findMany.mockResolvedValue([mockBooking]);
+      mockPrismaService.booking.count.mockResolvedValue(1);
+
+      await service.listBookings(
+        mockTenantId,
+        { status: 'confirmed' },
+        { page: 1, limit: 20 },
+      );
+
+      expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: mockTenantId,
+            status: 'confirmed',
+          }),
+        }),
+      );
+    });
+
+    it('should filter by venueId', async () => {
+      mockPrismaService.booking.findMany.mockResolvedValue([mockBooking]);
+      mockPrismaService.booking.count.mockResolvedValue(1);
+
+      await service.listBookings(
+        mockTenantId,
+        { venueId: mockVenueId },
+        { page: 1, limit: 20 },
+      );
+
+      expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: mockTenantId,
+            venueId: mockVenueId,
+          }),
+        }),
+      );
+    });
+
+    it('should filter by date range', async () => {
+      const startDate = new Date('2025-12-01');
+      const endDate = new Date('2025-12-31');
+
+      mockPrismaService.booking.findMany.mockResolvedValue([mockBooking]);
+      mockPrismaService.booking.count.mockResolvedValue(1);
+
+      await service.listBookings(
+        mockTenantId,
+        { startDate, endDate },
+        { page: 1, limit: 20 },
+      );
+
+      expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: mockTenantId,
+            startTs: expect.objectContaining({
+              gte: startDate,
+              lte: endDate,
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('should handle pagination correctly', async () => {
+      mockPrismaService.booking.findMany.mockResolvedValue([mockBooking]);
+      mockPrismaService.booking.count.mockResolvedValue(50);
+
+      const result = await service.listBookings(
+        mockTenantId,
+        {},
+        { page: 2, limit: 20 },
+      );
+
+      expect(mockPrismaService.booking.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 20, // (page - 1) * limit = (2-1) * 20
+          take: 20,
+        }),
+      );
+
+      expect(result.pagination.totalPages).toBe(3); // ceil(50/20) = 3
+    });
+  });
 });
 
 /**
  * Test Design Principles:
- * 
+ *
  * 1. **Comprehensive Coverage**: Tests all critical paths and edge cases
  * 2. **Realistic Scenarios**: Uses representative data and business cases
  * 3. **Error Handling**: Verifies proper exception handling

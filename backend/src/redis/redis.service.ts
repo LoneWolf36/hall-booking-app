@@ -21,10 +21,10 @@ export class RedisService implements OnModuleInit {
 
     if (!redisUrl || !redisToken) {
       this.logger.error(
-        'Redis configuration missing. Please set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN environment variables.'
+        'Redis configuration missing. Please set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN environment variables.',
       );
       this.logger.warn(
-        'Redis functionality will be disabled. The application will continue to work but without caching.'
+        'Redis functionality will be disabled. The application will continue to work but without caching.',
       );
       return;
     }
@@ -35,10 +35,10 @@ export class RedisService implements OnModuleInit {
         token: redisToken,
         retry: {
           retries: 3,
-          backoff: (retryCount) => Math.min(1000 * 2 ** retryCount, 10000)
-        }
+          backoff: (retryCount) => Math.min(1000 * 2 ** retryCount, 10000),
+        },
       });
-      
+
       this.logger.log('Redis client initialized successfully');
     } catch (error) {
       this.logger.error('Failed to initialize Redis client:', error);
@@ -64,13 +64,15 @@ export class RedisService implements OnModuleInit {
 
   private ensureConnection(): void {
     if (!this.redis) {
-      throw new Error('Redis client is not initialized. Check your environment configuration.');
+      throw new Error(
+        'Redis client is not initialized. Check your environment configuration.',
+      );
     }
   }
 
   async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
     this.ensureConnection();
-    
+
     try {
       this.logger.debug(`Redis SET key=${key}, ttl=${ttlSeconds}`);
       if (ttlSeconds) {
@@ -86,7 +88,7 @@ export class RedisService implements OnModuleInit {
 
   async get(key: string): Promise<string | null> {
     this.ensureConnection();
-    
+
     try {
       return await this.redis!.get(key);
     } catch (error) {
@@ -97,7 +99,7 @@ export class RedisService implements OnModuleInit {
 
   async del(key: string): Promise<void> {
     this.ensureConnection();
-    
+
     try {
       await this.redis!.del(key);
     } catch (error) {
@@ -108,7 +110,7 @@ export class RedisService implements OnModuleInit {
 
   async exists(key: string): Promise<boolean> {
     this.ensureConnection();
-    
+
     try {
       const result = await this.redis!.exists(key);
       return result > 0;
@@ -120,7 +122,7 @@ export class RedisService implements OnModuleInit {
 
   async incr(key: string, ttlSeconds?: number): Promise<number> {
     this.ensureConnection();
-    
+
     try {
       const newValue = await this.redis!.incr(key);
       if (newValue === 1 && ttlSeconds) {
@@ -135,7 +137,7 @@ export class RedisService implements OnModuleInit {
 
   async expire(key: string, ttlSeconds: number): Promise<boolean> {
     this.ensureConnection();
-    
+
     try {
       const result = await this.redis!.expire(key, ttlSeconds);
       return result === 1;
@@ -166,9 +168,9 @@ export class RedisService implements OnModuleInit {
     }
   }
 
-  async healthCheck(): Promise<{ 
-    status: string; 
-    latency: number; 
+  async healthCheck(): Promise<{
+    status: string;
+    latency: number;
     connected: boolean;
     message?: string;
   }> {
@@ -177,7 +179,7 @@ export class RedisService implements OnModuleInit {
         status: 'unavailable',
         latency: 0,
         connected: false,
-        message: 'Redis client not initialized - check environment variables'
+        message: 'Redis client not initialized - check environment variables',
       };
     }
 
@@ -186,19 +188,19 @@ export class RedisService implements OnModuleInit {
       await this.redis.ping();
       const latency = Date.now() - start;
       this.isConnected = true;
-      return { 
-        status: 'healthy', 
+      return {
+        status: 'healthy',
         latency,
-        connected: true
+        connected: true,
       };
     } catch (error) {
       const latency = Date.now() - start;
       this.isConnected = false;
-      return { 
-        status: 'unhealthy', 
+      return {
+        status: 'unhealthy',
         latency,
         connected: false,
-        message: `Connection failed: ${error.message}`
+        message: `Connection failed: ${error.message}`,
       };
     }
   }

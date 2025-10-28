@@ -1,12 +1,20 @@
-import { Injectable, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Razorpay from 'razorpay';
 import * as crypto from 'crypto';
-import { CreatePaymentLinkDto, PaymentLinkResponseDto } from '../dto/create-payment-link.dto';
+import {
+  CreatePaymentLinkDto,
+  PaymentLinkResponseDto,
+} from '../dto/create-payment-link.dto';
 
 /**
  * Razorpay Service - Handles all Razorpay API interactions
- * 
+ *
  * Features:
  * 1. Payment link creation with booking integration
  * 2. Webhook signature verification
@@ -22,14 +30,20 @@ export class RazorpayService {
   constructor(private readonly configService: ConfigService) {
     const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
     const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
-    this.webhookSecret = this.configService.get<string>('RAZORPAY_WEBHOOK_SECRET')!;
+    this.webhookSecret = this.configService.get<string>(
+      'RAZORPAY_WEBHOOK_SECRET',
+    )!;
 
     if (!keyId || !keySecret) {
-      throw new Error('Razorpay credentials not configured. Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET');
+      throw new Error(
+        'Razorpay credentials not configured. Check RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET',
+      );
     }
 
     if (!this.webhookSecret) {
-      throw new Error('Razorpay webhook secret not configured. Check RAZORPAY_WEBHOOK_SECRET');
+      throw new Error(
+        'Razorpay webhook secret not configured. Check RAZORPAY_WEBHOOK_SECRET',
+      );
     }
 
     this.razorpay = new Razorpay({
@@ -42,11 +56,13 @@ export class RazorpayService {
 
   /**
    * Create payment link for booking
-   * 
+   *
    * @param createPaymentLinkDto Payment link creation data
    * @returns Payment link response with URL and metadata
    */
-  async createPaymentLink(createPaymentLinkDto: CreatePaymentLinkDto): Promise<PaymentLinkResponseDto> {
+  async createPaymentLink(
+    createPaymentLinkDto: CreatePaymentLinkDto,
+  ): Promise<PaymentLinkResponseDto> {
     try {
       const {
         bookingId,
@@ -105,9 +121,12 @@ export class RazorpayService {
       });
 
       // Create payment link via Razorpay API
-      const response = await this.razorpay.paymentLink.create(paymentLinkPayload);
+      const response =
+        await this.razorpay.paymentLink.create(paymentLinkPayload);
 
-      const expiresInMinutes = Math.floor((expireBy * 1000 - Date.now()) / (1000 * 60));
+      const expiresInMinutes = Math.floor(
+        (expireBy * 1000 - Date.now()) / (1000 * 60),
+      );
 
       this.logger.log(`Payment link created successfully: ${response.id}`, {
         shortUrl: response.short_url,
@@ -120,7 +139,9 @@ export class RazorpayService {
         amount: Number(response.amount),
         currency: response.currency ?? 'INR',
         status: String(response.status),
-        expireBy: response.expire_by ? new Date(Number(response.expire_by) * 1000) : new Date(expireBy * 1000),
+        expireBy: response.expire_by
+          ? new Date(Number(response.expire_by) * 1000)
+          : new Date(expireBy * 1000),
         paymentId: '', // Will be set when payment record is created
         bookingId,
         expiresInMinutes,
@@ -149,7 +170,7 @@ export class RazorpayService {
 
   /**
    * Verify webhook signature for security
-   * 
+   *
    * @param payload Raw webhook payload
    * @param signature Razorpay signature header
    * @returns True if signature is valid
@@ -163,7 +184,7 @@ export class RazorpayService {
 
       const isValid = crypto.timingSafeEqual(
         Buffer.from(signature),
-        Buffer.from(expectedSignature)
+        Buffer.from(expectedSignature),
       );
 
       if (isValid) {
@@ -185,7 +206,7 @@ export class RazorpayService {
 
   /**
    * Fetch payment details from Razorpay
-   * 
+   *
    * @param paymentId Razorpay payment ID
    * @returns Payment details
    */
@@ -210,7 +231,7 @@ export class RazorpayService {
 
   /**
    * Fetch payment link details from Razorpay
-   * 
+   *
    * @param paymentLinkId Razorpay payment link ID
    * @returns Payment link details
    */
@@ -223,9 +244,12 @@ export class RazorpayService {
       });
       return paymentLink;
     } catch (error) {
-      this.logger.error(`Failed to fetch payment link details for ${paymentLinkId}`, {
-        error: error.message,
-      });
+      this.logger.error(
+        `Failed to fetch payment link details for ${paymentLinkId}`,
+        {
+          error: error.message,
+        },
+      );
       throw new BadRequestException({
         message: 'Failed to fetch payment link details',
         code: 'PAYMENT_LINK_FETCH_ERROR',
@@ -235,7 +259,7 @@ export class RazorpayService {
 
   /**
    * Cancel payment link
-   * 
+   *
    * @param paymentLinkId Razorpay payment link ID
    * @returns Cancellation result
    */

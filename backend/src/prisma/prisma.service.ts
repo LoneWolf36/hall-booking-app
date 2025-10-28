@@ -1,10 +1,15 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 // Now using TypeScript path mapping for cleaner imports
 import { PrismaClient } from '../../generated/prisma';
 
 /**
  * Prisma Service - Database connection and client management
- * 
+ *
  * Features:
  * 1. Connection lifecycle management
  * 2. Graceful shutdown handling
@@ -22,12 +27,13 @@ export class PrismaService
   constructor() {
     super({
       // Configuration based on environment
-      log: process.env.NODE_ENV === 'development' 
-        ? ['query', 'info', 'warn', 'error'] 
-        : ['warn', 'error'],
-      
+      log:
+        process.env.NODE_ENV === 'development'
+          ? ['query', 'info', 'warn', 'error']
+          : ['warn', 'error'],
+
       errorFormat: 'pretty',
-      
+
       // Connection pool settings for production
       datasources: {
         db: {
@@ -44,7 +50,7 @@ export class PrismaService
     try {
       await this.$connect();
       this.logger.log('✅ Database connection established');
-      
+
       // Enable query logging in development
       if (process.env.NODE_ENV === 'development') {
         this.$on('query' as never, (event: any) => {
@@ -89,7 +95,7 @@ export class PrismaService
 
 /**
  * Why extend PrismaClient?
- * 
+ *
  * 1. **Lifecycle Management**: NestJS handles connection setup/teardown
  * 2. **Dependency Injection**: Can be injected into any service
  * 3. **Configuration**: Environment-specific settings
@@ -99,20 +105,20 @@ export class PrismaService
 
 /**
  * IMPORTANT: Custom Generator Output Path
- * 
+ *
  * This service uses TypeScript path mapping to import from the custom
  * Prisma generator output location. The tsconfig.json maps:
- * 
+ *
  * "@prisma/client": ["../generated/prisma"]
- * 
+ *
  * This allows us to keep the standard import syntax while using
  * the custom generator output:
- * 
+ *
  * generator client {
  *   provider = "prisma-client-js"
  *   output   = "../generated/prisma"
  * }
- * 
+ *
  * The generated client is located at:
  * backend/generated/prisma/ (relative to backend/prisma/)
  */

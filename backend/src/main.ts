@@ -33,8 +33,12 @@ async function bootstrap() {
   await app.listen(port);
 
   const logger = new Logger('Bootstrap');
-  logger.log(`🚀 Application is running on: http://localhost:${port}/${apiPrefix}`);
-  logger.log(`📚 Swagger docs available at: http://localhost:${port}/${apiPrefix}/docs`);
+  logger.log(
+    `🚀 Application is running on: http://localhost:${port}/${apiPrefix}`,
+  );
+  logger.log(
+    `📚 Swagger docs available at: http://localhost:${port}/${apiPrefix}/docs`,
+  );
 }
 
 bootstrap().catch((error) => {

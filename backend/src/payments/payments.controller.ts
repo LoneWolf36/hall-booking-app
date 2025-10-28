@@ -11,10 +11,11 @@ import {
   ParseUUIDPipe,
   BadRequestException,
   UseInterceptors,
+  UseGuards,
   Req,
   Res,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiHeader, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { type Request, type Response } from 'express';
 import { PaymentsService } from './payments.service';
 import { FlexiblePaymentService } from './services/flexible-payment.service';
@@ -34,6 +35,10 @@ import {
 } from './dto/payment-options.dto';
 import { LoggingInterceptor } from '../common/interceptors/logging.interceptor';
 import { RequireIdempotency, OptionalIdempotency } from '../common/decorators/idempotent.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Public } from '../auth/decorators/public.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import type { RequestUser } from '../auth/dto/auth-response.dto';
 
 /**
  * Enhanced Payments Controller - Flexible payment system for all venue types
@@ -45,9 +50,13 @@ import { RequireIdempotency, OptionalIdempotency } from '../common/decorators/id
  * 4. Commission management
  * 5. Razorpay integration for online payments
  * 6. Webhook handling for payment status updates
+ * 
+ * **Authentication**: All endpoints require JWT except webhooks (use @Public)
  */
 @ApiTags('Payments')
+@ApiBearerAuth()
 @Controller('payments')
+@UseGuards(JwtAuthGuard)
 @UseInterceptors(LoggingInterceptor)
 export class PaymentsController {
   constructor(
@@ -71,21 +80,16 @@ export class PaymentsController {
     summary: 'Get payment options for booking',
     description: 'Returns available payment methods based on venue profile (cash-only, hybrid, online, etc.)',
   })
-  @ApiHeader({ name: 'X-Tenant-Id', required: true })
   @ApiParam({ name: 'id', description: 'Booking UUID' })
   @ApiQuery({ name: 'location', description: 'Customer location for smart recommendations', required: false })
   @ApiResponse({ status: 200, description: 'Payment options generated', type: PaymentOptionsResponseDto })
   async getPaymentOptions(
-    @Headers('x-tenant-id') tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) bookingId: string,
     @Query('location') location?: string,
   ): Promise<{ success: boolean; data: PaymentOptionsResponseDto }> {
-    if (!tenantId) {
-      throw new BadRequestException('X-Tenant-Id header is required');
-    }
-
     const options = await this.flexiblePaymentService.generatePaymentOptions(
-      tenantId,
+      user.tenantId,
       bookingId,
       location,
     );
@@ -106,20 +110,15 @@ export class PaymentsController {
     summary: 'Select payment method for booking',
     description: 'Customer selects their preferred payment method (cash, deposit+cash, full online, etc.)',
   })
-  @ApiHeader({ name: 'X-Tenant-Id', required: true })
   @ApiParam({ name: 'id', description: 'Booking UUID' })
   @ApiResponse({ status: 200, description: 'Payment method selected successfully' })
   async selectPaymentMethod(
-    @Headers('x-tenant-id') tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) bookingId: string,
     @Body() selection: SelectPaymentMethodDto,
   ): Promise<{ success: boolean; data: any; message: string }> {
-    if (!tenantId) {
-      throw new BadRequestException('X-Tenant-Id header is required');
-    }
-
     const result = await this.flexiblePaymentService.selectPaymentMethod(
-      tenantId,
+      user.tenantId,
       bookingId,
       selection,
     );
@@ -145,19 +144,14 @@ export class PaymentsController {
     summary: 'Create payment link for booking',
     description: 'Generates Razorpay payment link for online payment portion (deposit or full amount)',
   })
-  @ApiHeader({ name: 'X-Tenant-Id', required: true })
   @ApiParam({ name: 'id', description: 'Booking UUID' })
   @ApiResponse({ status: 201, type: PaymentLinkResponseDto })
   async createPaymentLink(
-    @Headers('x-tenant-id') tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) bookingId: string,
   ): Promise<{ success: boolean; data: PaymentLinkResponseDto; message: string }> {
-    if (!tenantId) {
-      throw new BadRequestException('X-Tenant-Id header is required');
-    }
-
     const paymentLink = await this.paymentsService.createPaymentLinkForBooking(
-      tenantId,
+      user.tenantId,
       bookingId,
     );
 
@@ -170,7 +164,10 @@ export class PaymentsController {
 
   /**
    * POST /payments/webhook - Handle Razorpay webhooks
+   * 
+   * **Public Endpoint**: No authentication required (webhook from Razorpay)
    */
+  @Public()
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -226,24 +223,17 @@ export class PaymentsController {
     summary: 'Record cash payment for booking',
     description: 'Venue staff records when customer pays cash portion of booking',
   })
-  @ApiHeader({ name: 'X-Tenant-Id', required: true })
-  @ApiHeader({ name: 'X-User-Id', description: 'Venue staff user ID', required: true })
   @ApiParam({ name: 'id', description: 'Booking UUID' })
   @ApiResponse({ status: 201, description: 'Cash payment recorded successfully' })
   async recordCashPayment(
-    @Headers('x-tenant-id') tenantId: string,
-    @Headers('x-user-id') userId: string,
+    @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) bookingId: string,
     @Body() paymentData: RecordCashPaymentDto,
   ): Promise<{ success: boolean; data: any; message: string }> {
-    if (!tenantId || !userId) {
-      throw new BadRequestException('X-Tenant-Id and X-User-Id headers are required');
-    }
-
     const result = await this.flexiblePaymentService.recordCashPayment(
-      tenantId,
+      user.tenantId,
       bookingId,
-      userId,
+      user.userId,
       paymentData,
     );
 
@@ -262,16 +252,11 @@ export class PaymentsController {
     summary: 'Get cash payment summary',
     description: 'Returns summary of cash payments for a booking',
   })
-  @ApiHeader({ name: 'X-Tenant-Id', required: true })
   async getCashPaymentSummary(
-    @Headers('x-tenant-id') tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) bookingId: string,
   ): Promise<{ success: boolean; data: any }> {
-    if (!tenantId) {
-      throw new BadRequestException('X-Tenant-Id header is required');
-    }
-
-    const booking = await this.paymentsService.getPaymentById(tenantId, bookingId);
+    const booking = await this.paymentsService.getPaymentById(user.tenantId, bookingId);
 
     if (!booking) {
       throw new BadRequestException('Booking not found');
@@ -317,20 +302,15 @@ export class PaymentsController {
     summary: 'Process venue payment onboarding',
     description: 'Analyzes venue responses and recommends optimal payment profile',
   })
-  @ApiHeader({ name: 'X-Tenant-Id', required: true })
   @ApiParam({ name: 'id', description: 'Venue UUID' })
   @ApiResponse({ status: 200, description: 'Onboarding completed, payment profile recommended' })
   async processVenueOnboarding(
-    @Headers('x-tenant-id') tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) venueId: string,
     @Body() responses: VenueOnboardingDto,
   ): Promise<{ success: boolean; data: any; message: string }> {
-    if (!tenantId) {
-      throw new BadRequestException('X-Tenant-Id header is required');
-    }
-
     const result = await this.flexiblePaymentService.processVenueOnboarding(
-      tenantId,
+      user.tenantId,
       venueId,
       responses,
     );
@@ -350,17 +330,12 @@ export class PaymentsController {
     summary: 'Get venue payment configuration',
     description: 'Returns current payment settings for venue',
   })
-  @ApiHeader({ name: 'X-Tenant-Id', required: true })
   async getVenueConfiguration(
-    @Headers('x-tenant-id') tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) venueId: string,
   ): Promise<{ success: boolean; data: VenuePaymentConfigDto }> {
-    if (!tenantId) {
-      throw new BadRequestException('X-Tenant-Id header is required');
-    }
-
     const venue = await this.prisma.venue.findFirst({
-      where: { id: venueId, tenantId },
+      where: { id: venueId, tenantId: user.tenantId },
     });
 
     if (!venue) {
@@ -399,20 +374,15 @@ export class PaymentsController {
     summary: 'Get commission summary for venue',
     description: 'Returns commission breakdown and collection status',
   })
-  @ApiHeader({ name: 'X-Tenant-Id', required: true })
   @ApiQuery({ name: 'startDate', description: 'Start date (YYYY-MM-DD)', required: false })
   @ApiQuery({ name: 'endDate', description: 'End date (YYYY-MM-DD)', required: false })
   @ApiResponse({ status: 200, type: CommissionSummaryDto })
   async getCommissionSummary(
-    @Headers('x-tenant-id') tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) venueId: string,
     @Query('startDate') startDate?: string,
     @Query('endDate') endDate?: string,
   ): Promise<{ success: boolean; data: CommissionSummaryDto }> {
-    if (!tenantId) {
-      throw new BadRequestException('X-Tenant-Id header is required');
-    }
-
     const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // Default: 30 days ago
     const end = endDate ? new Date(endDate) : new Date(); // Default: today
 
@@ -421,7 +391,7 @@ export class PaymentsController {
     }
 
     const summary = await this.flexiblePaymentService.getCommissionSummary(
-      tenantId,
+      user.tenantId,
       venueId,
       start,
       end,
@@ -445,16 +415,11 @@ export class PaymentsController {
     summary: 'Get payment details by ID',
     description: 'Retrieves comprehensive payment information',
   })
-  @ApiHeader({ name: 'X-Tenant-Id', required: true })
   async getPaymentById(
-    @Headers('x-tenant-id') tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) paymentId: string,
   ): Promise<{ success: boolean; data: any }> {
-    if (!tenantId) {
-      throw new BadRequestException('X-Tenant-Id header is required');
-    }
-
-    const payment = await this.paymentsService.getPaymentById(tenantId, paymentId);
+    const payment = await this.paymentsService.getPaymentById(user.tenantId, paymentId);
 
     if (!payment) {
       throw new BadRequestException('Payment not found');
@@ -492,17 +457,12 @@ export class PaymentsController {
     summary: 'Get payment history for booking',
     description: 'Returns all payments (online and cash) for a booking',
   })
-  @ApiHeader({ name: 'X-Tenant-Id', required: true })
   async getBookingPaymentHistory(
-    @Headers('x-tenant-id') tenantId: string,
+    @CurrentUser() user: RequestUser,
     @Param('id', ParseUUIDPipe) bookingId: string,
   ): Promise<{ success: boolean; data: any }> {
-    if (!tenantId) {
-      throw new BadRequestException('X-Tenant-Id header is required');
-    }
-
     const booking = await this.prisma.booking.findFirst({
-      where: { id: bookingId, tenantId },
+      where: { id: bookingId, tenantId: user.tenantId },
       include: {
         payments: true,
         cashPayments: {

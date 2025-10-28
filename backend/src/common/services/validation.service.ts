@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { Venue } from '../../../generated/prisma';
 
@@ -11,7 +15,7 @@ import {
 
 /**
  * Centralized Validation Service - Uses centralized constants
- * 
+ *
  * Refactored to use constants from app.constants.ts instead of
  * hardcoded values throughout the service.
  */
@@ -33,8 +37,9 @@ export class ValidationService {
     if (isNaN(startTs.getTime()) || isNaN(endTs.getTime())) {
       throw new BadRequestException({
         message: ERROR_MESSAGES.INVALID_DATE_FORMAT,
-        details: 'Dates must be in ISO 8601 format (e.g., 2025-12-25T10:00:00.000Z)',
-        code: 'INVALID_DATE_FORMAT'
+        details:
+          'Dates must be in ISO 8601 format (e.g., 2025-12-25T10:00:00.000Z)',
+        code: 'INVALID_DATE_FORMAT',
       });
     }
 
@@ -43,32 +48,33 @@ export class ValidationService {
       throw new BadRequestException({
         message: ERROR_MESSAGES.INVALID_TIME_RANGE,
         details: 'Start time must be before end time',
-        code: 'INVALID_TIME_RANGE'
+        code: 'INVALID_TIME_RANGE',
       });
     }
 
     // Future booking validation using constants
     const now = new Date();
     const minStartTime = new Date(
-      now.getTime() + TIME_CONSTANTS.MIN_LEAD_TIME_HOURS * 60 * 60 * 1000
+      now.getTime() + TIME_CONSTANTS.MIN_LEAD_TIME_HOURS * 60 * 60 * 1000,
     );
 
     if (startTs < minStartTime) {
       throw new BadRequestException({
         message: ERROR_MESSAGES.INSUFFICIENT_LEAD_TIME,
         details: `Bookings must be made at least ${TIME_CONSTANTS.MIN_LEAD_TIME_HOURS} hours in advance`,
-        code: 'INSUFFICIENT_LEAD_TIME'
+        code: 'INSUFFICIENT_LEAD_TIME',
       });
     }
 
     // Duration validation using constants
-    const durationHours = (endTs.getTime() - startTs.getTime()) / (1000 * 60 * 60);
+    const durationHours =
+      (endTs.getTime() - startTs.getTime()) / (1000 * 60 * 60);
 
     if (durationHours < TIME_CONSTANTS.MIN_DURATION_HOURS) {
       throw new BadRequestException({
         message: ERROR_MESSAGES.BOOKING_TOO_SHORT,
         details: `Minimum booking duration is ${TIME_CONSTANTS.MIN_DURATION_HOURS} hour(s)`,
-        code: 'BOOKING_TOO_SHORT'
+        code: 'BOOKING_TOO_SHORT',
       });
     }
 
@@ -76,7 +82,7 @@ export class ValidationService {
       throw new BadRequestException({
         message: ERROR_MESSAGES.BOOKING_TOO_LONG,
         details: `Maximum booking duration is ${TIME_CONSTANTS.MAX_DURATION_HOURS} hours (7 days)`,
-        code: 'BOOKING_TOO_LONG'
+        code: 'BOOKING_TOO_LONG',
       });
     }
 
@@ -99,7 +105,7 @@ export class ValidationService {
       throw new NotFoundException({
         message: ERROR_MESSAGES.VENUE_NOT_FOUND,
         details: 'The specified venue does not exist or is inactive',
-        code: 'VENUE_NOT_FOUND'
+        code: 'VENUE_NOT_FOUND',
       });
     }
 
@@ -116,7 +122,7 @@ export class ValidationService {
         throw new BadRequestException({
           message: ERROR_MESSAGES.CAPACITY_EXCEEDED,
           details: `Requested ${guestCount} guests, venue capacity is ${venue.capacity}`,
-          code: 'CAPACITY_EXCEEDED'
+          code: 'CAPACITY_EXCEEDED',
         });
       }
     }
@@ -137,13 +143,13 @@ export class ValidationService {
   formatDateRange(startTs: Date, endTs: Date): string {
     const start = startTs.toLocaleDateString(
       DATE_FORMAT_CONSTANTS.LOCALE,
-      DATE_FORMAT_CONSTANTS.INDIAN_FORMAT_OPTIONS
+      DATE_FORMAT_CONSTANTS.INDIAN_FORMAT_OPTIONS,
     );
     const end = endTs.toLocaleDateString(
       DATE_FORMAT_CONSTANTS.LOCALE,
-      DATE_FORMAT_CONSTANTS.INDIAN_FORMAT_OPTIONS
+      DATE_FORMAT_CONSTANTS.INDIAN_FORMAT_OPTIONS,
     );
-    
+
     return `${start} to ${end}`;
   }
 
@@ -160,13 +166,13 @@ export class ValidationService {
   validateStringLength(
     value: string | undefined,
     maxLength: number,
-    fieldName: string
+    fieldName: string,
   ): void {
     if (value && value.length > maxLength) {
       throw new BadRequestException({
         message: `${fieldName} is too long`,
         details: `Maximum length is ${maxLength} characters`,
-        code: 'FIELD_TOO_LONG'
+        code: 'FIELD_TOO_LONG',
       });
     }
   }
@@ -178,7 +184,7 @@ export class ValidationService {
     this.validateStringLength(
       name,
       VALIDATION_CONSTANTS.MAX_CUSTOMER_NAME_LENGTH,
-      'Customer name'
+      'Customer name',
     );
   }
 
@@ -189,7 +195,7 @@ export class ValidationService {
     this.validateStringLength(
       phone,
       VALIDATION_CONSTANTS.MAX_PHONE_NUMBER_LENGTH,
-      'Phone number'
+      'Phone number',
     );
   }
 
@@ -201,7 +207,7 @@ export class ValidationService {
       this.validateStringLength(
         email,
         VALIDATION_CONSTANTS.MAX_EMAIL_LENGTH,
-        'Email address'
+        'Email address',
       );
     }
   }
@@ -213,7 +219,7 @@ export class ValidationService {
     this.validateStringLength(
       specialRequests,
       VALIDATION_CONSTANTS.MAX_SPECIAL_REQUESTS_LENGTH,
-      'Special requests'
+      'Special requests',
     );
   }
 }

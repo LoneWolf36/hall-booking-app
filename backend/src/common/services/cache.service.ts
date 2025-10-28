@@ -3,7 +3,7 @@ import { RedisService } from '../../redis/redis.service';
 
 /**
  * Centralized Cache Service - Unified caching operations
- * 
+ *
  * This service consolidates all caching logic to eliminate duplication
  * across the application and provide consistent cache key patterns.
  */
@@ -72,7 +72,7 @@ export class CacheService {
     startTs: string,
     endTs: string,
     availability: any,
-    ttlSeconds: number = 300
+    ttlSeconds: number = 300,
   ): Promise<void> {
     const cacheKey = `availability:${tenantId}:${venueId}:${startTs}:${endTs}`;
     await this.set(cacheKey, availability, ttlSeconds);
@@ -85,7 +85,7 @@ export class CacheService {
     tenantId: string,
     venueId: string,
     startTs: string,
-    endTs: string
+    endTs: string,
   ): Promise<any> {
     const cacheKey = `availability:${tenantId}:${venueId}:${startTs}:${endTs}`;
     return await this.get(cacheKey);
@@ -99,7 +99,10 @@ export class CacheService {
       const cacheKey = `booking:${bookingId}`;
       await this.redisService.del(cacheKey);
     } catch (error) {
-      this.logger.warn(`Failed to invalidate booking cache: ${bookingId}`, error);
+      this.logger.warn(
+        `Failed to invalidate booking cache: ${bookingId}`,
+        error,
+      );
     }
   }
 }

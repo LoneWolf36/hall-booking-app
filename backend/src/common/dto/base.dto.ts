@@ -29,7 +29,11 @@ export class PaginationDto {
   @IsString()
   sortBy?: string;
 
-  @ApiProperty({ description: 'Sort direction', example: 'asc', required: false })
+  @ApiProperty({
+    description: 'Sort direction',
+    example: 'asc',
+    required: false,
+  })
   @IsOptional()
   @IsString()
   sortOrder?: 'asc' | 'desc' = 'desc';

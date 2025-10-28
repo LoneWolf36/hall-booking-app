@@ -1,4 +1,11 @@
-import { IsEmail, IsEnum, IsOptional, IsPhoneNumber, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsEnum,
+  IsOptional,
+  IsPhoneNumber,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { UserRole } from './create-user.dto';
@@ -6,7 +13,7 @@ import { UserRole } from './create-user.dto';
 /**
  * DTO for updating an existing user
  * All fields are optional since we support partial updates
- * 
+ *
  * Design Decisions:
  * 1. All validation rules same as CreateUserDto but optional
  * 2. Supports partial updates (PATCH semantics)
@@ -18,7 +25,7 @@ export class UpdateUserDto {
     description: 'Full name of the user',
     example: 'John Doe',
     minLength: 2,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsString()
@@ -29,17 +36,19 @@ export class UpdateUserDto {
   @ApiProperty({
     description: 'Indian phone number with country code',
     example: '+919876543210',
-    required: false
+    required: false,
   })
   @IsOptional()
-  @IsPhoneNumber('IN', { message: 'Phone number must be a valid Indian phone number' })
+  @IsPhoneNumber('IN', {
+    message: 'Phone number must be a valid Indian phone number',
+  })
   @Transform(({ value }) => value?.replace(/[\s\-\(\)]/g, ''))
   phone?: string;
 
   @ApiProperty({
     description: 'Email address',
     example: 'john.doe@example.com',
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsEmail({}, { message: 'Email must be valid' })
@@ -50,7 +59,7 @@ export class UpdateUserDto {
     description: 'User role in the system',
     enum: UserRole,
     example: UserRole.CUSTOMER,
-    required: false
+    required: false,
   })
   @IsOptional()
   @IsEnum(UserRole, { message: 'Role must be either customer or admin' })
@@ -59,7 +68,7 @@ export class UpdateUserDto {
 
 /**
  * Update Strategy:
- * 
+ *
  * 1. **Partial Updates**: Only provided fields are updated
  * 2. **Validation**: Same rules as create, but all optional
  * 3. **Normalization**: Same transforms to maintain consistency

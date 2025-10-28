@@ -3,6 +3,6 @@ import { HealthController } from './health.controller';
 import { RedisModule } from '../redis/redis.module';
 @Module({
   imports: [RedisModule],
-  controllers: [HealthController]
+  controllers: [HealthController],
 })
 export class HealthModule {}

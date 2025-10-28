@@ -3,7 +3,7 @@ import {
   Injectable,
   PipeTransform,
   BadRequestException,
-  Logger
+  Logger,
 } from '@nestjs/common';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
@@ -19,21 +19,25 @@ export class CustomValidationPipe implements PipeTransform<any> {
 
     // Handle empty body case
     if (!value || Object.keys(value).length === 0) {
-      const errors = [{
-        property: 'body',
-        constraints: ['Request body cannot be empty'],
-        value: value
-      }];
-      
-      this.logger.warn(`Validation failed: Empty request body for ${metatype.name}`);
-      
+      const errors = [
+        {
+          property: 'body',
+          constraints: ['Request body cannot be empty'],
+          value: value,
+        },
+      ];
+
+      this.logger.warn(
+        `Validation failed: Empty request body for ${metatype.name}`,
+      );
+
       throw new BadRequestException({
         statusCode: 400,
         error: 'BadRequest',
         message: 'Validation failed',
         details: 'Request body is required and cannot be empty',
         errors: errors,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -42,26 +46,29 @@ export class CustomValidationPipe implements PipeTransform<any> {
       whitelist: true, // Strip properties that don't have decorators
       forbidNonWhitelisted: true, // Throw error for non-whitelisted properties
       transform: true, // Apply transformers
-      validateCustomDecorators: true
+      validateCustomDecorators: true,
     });
 
     if (errors.length > 0) {
-      const errorMessages = errors.map(error => {
+      const errorMessages = errors.map((error) => {
         const constraints = error.constraints;
         return {
           property: error.property,
-          constraints: constraints ? Object.values(constraints) : ['Invalid value'],
+          constraints: constraints
+            ? Object.values(constraints)
+            : ['Invalid value'],
           value: error.value,
-          children: error.children && error.children.length > 0 
-            ? this.mapChildrenErrors(error.children) 
-            : undefined
+          children:
+            error.children && error.children.length > 0
+              ? this.mapChildrenErrors(error.children)
+              : undefined,
         };
       });
 
       // Log validation errors for debugging
       this.logger.warn(`Validation failed for ${metatype.name}:`, {
         input: value,
-        errors: errorMessages
+        errors: errorMessages,
       });
 
       throw new BadRequestException({
@@ -70,7 +77,7 @@ export class CustomValidationPipe implements PipeTransform<any> {
         message: 'Validation failed',
         details: `Invalid ${metatype.name} provided. Please check the required fields and format.`,
         errors: errorMessages,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
 
@@ -78,10 +85,12 @@ export class CustomValidationPipe implements PipeTransform<any> {
   }
 
   private mapChildrenErrors(children: any[]): any[] {
-    return children.map(child => ({
+    return children.map((child) => ({
       property: child.property,
-      constraints: child.constraints ? Object.values(child.constraints) : ['Invalid nested value'],
-      value: child.value
+      constraints: child.constraints
+        ? Object.values(child.constraints)
+        : ['Invalid nested value'],
+      value: child.value,
     }));
   }
 
@@ -93,7 +102,7 @@ export class CustomValidationPipe implements PipeTransform<any> {
 
 /**
  * Enhanced Validation Pipe Features:
- * 
+ *
  * 1. **Empty Body Handling**: Provides clear error for empty request bodies
  * 2. **Detailed Error Messages**: Shows exactly which fields failed validation
  * 3. **Nested Validation**: Handles validation errors in nested objects
@@ -101,7 +110,7 @@ export class CustomValidationPipe implements PipeTransform<any> {
  * 5. **Transform Mode**: Automatically applies class-transformer decorators
  * 6. **Comprehensive Logging**: Logs validation failures for debugging
  * 7. **Consistent Error Format**: Returns structured error responses
- * 
+ *
  * Error Response Format:
  * {
  *   "statusCode": 400,

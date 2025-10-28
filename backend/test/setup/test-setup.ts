@@ -1,4 +1,3 @@
-import { PrismaService } from '../../src/prisma/prisma.service';
 import * as dotenv from 'dotenv';
 
 // Load test environment variables
@@ -8,12 +7,12 @@ dotenv.config({ path: '.env.test' });
 jest.setTimeout(30000);
 
 // Setup global test environment
-beforeAll(async () => {
+beforeAll(() => {
   // Ensure test environment is properly configured
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL must be set for integration tests');
   }
-  
+
   if (!process.env.UPSTASH_REDIS_REST_URL) {
     console.warn('Redis URL not set - some tests may be skipped');
   }
