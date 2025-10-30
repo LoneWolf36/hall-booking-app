@@ -148,6 +148,14 @@
     scroll-behavior: smooth;
   }
   
+  /* Calendar sizing for desktop - DayPicker v8 CSS variables */
+  @media (min-width: 1024px) {
+    .calendar-lg .rdp {
+      --rdp-cell-size: 48px;
+      font-size: 16px;
+    }
+  }
+  
   /* Glassmorphism utilities */
   .glass {
     @apply bg-background/40 backdrop-blur-xl border border-border/40;

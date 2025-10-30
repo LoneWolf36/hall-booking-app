@@ -35,20 +35,22 @@ export class BookingService {
 
   static getBookingStatusText(status: BookingStatus): string {
     const statusMap = {
+      [BookingStatus.TEMP_HOLD]: 'Temporary Hold',
       [BookingStatus.PENDING]: 'Pending Confirmation',
       [BookingStatus.CONFIRMED]: 'Confirmed',
       [BookingStatus.CANCELLED]: 'Cancelled',
-      [BookingStatus.COMPLETED]: 'Completed',
+      [BookingStatus.EXPIRED]: 'Expired',
     };
     return statusMap[status] || 'Unknown';
   }
 
   static getBookingStatusColor(status: BookingStatus): string {
     const colorMap = {
+      [BookingStatus.TEMP_HOLD]: 'text-orange-600',
       [BookingStatus.PENDING]: 'text-yellow-600',
       [BookingStatus.CONFIRMED]: 'text-green-600',
       [BookingStatus.CANCELLED]: 'text-red-600',
-      [BookingStatus.COMPLETED]: 'text-blue-600',
+      [BookingStatus.EXPIRED]: 'text-gray-600',
     };
     return colorMap[status] || 'text-gray-600';
   }

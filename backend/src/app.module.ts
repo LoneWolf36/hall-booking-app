@@ -11,6 +11,7 @@ import { UsersModule } from './users/users.module';
 import { BookingsModule } from './bookings/bookings.module';
 import { PaymentsModule } from './payments/payments.module';
 import { AuthModule } from './auth/auth.module';
+import { VenuesModule } from './venues/venues.module';
 // Filters, Interceptors, and Pipes
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -41,11 +42,7 @@ import { EnvironmentVariables } from './config/env.validation';
     UsersModule, // User management service  ✅ Complete
     BookingsModule, // Booking management service ✅ Complete
     PaymentsModule, // Payment processing (Razorpay integration) ✅ Complete
-    // Future modules:
-    // VenuesModule,      // Venue management
-    // NotificationsModule, // Email/SMS/WhatsApp notifications
-    // AdminModule,       // Admin dashboard APIs
-    // ReportsModule,     // Analytics and reporting
+    VenuesModule, // Venue management with pricing, furniture, contacts ✅ NEW
   ],
   controllers: [AppController],
   providers: [

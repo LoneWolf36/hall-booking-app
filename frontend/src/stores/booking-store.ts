@@ -56,7 +56,8 @@ export interface BookingState {
   
   // Venue selection
   selectedVenue: Venue | null;
-  selectedDate: Date | null;
+  selectedDates: Date[]; // Changed from selectedDate: Date
+  selectedDate: Date | null; // Kept for backward compatibility
   startTime: string | null;
   endTime: string | null;
   
@@ -103,6 +104,7 @@ export interface BookingActions {
   
   // Venue selection
   setVenueDetails: (venue: Venue, date: Date, startTime: string, endTime: string) => void;
+  setSelectedDates: (dates: Date[]) => void;
   
   // Event details
   setEventDetails: (eventType: EventType, guestCount: number, specialRequests?: string) => void;
@@ -136,6 +138,7 @@ const initialState: BookingState = {
   currentStep: 'venue_selection',
   completedSteps: [],
   selectedVenue: null,
+  selectedDates: [],
   selectedDate: null,
   startTime: null,
   endTime: null,
@@ -212,11 +215,21 @@ export const useBookingStore = create<BookingState & BookingActions>()(
         set({
           selectedVenue: venue,
           selectedDate: date,
+          selectedDates: [date], // Initialize with single date
           startTime,
           endTime,
           basePrice: venue.basePriceCents / 100,
         });
         get().markStepCompleted('venue_selection');
+        get().calculateTotals();
+      },
+      
+      // New method to set multiple dates
+      setSelectedDates: (dates: Date[]) => {
+        set({
+          selectedDates: dates,
+          selectedDate: dates.length > 0 ? dates[0] : null,
+        });
         get().calculateTotals();
       },
 
@@ -309,6 +322,7 @@ export const useBookingStore = create<BookingState & BookingActions>()(
       partialize: (state) => ({
         // Only persist relevant data, not UI state
         selectedVenue: state.selectedVenue,
+        selectedDates: state.selectedDates,
         selectedDate: state.selectedDate,
         startTime: state.startTime,
         endTime: state.endTime,

@@ -1,13 +1,13 @@
 /**
  * Event Details Page
- * 
+ *
  * Step 2 of booking flow: Collect event type, guest count, and special requests.
  * Integrates with booking store for state management.
  */
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -20,15 +20,16 @@ import { EventTypeSelector } from '@/components/booking/EventTypeSelector';
 import { GuestCountSelector } from '@/components/booking/GuestCountSelector';
 import { useBookingStore, type EventType } from '@/stores';
 import { toast } from 'sonner';
-import { CalendarDaysIcon, UsersIcon, InfoIcon } from 'lucide-react';
+import { CalendarDays, Users, Info } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function EventDetailsPage() {
   const router = useRouter();
-  
+
   const {
     selectedVenue,
     selectedDate,
+    selectedDates,
     startTime,
     endTime,
     eventType: storedEventType,
@@ -38,25 +39,53 @@ export default function EventDetailsPage() {
     setCurrentStep,
   } = useBookingStore();
 
-  const [eventType, setEventType] = useState<EventType | null>(storedEventType);
-  const [guestCount, setGuestCount] = useState(storedGuestCount || 0);
-  const [specialRequests, setSpecialRequests] = useState(storedSpecialRequests || '');
+  const [eventType, setEventType] = useState<EventType | null>(storedEventType ?? null);
+  const [guestCount, setGuestCount] = useState<number>(storedGuestCount || 0);
+  const [specialRequests, setSpecialRequests] = useState<string>(storedSpecialRequests || '');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [recalculatingPrice] = useState(false);
 
-  // Redirect if venue not selected
+  // Keep step index in sync (optional, prevents unused var)
+  useEffect(() => {
+    setCurrentStep?.('event_details');
+  }, [setCurrentStep]);
+
+  // Redirect if venue/date not selected
   useEffect(() => {
     if (!selectedVenue || !selectedDate) {
-      toast.error('Please select a venue first');
-      router.push('/availability');
-    } else {
-      setCurrentStep('event_details');
+      router.push('/booking');
     }
-  }, [selectedVenue, selectedDate, setCurrentStep, router]);
+  }, [selectedVenue, selectedDate, router]);
 
-  /**
-   * Validate form data
-   */
-  const validate = (): boolean => {
+  // Calculate date range display intelligently
+  const getDateRangeDisplay = useCallback(() => {
+    if (!selectedDates || selectedDates.length === 0) {
+      return selectedDate ? format(selectedDate, 'MMM dd, yyyy') : 'No date selected';
+    }
+
+    const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
+    const firstDate = sorted[0];
+    const lastDate = sorted[sorted.length - 1];
+
+    if (sorted.length === 1) {
+      return format(firstDate, 'MMM dd, yyyy');
+    }
+
+    const isConsecutive = sorted.every((date, index) => {
+      if (index === 0) return true;
+      const prevDate = sorted[index - 1];
+      const dayDiff = (date.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24);
+      return dayDiff === 1;
+    });
+
+    if (isConsecutive) {
+      return `${format(firstDate, 'MMM dd')} - ${format(lastDate, 'dd, yyyy')} (${sorted.length} days)`;
+    }
+    return `${format(firstDate, 'MMM dd')} - ${format(lastDate, 'dd, yyyy')} (${sorted.length} days, non-consecutive)`;
+  }, [selectedDate, selectedDates]);
+
+  // Validate form
+  const validate = useCallback((): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (!eventType) {
@@ -67,39 +96,38 @@ export default function EventDetailsPage() {
       newErrors.guestCount = 'Please enter number of guests';
     }
 
-    if (selectedVenue && guestCount > selectedVenue.capacity!) {
+    if (selectedVenue && selectedVenue.capacity && guestCount > selectedVenue.capacity) {
       newErrors.guestCount = `Maximum capacity is ${selectedVenue.capacity} guests`;
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  }, [eventType, guestCount, selectedVenue]);
+
+  // Handlers
+  const handleEventTypeChange = (val: EventType) => {
+    setEventType(val);
+    setErrors(prev => ({ ...prev, eventType: '' }));
   };
 
-  /**
-   * Handle form submission
-   */
+  const handleGuestCountChange = (val: number) => {
+    setGuestCount(val);
+    setErrors(prev => ({ ...prev, guestCount: '' }));
+  };
+
   const handleContinue = () => {
     if (!validate()) {
       toast.error('Please fix the errors before continuing');
       return;
     }
-
     if (!eventType) return;
-
-    // Save to store
     setEventDetails(eventType, guestCount, specialRequests);
-    
     toast.success('Event details saved');
-    
-    // Navigate to next step (skip add-ons for MVP, go to payment)
-    router.push('/payment');
+    router.push('/addons');
   };
 
-  /**
-   * Handle back navigation
-   */
   const handleBack = () => {
-    router.push('/availability');
+    router.push('/booking');
   };
 
   if (!selectedVenue || !selectedDate) {
@@ -107,7 +135,7 @@ export default function EventDetailsPage() {
   }
 
   // Calculate duration in hours
-  const duration = (() => {  
+  const duration = (() => {
     if (!startTime || !endTime) return null;
     const [startHour, startMin] = startTime.split(':').map(Number);
     const [endHour, endMin] = endTime.split(':').map(Number);
@@ -123,37 +151,54 @@ export default function EventDetailsPage() {
         {/* Progress Indicator */}
         <BookingProgress variant="horizontal" className="mb-8" />
 
-        {/* Booking Summary Card */}
-        <Card className="bg-card/40 backdrop-blur-xl border-border/40 shadow-xl">
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground mb-1">Venue</p>
-                <p className="font-medium">{selectedVenue.name}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground mb-1">Date & Time</p>
-                <p className="font-medium">
-                  {format(selectedDate, 'MMM dd, yyyy')}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  {startTime} - {endTime}
-                  {duration && ` (${duration}h)`}
-                </p>
-              </div>
-              <div>
-                <p className="text-muted-foreground mb-1">Capacity</p>
-                <p className="font-medium">Up to {selectedVenue.capacity} guests</p>
-              </div>
+        {/* Selection Summary */}
+        <Card className="bg-gradient-to-br from-card/60 to-card/40 backdrop-blur-2xl border-border/40 shadow-xl">
+          <CardContent className="grid gap-4 md:grid-cols-3 py-6">
+            <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
+              <p className="text-muted-foreground mb-1 text-xs font-medium">Selected Dates</p>
+              <p className="font-semibold text-foreground">
+                {getDateRangeDisplay()}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
+              <p className="text-muted-foreground mb-1 text-xs font-medium">Time</p>
+              <p className="font-semibold text-foreground">
+                {startTime} - {endTime}
+                {duration && ` (${duration}h/day)`}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
+              <p className="text-muted-foreground mb-1 text-xs font-medium">Capacity</p>
+              <p className="font-semibold text-foreground">
+                Up to {selectedVenue?.capacity ?? '—'} guests
+              </p>
             </div>
           </CardContent>
         </Card>
 
+        {/* Date Details - Show all selected dates */}
+        {selectedDates && selectedDates.length > 1 && (
+          <Card className="bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-2xl border-border/40 shadow-xl">
+            <CardHeader>
+              <CardTitle className="text-base">Selected Dates ({selectedDates.length} days)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
+                {[...selectedDates].sort((a, b) => a.getTime() - b.getTime()).map((date, idx) => (
+                  <div key={idx} className="p-3 rounded-lg bg-primary/10 border border-primary/20 text-center text-sm font-medium">
+                    {format(date, 'MMM d')}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Main Form Card */}
-        <Card className="bg-card/60 backdrop-blur-2xl border-border/40 shadow-2xl">
+        <Card className="bg-gradient-to-br from-card/60 to-card/40 backdrop-blur-2xl border-border/40 shadow-2xl hover:shadow-xl transition-all duration-300">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <CalendarDaysIcon className="h-5 w-5" />
+              <CalendarDays className="h-5 w-5" />
               Event Details
             </CardTitle>
             <CardDescription>
@@ -169,7 +214,7 @@ export default function EventDetailsPage() {
               </Label>
               <EventTypeSelector
                 value={eventType}
-                onChange={setEventType}
+                onChange={handleEventTypeChange}
                 error={errors.eventType}
               />
             </div>
@@ -181,24 +226,29 @@ export default function EventDetailsPage() {
                   Number of Guests <span className="text-destructive">*</span>
                 </Label>
                 <span className="text-sm text-muted-foreground">
-                  <UsersIcon className="inline h-4 w-4 mr-1" />
-                  Max: {selectedVenue.capacity}
+                  <Users className="inline h-4 w-4 mr-1" />
+                  Max: {selectedVenue?.capacity ?? '—'}
                 </span>
               </div>
               <GuestCountSelector
                 value={guestCount}
-                onChange={setGuestCount}
+                onChange={handleGuestCountChange}
                 min={1}
-                max={selectedVenue.capacity || 1000}
+                max={selectedVenue?.capacity ?? 1000}
                 error={errors.guestCount}
               />
             </div>
 
             {/* Special Requests */}
-            <div className="space-y-3">
-              <Label htmlFor="special-requests" className="text-base">
-                Special Requests (Optional)
-              </Label>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="special-requests" className="text-base">
+                  Special Requests (Optional)
+                </Label>
+                {recalculatingPrice && (
+                  <span className="text-xs text-muted-foreground">Updating pricing...</span>
+                )}
+              </div>
               <Textarea
                 id="special-requests"
                 value={specialRequests}
@@ -215,7 +265,7 @@ export default function EventDetailsPage() {
 
             {/* Info Alert */}
             <Alert>
-              <InfoIcon className="h-4 w-4" />
+              <Info className="h-4 w-4" />
               <AlertDescription>
                 Your event details help us ensure the venue is perfectly suited for your needs.
                 You can modify these details later if needed.
@@ -231,12 +281,12 @@ export default function EventDetailsPage() {
             <StepNavigation
               onNext={handleContinue}
               onBack={handleBack}
-              nextLabel="Continue to Payment"
+              nextLabel="Continue to Add-ons"
               nextDisabled={!eventType || guestCount < 1}
             />
           </div>
         </div>
-        
+
         {/* Mobile: Sticky Floating Action Bar */}
         <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-card/95 backdrop-blur-xl border-t border-border/60 z-50 shadow-2xl">
           <div className="flex gap-3">
@@ -254,7 +304,7 @@ export default function EventDetailsPage() {
               size="lg"
               className="flex-1 h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 shadow-lg transition-all duration-300 font-medium rounded-xl"
             >
-              Continue to Payment
+              Continue to Add-ons
             </Button>
           </div>
         </div>

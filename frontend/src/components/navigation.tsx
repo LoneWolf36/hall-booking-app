@@ -9,7 +9,7 @@ export function Navigation() {
   const { setTheme, theme } = useTheme()
 
   // Venue info (would come from configuration)
-  const venueName = "Grand Celebration Hall";
+  const venueName = "Faisal Function Hall";
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/90 backdrop-blur-xl supports-[backdrop-filter]:bg-background/75 shadow-sm">

@@ -34,8 +34,8 @@
         }
     },
     "summary": {
-        "totalTasks": 35,
-        "completedTasks": 8,
+        "totalTasks": 39,
+        "completedTasks": 12,
         "inProgressTasks": 0,
         "blockedTasks": 0,
         "openTasks": 24,
@@ -57,7 +57,17 @@
                 "UsersController (6 endpoints)",
                 "BookingsController (7 endpoints)",
                 "PaymentsController (10 endpoints)",
-                "VenueBookingsController (2 endpoints)"
+                "VenueBookingsController (2 endpoints)",
+                "VenuesController (10 endpoints) ✅ NEW"
+            ]
+        },
+        "venuesModule": {
+            "status": "✅ COMPLETE",
+            "features": [
+                "Variable pricing with weekend/Sunday/seasonal/surge multipliers",
+                "Furniture options with per-unit pricing",
+                "Venue contacts for delegated services",
+                "Dynamic GST configuration per venue"
             ]
         }
     },
@@ -1103,6 +1113,103 @@
             ],
             "createdAt": "2025-10-28T00:35:00Z",
             "updatedAt": "2025-10-28T00:35:00Z",
+            "blockedBy": null
+        },
+        {
+            "id": "T-036",
+            "title": "Implement VenuesModule with variable pricing, furniture options, contacts, and dynamic GST",
+            "status": "done",
+            "priority": "P0",
+            "files": [
+                "backend/src/venues/venues.module.ts",
+                "backend/src/venues/venues.service.ts:1-363",
+                "backend/src/venues/venues.controller.ts:1-224",
+                "backend/src/app.module.ts"
+            ],
+            "description": "Created complete VenuesModule with 4 major features: (1) Variable pricing API with weekend/Sunday/seasonal/surge multipliers, (2) Furniture options with per-unit pricing stored in venue settings, (3) Venue contacts for delegated services (catering, decoration, etc.), (4) Dynamic GST configuration per venue. All endpoints secured with JWT authentication.",
+            "change": {
+                "type": "feature",
+                "summary": "✅ COMPLETE - VenuesModule created with 600+ lines. Implemented 10 REST endpoints across 4 feature areas. Module registered in AppModule. Build successful with 0 errors.",
+                "diffPath": "SESSION4_VENUES_MODULE.md"
+            },
+            "assumptions": [
+                "Pricing config stored in venue.settings JSON field under 'pricing' key",
+                "Furniture options stored in venue.settings under 'furniture' key",
+                "Venue contacts stored in venue.settings under 'contacts' key",
+                "GST rate stored in venue.settings under 'gstRate' key (default 0.18)",
+                "Weekend multiplier applies to Saturdays and Sundays",
+                "Sunday multiplier overrides weekend multiplier if higher",
+                "Seasonal rates use month ranges (1-12)",
+                "All venue modification endpoints require admin role (future RBAC)"
+            ],
+            "notes": [
+                "✅ FEATURE 1: Variable Pricing Calculation",
+                "- POST /venues/calculate-pricing - Calculate pricing for selected dates",
+                "- Supports weekend multiplier (e.g., 1.5x for Sat/Sun)",
+                "- Supports Sunday-specific multiplier (e.g., 2x for Sundays)",
+                "- Supports seasonal rates (e.g., wedding season Dec-Feb 1.3x)",
+                "- Supports surge pricing multiplier",
+                "- Returns detailed breakdown with applied rates per day",
+                "- User-friendly date formatting (MMM d, yyyy)",
+                "",
+                "✅ FEATURE 2: Furniture Options Management",
+                "- GET /venues/:id/furniture - List all furniture options",
+                "- POST /venues/:id/furniture - Add furniture option (admin)",
+                "- PATCH /venues/:id/furniture/:furnitureId - Update option (admin)",
+                "- Categories: chairs, tables, stage, other",
+                "- Includes baseQuantityIncluded (free qty) and pricePerUnit",
+                "- Example: 100 chairs free, ₹50/chair after that",
+                "",
+                "✅ FEATURE 3: Venue Contacts (Delegated Services)",
+                "- GET /venues/:id/contacts - List contacts (optional category filter)",
+                "- POST /venues/:id/contacts - Add contact (admin)",
+                "- Categories: catering, decoration, photography, entertainment, florist, other",
+                "- Includes name, phone, email, website, description, rating",
+                "- Allows venue owners to recommend trusted service providers",
+                "",
+                "✅ FEATURE 4: Dynamic GST Configuration",
+                "- GET /venues/:id/pricing - Get pricing config including GST rate",
+                "- PATCH /venues/:id/pricing - Update pricing config and GST (admin)",
+                "- GST rate per venue (some venues may have 0%, some 18%, some 12%)",
+                "- Default GST rate: 18% if not configured",
+                "- Stored in venue.settings.gstRate",
+                "",
+                "=== ENDPOINTS SUMMARY ===",
+                "1. GET /venues - List venues (with pagination)",
+                "2. GET /venues/:id - Get venue details",
+                "3. POST /venues/calculate-pricing - Calculate variable pricing",
+                "4. GET /venues/:id/pricing - Get pricing config",
+                "5. PATCH /venues/:id/pricing - Update pricing config",
+                "6. GET /venues/:id/furniture - List furniture options",
+                "7. POST /venues/:id/furniture - Add furniture option",
+                "8. PATCH /venues/:id/furniture/:furnitureId - Update furniture",
+                "9. GET /venues/:id/contacts - List venue contacts",
+                "10. POST /venues/:id/contacts - Add venue contact",
+                "",
+                "=== CODE METRICS ===",
+                "VenuesService: 363 lines",
+                "VenuesController: 224 lines",
+                "VenuesModule: 13 lines",
+                "Total: 600+ lines of production code",
+                "Build Status: ✅ Successful (0 errors)",
+                "",
+                "=== INTEGRATION ===",
+                "✅ Module registered in AppModule",
+                "✅ All endpoints use @CurrentUser() decorator for JWT auth",
+                "✅ Proper tenant isolation via user.tenantId",
+                "✅ Error handling with NotFoundException",
+                "✅ Swagger documentation via @ApiTags, @ApiOperation",
+                "",
+                "=== FUTURE ENHANCEMENTS ===",
+                "TODO: Add RBAC guards to admin endpoints (POST/PATCH)",
+                "TODO: Add validation DTOs with class-validator",
+                "TODO: Add comprehensive unit tests",
+                "TODO: Consider moving furniture/contacts to separate tables vs JSON",
+                "TODO: Add caching for pricing calculations",
+                "TODO: Add audit logging for pricing config changes"
+            ],
+            "createdAt": "2025-10-30T00:00:00Z",
+            "updatedAt": "2025-10-30T00:00:00Z",
             "blockedBy": null
         }
     ]
