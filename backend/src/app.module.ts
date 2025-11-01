@@ -12,6 +12,7 @@ import { BookingsModule } from './bookings/bookings.module';
 import { PaymentsModule } from './payments/payments.module';
 import { AuthModule } from './auth/auth.module';
 import { VenuesModule } from './venues/venues.module';
+import { AdminModule } from './admin/admin.module'; // Phase5-T-037
 // Filters, Interceptors, and Pipes
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -43,6 +44,7 @@ import { EnvironmentVariables } from './config/env.validation';
     BookingsModule, // Booking management service ✅ Complete
     PaymentsModule, // Payment processing (Razorpay integration) ✅ Complete
     VenuesModule, // Venue management with pricing, furniture, contacts ✅ NEW
+    AdminModule, // Admin panel and approval workflow ✅ Phase5
   ],
   controllers: [AppController],
   providers: [

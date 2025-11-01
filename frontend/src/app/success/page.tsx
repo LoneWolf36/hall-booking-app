@@ -59,7 +59,7 @@ export default function SuccessPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-50/50 to-background dark:from-green-950/20 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-b from-green-50/50 to-background dark:from-green-950/20 py-6 sm:py-8 px-3 sm:px-4 overflow-x-hidden">
       <div className="container max-w-4xl mx-auto space-y-8">
         {/* Success Header */}
         <div className="text-center space-y-4 pt-8">

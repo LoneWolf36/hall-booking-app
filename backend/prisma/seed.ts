@@ -5,7 +5,7 @@
  * Run with: npx prisma db seed
  */
 
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../generated/prisma';
 
 const prisma = new PrismaClient();
 
@@ -251,19 +251,21 @@ async function main() {
   console.log('\n✨ Database seeded successfully!\n');
 
   // Print summary
-  console.log('📊 Seeding Summary:');
-  console.log(`   Tenants: 1`);
-  console.log(`   Venues: 3`);
-  console.log(`   Users: 3 (2 customers, 1 admin)`);
-  console.log(`   Bookings: 3`);
-  console.log(`   Payments: 1`);
-  console.log(`   Blackouts: 1`);
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('📊 Seeding Summary:');
+    console.log(`   Tenants: 1`);
+    console.log(`   Venues: 3`);
+    console.log(`   Users: 3 (2 customers, 1 admin)`);
+    console.log(`   Bookings: 3`);
+    console.log(`   Payments: 1`);
+    console.log(`   Blackouts: 1`);
 
-  console.log('\n🔑 Test Credentials:');
-  console.log(`   Customer 1: +919876543210 (Rajesh Kumar)`);
-  console.log(`   Customer 2: +919876543211 (Priya Singh)`);
-  console.log(`   Admin: +919876543212 (Admin User)`);
-  console.log(`   OTP (dev): 000000\n`);
+    console.log('\n🔑 Test Credentials:');
+    console.log(`   Customer 1: +919876543210 (Rajesh Kumar)`);
+    console.log(`   Customer 2: +919876543211 (Priya Singh)`);
+    console.log(`   Admin: +919876543212 (Admin User)`);
+    console.log(`   OTP (dev): 000000\n`);
+  }
 }
 
 main()

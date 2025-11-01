@@ -73,7 +73,7 @@ export default function PaymentProcessingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 py-6 sm:py-8 md:py-12 px-3 sm:px-4 md:px-6 lg:px-8 overflow-x-hidden">
       <div className="max-w-2xl mx-auto">
         {/* Processing Card */}
         <Card className="bg-gradient-to-br from-card/80 to-card/40 backdrop-blur-2xl border-border/40 shadow-2xl">

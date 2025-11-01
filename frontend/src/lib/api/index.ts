@@ -7,6 +7,7 @@ export * from './client';
 export * as bookingsAPI from './bookings';
 export * as paymentsAPI from './payments';
 export * as venuesAPI from './venues';
+export * as adminAPI from './admin';
 
 // Convenience exports
 export {
@@ -49,3 +50,18 @@ export {
   type ContactDto,
   type FurnitureOptionDto,
 } from './venues';
+
+export {
+  getDashboardStats,
+  getBookingForReview,
+  approveBooking,
+  rejectBooking,
+  recordCashPayment as recordAdminCashPayment,
+  listBookings as listAdminBookings,
+  type AdminDashboardStats,
+  type BookingForReview,
+  type AdminBookingListResponse,
+  type ApproveBookingDto,
+  type RejectBookingDto,
+  type RecordCashPaymentDto,
+} from './admin';

@@ -5,6 +5,13 @@
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 
+// Helper to ensure URL doesn't have double slashes
+function normalizeUrl(baseUrl: string, endpoint: string): string {
+  const base = baseUrl.replace(/\/$/, '');
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${base}${path}`;
+}
+
 export interface ApiResponse<T> {
   success: boolean;
   data?: T;
@@ -32,7 +39,7 @@ export async function apiCall<T = any>(
 ): Promise<ApiResponse<T>> {
   const { token, ...fetchOptions } = options;
 
-  const url = `${API_BASE_URL}${endpoint}`;
+  const url = normalizeUrl(API_BASE_URL, endpoint);
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(fetchOptions.headers as Record<string, string> || {}),
@@ -42,8 +49,8 @@ export async function apiCall<T = any>(
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   } else {
-    // Try to get token from localStorage
-    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+    // Try to get token from localStorage (using 'auth-token' key)
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('auth-token') : null;
     if (storedToken) {
       headers['Authorization'] = `Bearer ${storedToken}`;
     }
@@ -53,6 +60,8 @@ export async function apiCall<T = any>(
     const response = await fetch(url, {
       ...fetchOptions,
       headers,
+      mode: 'cors',
+      credentials: 'include',
     });
 
     const data = await response.json() as ApiResponse<T>;

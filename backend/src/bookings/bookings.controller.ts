@@ -31,6 +31,7 @@ import {
 } from '../common/decorators/idempotent.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import type { RequestUser } from '../auth/dto/auth-response.dto';
 
 /**
@@ -183,14 +184,15 @@ export class BookingsController {
 
   /**
    * GET /bookings/venue/:venueId/availability - Calendar view
+   * Public endpoint - no authentication required
    */
+  @Public()
   @Get('venue/:venueId/availability')
   @ApiOperation({
     summary: 'Get venue availability calendar',
-    description: 'Returns day-by-day availability for calendar views',
+    description: 'Returns day-by-day availability for calendar views (default 30 days, max 90)',
   })
   async getVenueAvailability(
-    @CurrentUser() user: RequestUser,
     @Param('venueId', ParseUUIDPipe) venueId: string,
     @Query('date') dateStr?: string,
     @Query('days') daysStr?: string,
@@ -205,25 +207,36 @@ export class BookingsController {
         startTs: Date;
         endTs: Date;
         status: string;
-        customerName: string;
+        customerName: string; // Masked for privacy
       }[];
     }[];
   }> {
     const date = dateStr ? new Date(dateStr) : new Date();
-    const days = Math.min(parseInt(daysStr ?? '7', 10) || 7, 90);
+    const days = Math.min(parseInt(daysStr ?? '30', 10) || 30, 90); // Default to 30 days
 
     if (isNaN(date.getTime())) {
       throw new BadRequestException('Invalid date format. Use YYYY-MM-DD');
     }
 
+    // Use empty string for tenantId since this is a public endpoint
+    // The service will fetch all venues regardless of tenant
     const calendar = await this.bookingsService.getVenueAvailabilityCalendar(
-      user.tenantId,
+      '',
       venueId,
       date,
       days,
     );
 
-    return { success: true, data: calendar };
+    // Mask customer PII for public access
+    const sanitizedCalendar = calendar.map(day => ({
+      ...day,
+      bookings: day.bookings.map(booking => ({
+        ...booking,
+        customerName: 'Reserved', // Privacy: hide actual customer name
+      })),
+    }));
+
+    return { success: true, data: sanitizedCalendar };
   }
 
   /**

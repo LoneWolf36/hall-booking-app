@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useBookingStore } from "@/stores";
 import { useRouter } from "next/navigation";
 import { calculatePricing } from "@/lib/api/venues";
+import { getVenueAvailability } from "@/lib/api/bookings";
 
 const normalizeDates = (arr?: any[]) =>
   (arr ?? []).map((d) => (d instanceof Date ? d : new Date(d)));
@@ -25,29 +26,75 @@ export default function BookingPage() {
 
   const [isLoadingPricing, setIsLoadingPricing] = useState(false);
   const [pricing, setPricing] = useState<any>(null);
+  const [unavailableDates, setUnavailableDates] = useState<Date[]>([]);
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(true);
+  const [venues, setVenues] = useState<any[]>([]);
+  const [currentVenue, setCurrentVenue] = useState<any>(null);
+
+  // Compute whether venue is loaded
+  const isVenueLoaded = !!currentVenue;
+  const venueInfo = currentVenue;
 
   // On mount, ensure storedDates are loaded into local state
   useEffect(() => {
+    // Fetch venues first
+    const fetchVenues = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/api/v1/venues');
+        const data = await response.json();
+        console.log('Venues response:', data);
+        if (data.success && data.data && data.data.length > 0) {
+          setVenues(data.data);
+          setCurrentVenue(data.data[0]);
+        } else if (!data.success) {
+          console.error('Venues API error:', data);
+          toast.error('Failed to load venues');
+        }
+      } catch (err) {
+        console.error('Failed to fetch venues:', err);
+        toast.error('Failed to load venues. Please try again.');
+      }
+    };
+
+    fetchVenues();
+      
     const normalized = normalizeDates(storedDates);
     if (normalized.length > 0) {
       setSelectedDates_Local(normalized);
-      void calculatePricingForDates(normalized);
     }
-  }, []); // Only on mount
+  }, []);
 
-  const venueInfo = {
-    id: "venue-1",
-    name: "Faisal Function Hall",
-    basePriceCents: 1500000,
-    capacity: 500,
-    currency: "INR",
-    timeZone: "Asia/Kolkata",
-    isActive: true,
-    paymentProfile: "hybrid" as const,
-    allowCashPayments: true,
-    requiresOnlineDeposit: false,
-    depositAmount: 0,
-    hasRazorpayAccount: true
+  // Trigger availability/pricing fetch when venue loads
+  useEffect(() => {
+    if (isVenueLoaded && currentVenue?.id) {
+      void fetchVenueAvailability();
+      if (selectedDates.length > 0) {
+        void calculatePricingForDates(selectedDates);
+      }
+    }
+  }, [isVenueLoaded, currentVenue?.id, selectedDates.length]);
+
+  // Fetch venue availability from backend
+  const fetchVenueAvailability = async () => {
+    if (!currentVenue?.id) return;
+    
+    try {
+      setIsLoadingAvailability(true);
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const response = await getVenueAvailability(currentVenue.id, today, 90);
+      
+      // Extract unavailable dates from response
+      const bookedDates = response.data!
+        .filter(day => !day.isAvailable)
+        .map(day => new Date(day.date));
+      
+      setUnavailableDates(bookedDates);
+    } catch (error) {
+      console.error('Failed to fetch availability:', error);
+      toast.error('Could not load availability calendar');
+    } finally {
+      setIsLoadingAvailability(false);
+    }
   };
 
   const handleDateSelect = (dates: Date[] | undefined) => {
@@ -62,34 +109,55 @@ export default function BookingPage() {
   };
 
   const calculatePricingForDates = async (dates: Date[]) => {
+    if (dates.length === 0 || !isVenueLoaded || !venueInfo?.id) return;
+    
     try {
       setIsLoadingPricing(true);
-      // Calculate pricing locally using base price
-      // Variable pricing API integration can be added later
-      const basePrice = venueInfo.basePriceCents || 0;
       
       // Sort dates chronologically for better UX
       const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
       
-      const breakdown = sortedDates.map((date) => ({
-        date: format(date, 'yyyy-MM-dd'),
-        dayOfWeek: format(date, 'EEEE'),
-        displayDate: format(date, 'MMM d, yyyy'), // User-friendly format
-        basePrice: basePrice / 100,
-        multiplier: 1,
-        finalPrice: basePrice,
-        appliedRates: [],
-      }));
-
-      setPricing({
+      // Call backend pricing API
+      const response = await calculatePricing({
         venueId: venueInfo.id,
-        selectedDates: sortedDates.map((d) => format(d, 'yyyy-MM-dd')),
-        breakdown,
-        totalPrice: (basePrice * dates.length) / 100,
-        averagePricePerDay: basePrice / 100,
-      } as any);
+        selectedDates: sortedDates.map(d => format(d, 'yyyy-MM-dd')),
+      });
+
+      if (response.data) {
+        setPricing(response.data);
+      } else {
+        // Fallback to local calculation if API fails
+        const basePrice = venueInfo?.basePriceCents || 0;
+        const breakdown = sortedDates.map((date) => ({
+          date: format(date, 'yyyy-MM-dd'),
+          dayOfWeek: format(date, 'EEEE'),
+          displayDate: format(date, 'MMM d, yyyy'),
+          basePrice: basePrice / 100,
+          multiplier: 1,
+          finalPrice: basePrice,
+          appliedRates: [],
+        }));
+
+        setPricing({
+          venueId: venueInfo!.id,
+          selectedDates: sortedDates.map((d) => format(d, 'yyyy-MM-dd')),
+          breakdown,
+          totalPrice: (basePrice * dates.length) / 100,
+          averagePricePerDay: basePrice / 100,
+        });
+      }
     } catch (error) {
       console.error('Pricing calculation error:', error);
+      toast.error('Failed to calculate pricing. Using base rate.');
+      
+      // Fallback pricing
+      const basePrice = venueInfo?.basePriceCents || 0;
+      const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
+      setPricing({
+        venueId: venueInfo!.id,
+        totalPrice: (basePrice * dates.length) / 100,
+        averagePricePerDay: basePrice / 100,
+      });
     } finally {
       setIsLoadingPricing(false);
     }
@@ -110,9 +178,9 @@ export default function BookingPage() {
     router.push("/event-details");
   };
 
-  const pricePerDay = venueInfo.basePriceCents / 100;
+  const pricePerDay = venueInfo?.basePriceCents ? venueInfo.basePriceCents / 100 : 0;
   const totalPrice =
-    pricing?.totalPrice ?? selectedDates.length * pricePerDay;
+    pricing?.totalPrice ?? (isVenueLoaded && venueInfo ? selectedDates.length * pricePerDay : 0);
 
   const sortedDates = useMemo(
     () => [...selectedDates].sort((a, b) => a.getTime() - b.getTime()),
@@ -120,16 +188,16 @@ export default function BookingPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
-      <div className="container mx-auto px-2 sm:px-4 py-6 sm:py-12">
-        <div className="max-w-6xl mx-auto space-y-4 sm:space-y-8">
+    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 overflow-x-hidden">
+      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-12 max-w-7xl">
+        <div className="w-full max-w-full space-y-4 sm:space-y-8">
           <div className="text-center space-y-2 sm:space-y-3">
             <h1 className="text-2xl sm:text-4xl font-bold">Select Your Event Dates</h1>
             <p className="text-sm sm:text-lg text-muted-foreground">Choose one or multiple days for your event</p>
           </div>
 
           {/* Mobile: Single column, Desktop: 3 column grid */}
-          <div className="grid lg:grid-cols-3 gap-4 sm:gap-8 max-w-7xl">
+          <div className="grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 w-full max-w-full">
             {/* Left: Calendar */}
             <div className="lg:col-span-2 space-y-3 sm:space-y-6">
               <Card className="calendar-lg border-2 bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-2xl shadow-2xl overflow-hidden">
@@ -137,40 +205,50 @@ export default function BookingPage() {
                   <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                     <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                     Event Calendar
+                    {isLoadingAvailability && (
+                      <LoaderIcon className="h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
                   </CardTitle>
                   <CardDescription className="text-xs sm:text-sm">
-                    Tap dates to select
+                    {isLoadingAvailability ? 'Loading availability...' : 'Tap dates to select'}
                   </CardDescription>
                 </CardHeader>
-                {/* Remove overflow-x-auto, constrain width properly */}
-                <CardContent className="flex justify-center p-0">
+                {/* Responsive calendar container */}
+                <CardContent className="flex justify-center p-2 sm:p-4 overflow-hidden">
                   <div className="w-full max-w-full">
                     <Calendar
                       mode="multiple"
                       locale={enGB}
                       selected={selectedDates}
                       onSelect={handleDateSelect}
-                      disabled={(date) =>
-                        date < new Date(new Date().setHours(0, 0, 0, 0))
-                      }
+                      disabled={(date) => {
+                        // Disable past dates
+                        if (date < new Date(new Date().setHours(0, 0, 0, 0))) return true;
+                        
+                        // Disable already booked dates
+                        return unavailableDates.some(
+                          unavailable => format(unavailable, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
+                        );
+                      }}
                       numberOfMonths={1}
-                      className="w-full mx-auto scale-90 sm:scale-95 lg:scale-100 origin-center"
+                      className="w-full mx-auto"
                       classNames={{
                         months: "w-full",
-                        month: "w-full",
-                        caption: "flex justify-center pt-1 relative items-center px-2",
-                        caption_label: "text-xs sm:text-sm font-semibold",
+                        month: "w-full space-y-2 sm:space-y-4",
+                        caption: "flex justify-center pt-1 relative items-center px-1 sm:px-2",
+                        caption_label: "text-sm sm:text-base font-semibold",
                         nav: "space-x-1 flex items-center",
-                        table: "w-full border-collapse",
+                        nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
+                        table: "w-full border-collapse space-y-1",
                         head_row: "flex w-full",
-                        head_cell: "text-muted-foreground rounded-md w-full font-normal text-[0.7rem] sm:text-xs flex-1",
-                        row: "flex w-full mt-1",
-                        cell: "relative p-0 text-center text-xs focus-within:relative focus-within:z-20 flex-1",
-                        day: "h-8 w-full sm:h-9 text-xs sm:text-sm p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground",
+                        head_cell: "text-muted-foreground rounded-md w-full font-normal text-[0.65rem] sm:text-xs flex-1 min-h-[28px] sm:min-h-[32px] flex items-center justify-center",
+                        row: "flex w-full mt-1 sm:mt-2",
+                        cell: "relative p-0 text-center text-xs sm:text-sm focus-within:relative focus-within:z-20 flex-1 min-h-[32px] sm:min-h-[36px]",
+                        day: "h-8 w-full sm:h-10 text-xs sm:text-sm p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground rounded-md transition-colors min-h-[32px] sm:min-h-[40px] flex items-center justify-center",
                         day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                        day_today: "bg-accent text-accent-foreground",
+                        day_today: "bg-accent text-accent-foreground font-semibold",
                         day_outside: "text-muted-foreground opacity-50",
-                        day_disabled: "text-muted-foreground opacity-50",
+                        day_disabled: "text-muted-foreground opacity-30 line-through",
                         day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
                         day_hidden: "invisible",
                       }}
@@ -199,9 +277,14 @@ export default function BookingPage() {
             <div className="lg:col-span-1 lg:sticky lg:top-20">
               <Card className="border-2 bg-gradient-to-br from-card/60 to-card/40 backdrop-blur-2xl shadow-2xl">
                 <CardHeader>
-                  <CardTitle className="text-base sm:text-lg lg:text-xl">Booking Summary</CardTitle>
-                  <CardDescription className="text-xs sm:text-sm">Faisal Function Hall</CardDescription>
+                  <CardTitle className="text-base sm:text-lg lg:text-xl">
+                    Booking Summary
+                  </CardTitle>
+                  <CardDescription className="text-xs sm:text-sm">
+                    {isVenueLoaded && venueInfo?.name ? venueInfo.name : 'Loading venue...'}
+                  </CardDescription>
                 </CardHeader>
+                {isVenueLoaded && venueInfo ? (
                 <CardContent className="space-y-4 sm:space-y-6 pb-20 lg:pb-6">
                   <div className="space-y-2 sm:space-y-3">
                     <div className="flex items-center justify-between text-xs sm:text-sm">
@@ -300,6 +383,14 @@ export default function BookingPage() {
                     )}
                   </div>
                 </CardContent>
+              ) : (
+                <CardContent className="space-y-4 sm:space-y-6 pb-20 lg:pb-6">
+                  <div className="flex items-center justify-center py-8">
+                    <LoaderIcon className="h-5 w-5 animate-spin text-muted-foreground" />
+                    <span className="ml-2 text-sm text-muted-foreground">Loading venue information...</span>
+                  </div>
+                </CardContent>
+              )}
               </Card>
             </div>
           </div>
@@ -308,3 +399,4 @@ export default function BookingPage() {
     </div>
   );
 }
+

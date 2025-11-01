@@ -170,17 +170,9 @@ export class CreateBookingDto {
   @IsString()
   specialRequests?: string;
 
-  // Pricing (optional - can be calculated by service)
-  @ApiProperty({
-    description: 'Total booking amount in cents (optional, can be calculated)',
-    example: 5000000,
-    minimum: 0,
-    required: false,
-  })
-  @IsOptional()
-  @IsInt()
-  @Min(0)
-  totalAmountCents?: number;
+  // Pricing (calculated server-side only - client values ignored)
+  // @ApiProperty (REMOVED - security: prevent client manipulation)
+  // totalAmountCents is calculated by the service based on venue pricing
 
   // Idempotency and State Management
   @ApiProperty({
@@ -193,16 +185,8 @@ export class CreateBookingDto {
   @IsString()
   idempotencyKey?: string; // Will be generated if not provided
 
-  @ApiProperty({
-    description: 'Initial booking status',
-    enum: BookingStatus,
-    example: BookingStatus.TEMP_HOLD,
-    default: BookingStatus.TEMP_HOLD,
-    required: false,
-  })
-  @IsOptional()
-  @IsEnum(BookingStatus)
-  status?: BookingStatus = BookingStatus.TEMP_HOLD;
+  // Initial booking status (server-controlled - removed from DTO)
+  // Status is always set to TEMP_HOLD by the service for security
 
   // Additional metadata
   @ApiProperty({

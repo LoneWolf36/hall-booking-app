@@ -8,6 +8,12 @@ import { ApiProperty } from '@nestjs/swagger';
  * 2. Includes only public-safe user information
  * 3. Consistent API response format
  * 4. Easy to extend for different user contexts (admin vs customer view)
+ *
+ * SECURITY NOTE: This DTO includes phone and email which are PII.
+ * TODO: Consider creating separate DTOs for:
+ * - PublicUserDto (no PII - for public booking views)
+ * - UserProfileDto (full PII - for own profile)
+ * - AdminUserDto (all fields - for admin views)
  */
 export class UserResponseDto {
   @ApiProperty({

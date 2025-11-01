@@ -91,7 +91,9 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           isLoading: false,
         });
 
-        // Store token in localStorage for API client
+        // SECURITY NOTE: JWT stored in Zustand (persisted to localStorage)
+        // RECOMMENDED: Migrate to httpOnly cookies for production
+        // This is acceptable for MVP but should be improved
         if (typeof window !== 'undefined') {
           localStorage.setItem('auth-token', loginResponse.accessToken);
         }
@@ -115,7 +117,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           expiresAt,
         });
 
-        // Update localStorage
+        // SECURITY: localStorage vulnerable to XSS - consider httpOnly cookies
         if (typeof window !== 'undefined') {
           localStorage.setItem('auth-token', token);
         }

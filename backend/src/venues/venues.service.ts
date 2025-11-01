@@ -82,13 +82,14 @@ export class VenuesService {
   }
 
   /**
-   * List all venues for a tenant
+   * List all venues for a tenant (or all if no tenantId provided)
    */
-  async listVenues(tenantId: string, options?: { isActive?: boolean; limit?: number; offset?: number }) {
-    const where = {
-      tenantId,
-      ...(options?.isActive !== undefined && { isActive: options.isActive }),
-    };
+  async listVenues(tenantId: string | undefined, options?: { isActive?: boolean; limit?: number; offset?: number }) {
+    const where: any = tenantId ? { tenantId } : {};
+    
+    if (options?.isActive !== undefined) {
+      where.isActive = options.isActive;
+    }
 
     const [venues, total] = await Promise.all([
       this.prisma.venue.findMany({
@@ -106,8 +107,15 @@ export class VenuesService {
   /**
    * FEATURE 1: Calculate pricing with variable rates
    * Supports weekend multiplier, Sunday multiplier, seasonal rates, surge pricing
+   * Public endpoint - no tenantId required
    */
   async calculatePricing(dto: CalculatePricingDto): Promise<PricingCalculationResult> {
+    // Validate venueId is a valid UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(dto.venueId)) {
+      throw new Error(`Invalid venue ID format: ${dto.venueId}`);
+    }
+
     const venue = await this.prisma.venue.findUnique({
       where: { id: dto.venueId },
     });

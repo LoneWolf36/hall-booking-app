@@ -554,7 +554,7 @@ export class BookingsService {
     tenantId: string,
     venueId: string,
     startDate: Date,
-    days: number,
+    days: number = 30, // Default to 30 days for better UX
   ): Promise<
     Array<{
       date: string;
@@ -569,8 +569,18 @@ export class BookingsService {
       }>;
     }>
   > {
-    // Validate venue
-    await this.validationService.validateVenue(tenantId, venueId);
+    // For public endpoint: validate venue exists (skip tenantId check if tenantId is empty)
+    if (tenantId) {
+      await this.validationService.validateVenue(tenantId, venueId);
+    } else {
+      // Public endpoint: just verify venue exists
+      const venue = await this.prisma.venue.findUnique({
+        where: { id: venueId },
+      });
+      if (!venue) {
+        throw new NotFoundException(`Venue ${venueId} not found`);
+      }
+    }
 
     // Limit to 90 days maximum
     const limitedDays = Math.min(days, 90);
@@ -578,20 +588,26 @@ export class BookingsService {
     endDate.setDate(endDate.getDate() + limitedDays);
 
     // Fetch all bookings in date range
-    const bookings = await this.prisma.booking.findMany({
-      where: {
-        tenantId,
-        venueId,
-        startTs: { lte: endDate },
-        endTs: { gte: startDate },
-        status: {
-          in: [
-            BookingStatus.TEMP_HOLD,
-            BookingStatus.PENDING,
-            BookingStatus.CONFIRMED,
-          ],
-        },
+    const where: any = {
+      venueId,
+      startTs: { lte: endDate },
+      endTs: { gte: startDate },
+      status: {
+        in: [
+          BookingStatus.TEMP_HOLD,
+          BookingStatus.PENDING,
+          BookingStatus.CONFIRMED,
+        ],
       },
+    };
+
+    // If tenantId provided, filter by tenant (private endpoint)
+    if (tenantId) {
+      where.tenantId = tenantId;
+    }
+
+    const bookings = await this.prisma.booking.findMany({
+      where,
       include: { user: true },
       orderBy: { startTs: 'asc' },
     });
@@ -614,15 +630,29 @@ export class BookingsService {
       const currentDate = new Date(startDate);
       currentDate.setDate(currentDate.getDate() + i);
 
-      const dayStart = new Date(currentDate);
-      dayStart.setHours(0, 0, 0, 0);
+      // Use UTC to match database times (bookings are stored in UTC)
+      const dayStart = new Date(Date.UTC(
+        currentDate.getUTCFullYear(),
+        currentDate.getUTCMonth(),
+        currentDate.getUTCDate(),
+        0, 0, 0, 0
+      ));
 
-      const dayEnd = new Date(currentDate);
-      dayEnd.setHours(23, 59, 59, 999);
+      const dayEnd = new Date(Date.UTC(
+        currentDate.getUTCFullYear(),
+        currentDate.getUTCMonth(),
+        currentDate.getUTCDate(),
+        23, 59, 59, 999
+      ));
 
-      const dayBookings = bookings.filter(
-        (b) => b.startTs < dayEnd && b.endTs > dayStart,
-      );
+      // Check if any bookings overlap with this day
+      // A booking overlaps if: booking starts before day ends AND booking ends after day starts
+      const dayBookings = bookings.filter((b) => {
+        const bookingStart = new Date(b.startTs);
+        const bookingEnd = new Date(b.endTs);
+        // Booking occupies this day if it starts before midnight AND ends after start of day
+        return bookingStart < dayEnd && bookingEnd > dayStart;
+      });
 
       calendar.push({
         date: currentDate.toISOString().split('T')[0],
@@ -633,7 +663,8 @@ export class BookingsService {
           startTs: b.startTs,
           endTs: b.endTs,
           status: b.status,
-          customerName: b.user.name,
+          // Hide customer name for privacy on public endpoint (empty string is falsy check)
+          customerName: tenantId && tenantId.trim() ? b.user.name : 'Reserved',
         })),
       });
     }

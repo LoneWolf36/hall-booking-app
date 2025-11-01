@@ -13,8 +13,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")   // pooler for app traffic
+  directUrl = env("DIRECT_URL")     // direct/session pooler for migrations
 }
 
 /// Tenant represents a logical customer (single hall now, multi-tenant later)
@@ -128,7 +129,12 @@ model Booking {
   // Confirmation
   requiresManualConfirmation Boolean                   @default(false)
   confirmedBy                String?                   @db.Uuid
-  confirmedAt                DateTime?                 
+  confirmedAt                DateTime?
+  rejectedBy                 String?                   @db.Uuid
+  rejectedAt                 DateTime?
+  rejectionReason            String?
+  adminNotes                 String?
+  paidAt                     DateTime?                 
   // Metadata
   idempotencyKey             String?
   eventType                  String?
@@ -143,6 +149,7 @@ model Booking {
   user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   confirmedByUser  User?              @relation("BookingConfirmedBy", fields: [confirmedBy], references: [id])
   payments         Payment[]
+  bookingPayments  BookingPayment[]
   cashPayments     CashPayment[]
   commissionRecord CommissionRecord[]
 
@@ -193,6 +200,23 @@ model Payment {
 
   @@index([tenantId, bookingId, status])
   @@map("payments")
+}
+
+/// Booking payments (for admin recording)
+model BookingPayment {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId   String    @db.Uuid
+  amount      Int
+  method      String    @default("cash") // cash|online|cheque|bank_transfer
+  status      String    @default("completed") // pending|completed|failed
+  recordedBy  String?   @db.Uuid
+  notes       String?
+  createdAt   DateTime  @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("booking_payments")
 }
 
 /// Cash payment tracking for offline transactions
@@ -282,4 +306,20 @@ model VenueOnboardingResponse {
   venue  Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
 
   @@map("venue_onboarding_responses")
+}
+
+/// Audit trail for booking state transitions (Phase5-T-038)
+model BookingAuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  bookingId   String   @db.Uuid
+  fromStatus  String?
+  toStatus    String
+  event       String   @default("state_change")
+  triggeredBy String?  @db.Uuid
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([bookingId, createdAt])
+  @@index([triggeredBy])
+  @@map("booking_audit_logs")
 }

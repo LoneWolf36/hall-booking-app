@@ -193,7 +193,7 @@ export default function AddonsPage() {
   );
 
   return (
-    <div className="min-h-screen py-8 px-4 pb-24 lg:pb-8">
+    <div className="min-h-screen py-6 sm:py-8 px-3 sm:px-4 pb-24 lg:pb-8 overflow-x-hidden">
       <div className="container max-w-5xl mx-auto space-y-8">
         {/* Progress Indicator */}
         <BookingProgress variant="horizontal" className="mb-8" />

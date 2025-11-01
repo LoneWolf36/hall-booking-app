@@ -133,11 +133,11 @@ function AuthPageContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-br from-background via-background to-muted">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center px-3 sm:px-4 py-8 sm:py-12 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 overflow-x-hidden">
+      <Card className="w-full max-w-md backdrop-blur-xl bg-slate-900/40 border-slate-700/30 shadow-2xl">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <ShieldCheckIcon className="h-6 w-6 text-primary" />
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500/20 backdrop-blur-md border border-indigo-400/30">
+            <ShieldCheckIcon className="h-6 w-6 text-indigo-400" />
           </div>
           <CardTitle className="text-2xl">
             {step === 'phone' && 'Welcome'}

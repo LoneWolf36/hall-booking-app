@@ -48,13 +48,13 @@ export default function HomePage() {
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section - Premium Glassmorphism */}
-      <section className="relative px-4 sm:px-6 py-20 sm:py-24 md:py-32 overflow-hidden border-b border-border/30 bg-gradient-to-br from-background via-background to-primary/5">
+      <section className="relative px-3 sm:px-4 md:px-6 py-16 sm:py-20 md:py-24 lg:py-32 overflow-hidden border-b border-border/30 bg-gradient-to-br from-background via-background to-primary/5">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/8 via-transparent to-primary/4 backdrop-blur-3xl" />
-        <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl opacity-20" />
-        <div className="absolute bottom-0 left-0 w-80 h-80 bg-primary/5 rounded-full blur-3xl opacity-30" />
+        <div className="absolute top-0 right-0 w-64 h-64 sm:w-96 sm:h-96 bg-primary/10 rounded-full blur-3xl opacity-20" />
+        <div className="absolute bottom-0 left-0 w-56 h-56 sm:w-80 sm:h-80 bg-primary/5 rounded-full blur-3xl opacity-30" />
 
-        <div className="container relative mx-auto">
-          <div className="max-w-4xl mx-auto text-center space-y-5 sm:space-y-6">
+        <div className="container relative mx-auto max-w-7xl">
+          <div className="max-w-4xl mx-auto text-center space-y-4 sm:space-y-5 md:space-y-6 px-2 sm:px-4">
             <Badge
               variant="secondary"
               className="text-xs sm:text-sm px-3 sm:px-4 py-1.5 bg-primary/10 backdrop-blur-xl border-primary/20 font-medium shadow-sm hover:bg-primary/15 transition-colors duration-300"
@@ -67,7 +67,7 @@ export default function HomePage() {
               {venueInfo.name}
             </h1>
 
-            <p className="text-base sm:text-lg md:text-xl text-muted-foreground px-4">
+            <p className="text-sm sm:text-base md:text-lg lg:text-xl text-muted-foreground px-2 sm:px-4">
               {venueInfo.tagline}
             </p>
 
@@ -82,7 +82,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center pt-6 sm:pt-8 px-4">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center pt-4 sm:pt-6 md:pt-8 px-2 sm:px-4">
               <Link href="/booking" className="w-full sm:w-auto">
                 <Button
                   size="lg"
@@ -110,10 +110,10 @@ export default function HomePage() {
       {/* Features Section */}
       <section
         id="features"
-        className="px-4 sm:px-6 py-16 sm:py-20 bg-gradient-to-b from-background via-primary/3 to-background border-b border-border/30"
+        className="px-3 sm:px-4 md:px-6 py-12 sm:py-16 md:py-20 bg-gradient-to-b from-background via-primary/3 to-background border-b border-border/30"
       >
-        <div className="container mx-auto max-w-5xl">
-          <div className="text-center mb-10 sm:mb-14 px-4">
+        <div className="container mx-auto max-w-6xl">
+          <div className="text-center mb-8 sm:mb-10 md:mb-14 px-2 sm:px-4">
             <Badge
               variant="outline"
               className="mb-4 border-primary/20 bg-primary/5 text-primary font-medium"
@@ -149,9 +149,9 @@ export default function HomePage() {
       </section>
 
       {/* How to Book */}
-      <section className="px-4 sm:px-6 py-16 sm:py-20 bg-gradient-to-b from-background via-primary/[0.02] to-background border-b border-border/60">
-        <div className="container mx-auto max-w-5xl">
-          <div className="text-center mb-10 sm:mb-14 space-y-3 sm:space-y-4 px-4">
+      <section className="px-3 sm:px-4 md:px-6 py-12 sm:py-16 md:py-20 bg-gradient-to-b from-background via-primary/[0.02] to-background border-b border-border/60">
+        <div className="container mx-auto max-w-6xl">
+          <div className="text-center mb-8 sm:mb-10 md:mb-14 space-y-3 sm:space-y-4 px-2 sm:px-4">
             <Badge
               variant="outline"
               className="mb-2 border-primary/20 bg-primary/5 text-primary font-medium"
@@ -187,7 +187,7 @@ export default function HomePage() {
             ))}
           </div>
 
-          <div className="text-center mt-10 sm:mt-14 px-4">
+          <div className="text-center mt-8 sm:mt-10 md:mt-14 px-2 sm:px-4">
             <Link href="/booking" className="inline-block w-full sm:w-auto">
               <Button
                 size="lg"

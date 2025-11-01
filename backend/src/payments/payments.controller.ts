@@ -444,7 +444,7 @@ export class PaymentsController {
         venue: {
           name: payment.booking.venue.name,
         },
-        gatewayResponse: payment.gatewayResponse,
+        // gatewayResponse removed for security (may contain PII)
       },
     };
   }
