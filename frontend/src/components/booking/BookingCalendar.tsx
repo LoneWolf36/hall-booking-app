@@ -28,6 +28,12 @@ import {
 } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Weekdays constant
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
+
+// Base pill styling class
+const pillBase = 'rounded-full';
+
 interface BookingCalendarProps {
   selectedDates?: Date[];
   onDateSelect?: (dates: Date[]) => void;
