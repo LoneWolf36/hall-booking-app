@@ -11,7 +11,9 @@ import { enGB } from "date-fns/locale";
 import { toast } from "sonner";
 import { useBookingStore } from "@/stores";
 import { useRouter } from "next/navigation";
-import { calculatePricing } from "@/lib/api/venues";
+
+// Use consistent API services
+import { calculatePricing, listVenues } from "@/lib/api/venues";
 import { getVenueAvailability } from "@/lib/api/bookings";
 
 const normalizeDates = (arr?: any[]) =>
@@ -30,39 +32,47 @@ export default function BookingPage() {
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(true);
   const [venues, setVenues] = useState<any[]>([]);
   const [currentVenue, setCurrentVenue] = useState<any>(null);
+  const [isLoadingVenues, setIsLoadingVenues] = useState(true);
 
   // Compute whether venue is loaded
   const isVenueLoaded = !!currentVenue;
   const venueInfo = currentVenue;
 
-  // On mount, ensure storedDates are loaded into local state
+  // On mount, fetch venues and load persisted dates
   useEffect(() => {
-    // Fetch venues first
     const fetchVenues = async () => {
       try {
-        const response = await fetch('http://localhost:3000/api/v1/venues');
-        const data = await response.json();
-        console.log('Venues response:', data);
-        if (data.success && data.data && data.data.length > 0) {
-          setVenues(data.data);
-          setCurrentVenue(data.data[0]);
-        } else if (!data.success) {
-          console.error('Venues API error:', data);
-          toast.error('Failed to load venues');
+        setIsLoadingVenues(true);
+        
+        // Use proper API service instead of direct fetch
+        const response = await listVenues();
+        
+        console.log('Venues API response:', response);
+        
+        if (response.success && response.data && response.data.length > 0) {
+          setVenues(response.data);
+          setCurrentVenue(response.data[0]);
+          console.log('Venues loaded successfully:', response.data.length);
+        } else {
+          console.error('Venues API error:', response);
+          toast.error(response.message || 'No venues available');
         }
       } catch (err) {
         console.error('Failed to fetch venues:', err);
-        toast.error('Failed to load venues. Please try again.');
+        toast.error('Failed to load venues. Please check if backend is running.');
+      } finally {
+        setIsLoadingVenues(false);
       }
     };
 
     fetchVenues();
       
+    // Load persisted dates
     const normalized = normalizeDates(storedDates);
     if (normalized.length > 0) {
       setSelectedDates_Local(normalized);
     }
-  }, []);
+  }, [storedDates]);
 
   // Trigger availability/pricing fetch when venue loads
   useEffect(() => {
@@ -74,24 +84,43 @@ export default function BookingPage() {
     }
   }, [isVenueLoaded, currentVenue?.id, selectedDates.length]);
 
-  // Fetch venue availability from backend
+  // Fetch venue availability from backend using proper API service
   const fetchVenueAvailability = async () => {
     if (!currentVenue?.id) return;
     
     try {
       setIsLoadingAvailability(true);
+      
       const today = format(new Date(), 'yyyy-MM-dd');
       const response = await getVenueAvailability(currentVenue.id, today, 90);
       
-      // Extract unavailable dates from response
-      const bookedDates = response.data!
-        .filter(day => !day.isAvailable)
-        .map(day => new Date(day.date));
-      
-      setUnavailableDates(bookedDates);
+      if (response.success && response.data) {
+        // Extract unavailable dates from response
+        const bookedDates = response.data
+          .filter(day => !day.isAvailable)
+          .map(day => new Date(day.date));
+        
+        setUnavailableDates(bookedDates);
+        console.log('Availability loaded:', { 
+          total: response.data.length, 
+          unavailable: bookedDates.length 
+        });
+      } else {
+        console.warn('No availability data received:', response);
+        // Continue with empty unavailable dates array
+        setUnavailableDates([]);
+      }
     } catch (error) {
       console.error('Failed to fetch availability:', error);
-      toast.error('Could not load availability calendar');
+      
+      // Don't show error toast if it's just a network issue
+      // Allow user to continue with booking (backend will validate)
+      setUnavailableDates([]);
+      
+      // Only show error if backend is completely unreachable
+      if (error instanceof Error && error.message.includes('fetch')) {
+        toast.error('Could not check availability. Please ensure backend is running.');
+      }
     } finally {
       setIsLoadingAvailability(false);
     }
@@ -117,16 +146,18 @@ export default function BookingPage() {
       // Sort dates chronologically for better UX
       const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
       
-      // Call backend pricing API
+      // Use proper API service for pricing calculation
       const response = await calculatePricing({
         venueId: venueInfo.id,
         selectedDates: sortedDates.map(d => format(d, 'yyyy-MM-dd')),
       });
 
-      if (response.data) {
+      if (response.success && response.data) {
         setPricing(response.data);
+        console.log('Pricing calculated:', response.data);
       } else {
         // Fallback to local calculation if API fails
+        console.warn('Pricing API failed, using fallback:', response);
         const basePrice = venueInfo?.basePriceCents || 0;
         const breakdown = sortedDates.map((date) => ({
           date: format(date, 'yyyy-MM-dd'),
@@ -148,16 +179,21 @@ export default function BookingPage() {
       }
     } catch (error) {
       console.error('Pricing calculation error:', error);
-      toast.error('Failed to calculate pricing. Using base rate.');
       
-      // Fallback pricing
+      // Always provide fallback pricing to avoid breaking the flow
       const basePrice = venueInfo?.basePriceCents || 0;
       const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
+      
       setPricing({
         venueId: venueInfo!.id,
         totalPrice: (basePrice * dates.length) / 100,
         averagePricePerDay: basePrice / 100,
       });
+      
+      // Only show error for non-network issues
+      if (!(error instanceof Error && error.message.includes('fetch'))) {
+        toast.error('Failed to calculate dynamic pricing. Using base rate.');
+      }
     } finally {
       setIsLoadingPricing(false);
     }
@@ -187,6 +223,42 @@ export default function BookingPage() {
     [selectedDates]
   );
 
+  // Show loading while venues are being fetched
+  if (isLoadingVenues) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <LoaderIcon className="h-8 w-8 animate-spin mx-auto text-primary" />
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold">Loading Venues</h2>
+            <p className="text-sm text-muted-foreground">Connecting to booking system...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if no venues loaded
+  if (!isLoadingVenues && venues.length === 0) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold text-destructive">No Venues Available</h2>
+            <p className="text-sm text-muted-foreground">Please check if the backend server is running.</p>
+            <Button 
+              onClick={() => window.location.reload()} 
+              variant="outline" 
+              className="mt-4"
+            >
+              Retry
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 overflow-x-hidden">
       <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-12 max-w-7xl">
@@ -194,6 +266,11 @@ export default function BookingPage() {
           <div className="text-center space-y-2 sm:space-y-3">
             <h1 className="text-2xl sm:text-4xl font-bold">Select Your Event Dates</h1>
             <p className="text-sm sm:text-lg text-muted-foreground">Choose one or multiple days for your event</p>
+            {venueInfo && (
+              <Badge variant="secondary" className="text-xs">
+                Booking for: {venueInfo.name}
+              </Badge>
+            )}
           </div>
 
           {/* Mobile: Single column, Desktop: 3 column grid */}
@@ -399,4 +476,3 @@ export default function BookingPage() {
     </div>
   );
 }
-
