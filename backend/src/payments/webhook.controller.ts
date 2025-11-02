@@ -12,7 +12,7 @@ import {
   HttpStatus,
   BadRequestException,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { PaymentsService } from './payments.service';
 import * as crypto from 'crypto';
@@ -71,6 +71,15 @@ interface RazorpayWebhookEvent {
         created_at: number;
       };
     };
+    payment_link?: {
+      entity: {
+        id: string;
+        status: string;
+        amount: number;
+        currency: string;
+        description?: string;
+      };
+    };
   };
 }
 
@@ -109,20 +118,11 @@ export class PaymentsWebhookController {
         created_at: new Date(body.created_at * 1000).toISOString(),
       });
 
-      // Step 3: Process event based on type
-      switch (body.event) {
-        case 'payment.captured':
-          await this.handlePaymentCaptured(body);
-          break;
-        case 'payment.failed':
-          await this.handlePaymentFailed(body);
-          break;
-        case 'order.paid':
-          await this.handleOrderPaid(body);
-          break;
-        default:
-          this.logger.log(`Unhandled webhook event: ${body.event}`);
-      }
+      // Step 3: Process event using existing PaymentsService webhook handler
+      const result = await this.paymentsService.handleWebhook({
+        event: body.event,
+        payload: body.payload,
+      });
 
       // Step 4: Return success
       return res.status(HttpStatus.OK).json({ 
@@ -130,6 +130,7 @@ export class PaymentsWebhookController {
         processed: true,
         event: body.event,
         timestamp: new Date().toISOString(),
+        message: result.message,
       });
 
     } catch (error) {
@@ -149,58 +150,29 @@ export class PaymentsWebhookController {
   }
 
   /**
-   * Create Razorpay order (called by frontend before checkout)
+   * Create payment link (delegates to PaymentsService)
    */
-  @Post('create-order')
-  async createOrder(
-    @Body() createOrderDto: {
+  @Post('create-link')
+  async createPaymentLink(
+    @Body() createLinkDto: {
       bookingId: string;
-      amount: number;
-      currency?: string;
-      receipt?: string;
+      tenantId: string;
     },
   ) {
     try {
-      const order = await this.paymentsService.createRazorpayOrder({
-        bookingId: createOrderDto.bookingId,
-        amount: createOrderDto.amount,
-        currency: createOrderDto.currency || 'INR',
-        receipt: createOrderDto.receipt || `booking_${createOrderDto.bookingId}`,
-      });
+      const paymentLink = await this.paymentsService.createPaymentLinkForBooking(
+        createLinkDto.tenantId,
+        createLinkDto.bookingId,
+      );
 
-      return order;
+      return paymentLink;
     } catch (error) {
-      this.logger.error('Order creation failed', {
-        bookingId: createOrderDto.bookingId,
-        amount: createOrderDto.amount,
+      this.logger.error('Payment link creation failed', {
+        bookingId: createLinkDto.bookingId,
+        tenantId: createLinkDto.tenantId,
         error: error.message,
       });
-      throw new BadRequestException('Failed to create payment order');
-    }
-  }
-
-  /**
-   * Verify payment (optional - mainly for client-side verification)
-   */
-  @Post('verify')
-  async verifyPayment(
-    @Body() verifyDto: {
-      bookingId: string;
-      razorpay_payment_id: string;
-      razorpay_order_id: string;
-      razorpay_signature: string;
-    },
-  ) {
-    try {
-      const result = await this.paymentsService.verifyPaymentSignature(verifyDto);
-      return { verified: true, booking: result };
-    } catch (error) {
-      this.logger.error('Payment verification failed', {
-        bookingId: verifyDto.bookingId,
-        payment_id: verifyDto.razorpay_payment_id,
-        error: error.message,
-      });
-      throw new BadRequestException('Payment verification failed');
+      throw error; // Let NestJS handle the exception response
     }
   }
 
@@ -233,69 +205,6 @@ export class PaymentsWebhookController {
       return false;
     }
   }
-
-  private async handlePaymentCaptured(event: RazorpayWebhookEvent) {
-    const payment = event.payload.payment?.entity;
-    if (!payment) return;
-
-    this.logger.log('Processing payment.captured', {
-      payment_id: payment.id,
-      order_id: payment.order_id,
-      amount: payment.amount,
-      status: payment.status,
-    });
-
-    // Update booking status based on successful payment
-    await this.paymentsService.handleSuccessfulPayment({
-      paymentId: payment.id,
-      orderId: payment.order_id,
-      amount: payment.amount,
-      currency: payment.currency,
-      method: payment.method,
-      razorpayData: payment,
-    });
-  }
-
-  private async handlePaymentFailed(event: RazorpayWebhookEvent) {
-    const payment = event.payload.payment?.entity;
-    if (!payment) return;
-
-    this.logger.log('Processing payment.failed', {
-      payment_id: payment.id,
-      order_id: payment.order_id,
-      error_code: payment.error_code,
-      error_description: payment.error_description,
-    });
-
-    // Handle failed payment - maybe notify customer or admin
-    await this.paymentsService.handleFailedPayment({
-      paymentId: payment.id,
-      orderId: payment.order_id,
-      errorCode: payment.error_code,
-      errorDescription: payment.error_description,
-      razorpayData: payment,
-    });
-  }
-
-  private async handleOrderPaid(event: RazorpayWebhookEvent) {
-    const order = event.payload.order?.entity;
-    if (!order) return;
-
-    this.logger.log('Processing order.paid', {
-      order_id: order.id,
-      amount_paid: order.amount_paid,
-      status: order.status,
-    });
-
-    // Additional confirmation that order is fully paid
-    if (order.amount_paid >= order.amount) {
-      await this.paymentsService.confirmOrderPayment({
-        orderId: order.id,
-        amountPaid: order.amount_paid,
-        razorpayData: order,
-      });
-    }
-  }
 }
 
 /**
@@ -313,7 +222,7 @@ export class PaymentsWebhookController {
  * WEBHOOK SETUP IN RAZORPAY DASHBOARD:
  * 1. Go to Settings > Webhooks
  * 2. Add endpoint: https://yourdomain.com/api/v1/payments/webhook
- * 3. Select events: payment.captured, payment.failed, order.paid
+ * 3. Select events: payment_link.paid, payment_link.expired, payment.captured, payment.failed
  * 4. Copy webhook secret to environment variables
  * 
  * TESTING COMMANDS:
@@ -322,11 +231,11 @@ export class PaymentsWebhookController {
  * curl -X POST http://localhost:3000/api/v1/payments/webhook \
  *   -H "Content-Type: application/json" \
  *   -H "X-Razorpay-Signature: your_test_signature" \
- *   -d '{"event":"payment.captured","payload":{"payment":{"entity":{"id":"pay_test123"}}}}'
+ *   -d '{"event":"payment_link.paid","payload":{"payment_link":{"entity":{"id":"plink_test123"}}}}'
  * 
- * # Test order creation
- * curl -X POST http://localhost:3000/api/v1/payments/create-order \
+ * # Test payment link creation
+ * curl -X POST http://localhost:3000/api/v1/payments/create-link \
  *   -H "Content-Type: application/json" \
  *   -H "Authorization: Bearer your_jwt_token" \
- *   -d '{"bookingId":"booking-123","amount":50000,"currency":"INR"}'
+ *   -d '{"bookingId":"booking-123","tenantId":"tenant-123"}'
  */
