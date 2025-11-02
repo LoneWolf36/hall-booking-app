@@ -1,8 +1,12 @@
 /**
- * Authentication Page
+ * Authentication Page - Complete OTP Flow
  * 
- * Phone-based OTP authentication flow.
- * Two-step process: request OTP → verify OTP → login complete.
+ * Enhanced with:
+ * - Proper backend API integration
+ * - Dev OTP support (000000)
+ * - Step guard integration
+ * - Back navigation support
+ * - Error handling with specific messages
  */
 
 'use client';
@@ -17,16 +21,19 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PhoneInput } from '@/components/auth/PhoneInput';
 import { OtpVerification, OtpStatus } from '@/components/auth/OtpVerification';
 import { AuthService } from '@/services';
-import { useAuthStore } from '@/stores';
+import { useAuthStore } from '@/stores/auth-store';
+import { useStepGuard, useBookingNavigation } from '@/hooks/useStepGuard';
 import { toast } from 'sonner';
-import { ShieldCheckIcon, UserIcon } from 'lucide-react';
+import { ShieldCheckIcon, UserIcon, ArrowLeft } from 'lucide-react';
 
 type AuthStep = 'phone' | 'otp' | 'name';
 
 function AuthPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/';
+  const redirect = searchParams.get('redirect') || '/confirmation';
+  const { isValid } = useStepGuard('auth');
+  const { goBack } = useBookingNavigation();
   
   const { setAuth } = useAuthStore();
   
@@ -37,7 +44,7 @@ function AuthPageContent() {
   const [isPhoneValid, setIsPhoneValid] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [otpExpiresIn, setOtpExpiresIn] = useState<number>(300); // 5 minutes
+  const [otpExpiresIn, setOtpExpiresIn] = useState<number>(300);
 
   /**
    * Step 1: Request OTP
@@ -52,11 +59,17 @@ function AuthPageContent() {
     setError(null);
 
     try {
+      console.log('Requesting OTP for phone:', phone);
       const response = await AuthService.requestOtp(phone);
       
-      toast.success(response.message);
-      setOtpExpiresIn(response.expiresIn);
-      setStep('otp');
+      if (response.success) {
+        toast.success(response.message || 'OTP sent successfully');
+        setOtpExpiresIn(response.expiresIn || 300);
+        setStep('otp');
+      } else {
+        setError(response.message || 'Failed to send OTP');
+        toast.error(response.message || 'Failed to send OTP');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to send OTP';
       setError(errorMessage);
@@ -71,7 +84,7 @@ function AuthPageContent() {
    */
   const handleVerifyOtp = async () => {
     if (otp.length !== 6) {
-      toast.error('Please enter complete OTP');
+      toast.error('Please enter complete 6-digit OTP');
       return;
     }
 
@@ -79,22 +92,28 @@ function AuthPageContent() {
     setError(null);
 
     try {
+      console.log('Verifying OTP for phone:', phone, 'OTP length:', otp.length);
       const response = await AuthService.verifyOtp(phone, otp, name || undefined);
       
-      // Check if new user needs to provide name
-      if (response.user.isNewUser && !name) {
-        setStep('name');
-        toast.info('Welcome! Please provide your name');
-        setIsLoading(false);
-        return;
-      }
+      if (response.success) {
+        // Check if new user needs to provide name
+        if (response.user?.isNewUser && !name) {
+          setStep('name');
+          toast.info('Welcome! Please provide your name');
+          setIsLoading(false);
+          return;
+        }
 
-      // Login successful
-      setAuth(response);
-      toast.success(`Welcome back, ${response.user.name}!`);
-      
-      // Redirect to original page or home
-      router.push(redirect);
+        // Login successful
+        setAuth(response);
+        toast.success(`Welcome ${response.user?.name ? `back, ${response.user.name}` : ''}!`);
+        
+        // Redirect to original page or confirmation
+        router.push(redirect);
+      } else {
+        setError(response.message || 'OTP verification failed');
+        toast.error(response.message || 'Invalid OTP');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Invalid OTP';
       setError(errorMessage);
@@ -120,6 +139,7 @@ function AuthPageContent() {
    * Resend OTP
    */
   const handleResendOtp = async () => {
+    toast.info('Resending OTP...');
     await handleRequestOtp();
   };
 
@@ -132,6 +152,15 @@ function AuthPageContent() {
     setError(null);
   };
 
+  /**
+   * Go back to previous booking step
+   */
+  const handleBackToPrevious = () => {
+    goBack();
+  };
+
+  if (!isValid) return null; // useStepGuard handles redirect
+
   return (
     <div className="min-h-screen flex items-center justify-center px-3 sm:px-4 py-8 sm:py-12 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 overflow-x-hidden">
       <Card className="w-full max-w-md backdrop-blur-xl bg-slate-900/40 border-slate-700/30 shadow-2xl">
@@ -140,18 +169,31 @@ function AuthPageContent() {
             <ShieldCheckIcon className="h-6 w-6 text-indigo-400" />
           </div>
           <CardTitle className="text-2xl">
-            {step === 'phone' && 'Welcome'}
+            {step === 'phone' && 'Login Required'}
             {step === 'otp' && 'Verify Phone'}
             {step === 'name' && 'Complete Registration'}
           </CardTitle>
           <CardDescription>
-            {step === 'phone' && 'Enter your phone number to get started'}
-            {step === 'otp' && 'Enter the code we sent you'}
+            {step === 'phone' && 'Enter your phone number to continue booking'}
+            {step === 'otp' && 'Enter the 6-digit code we sent you'}
             {step === 'name' && 'Tell us your name to complete setup'}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-6">
+          {/* Back to Booking Flow Button */}
+          {step === 'phone' && (
+            <Button
+              onClick={handleBackToPrevious}
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Booking
+            </Button>
+          )}
+
           {/* Error Alert */}
           {error && (
             <Alert variant="destructive">
@@ -169,6 +211,11 @@ function AuthPageContent() {
                 autoFocus
                 disabled={isLoading}
               />
+              
+              {/* Dev hint */}
+              <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground text-center">
+                💡 Development: Use any 10-digit number, then enter <code className="bg-muted px-1 rounded">000000</code> as OTP
+              </div>
 
               <Button
                 onClick={handleRequestOtp}
@@ -177,7 +224,7 @@ function AuthPageContent() {
                 className="w-full"
                 size="lg"
               >
-                Continue
+                Send OTP
               </Button>
             </>
           )}
@@ -195,6 +242,11 @@ function AuthPageContent() {
                 disabled={isLoading}
                 error={error || undefined}
               />
+              
+              {/* Dev hint */}
+              <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground text-center">
+                💡 Development: Enter <code className="bg-muted px-1 rounded">000000</code> to bypass SMS
+              </div>
 
               <div className="flex gap-2">
                 <Button
@@ -249,7 +301,7 @@ function AuthPageContent() {
             </>
           )}
 
-          {/* Info Text */}
+          {/* Terms */}
           <p className="text-xs text-center text-muted-foreground">
             By continuing, you agree to our Terms of Service and Privacy Policy
           </p>
@@ -261,7 +313,11 @@ function AuthPageContent() {
 
 export default function AuthPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    }>
       <AuthPageContent />
     </Suspense>
   );
