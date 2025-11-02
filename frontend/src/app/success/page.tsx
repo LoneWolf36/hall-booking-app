@@ -20,7 +20,7 @@ import {
   MailIcon,
   HomeIcon,
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { formatDateFull } from '@/lib/dates';
 
 export default function SuccessPage() {
   const router = useRouter();
@@ -44,13 +44,11 @@ export default function SuccessPage() {
   const finalAmount = subtotal + taxes;
 
   const handleDownloadReceipt = () => {
-    // In production, this would generate a PDF receipt
     alert('Receipt download functionality would be implemented here');
   };
 
   const handleShareBooking = (platform: 'whatsapp' | 'email') => {
-    const message = `I have booked ${selectedVenue.name} for my event on ${format(selectedDate, 'MMM dd, yyyy')}. Booking Reference: ${bookingNumber}`;
-    
+    const message = `I have booked ${selectedVenue.name} for my event on ${formatDateFull(selectedDate)}. Booking Reference: ${bookingNumber}`;
     if (platform === 'whatsapp') {
       window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
     } else if (platform === 'email') {
@@ -61,7 +59,6 @@ export default function SuccessPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-green-50/50 to-background dark:from-green-950/20 py-6 sm:py-8 px-3 sm:px-4 overflow-x-hidden">
       <div className="container max-w-4xl mx-auto space-y-8">
-        {/* Success Header */}
         <div className="text-center space-y-4 pt-8">
           <div className="flex justify-center mb-6">
             <div className="relative">
@@ -72,38 +69,24 @@ export default function SuccessPage() {
             </div>
           </div>
 
-          <h1 className="text-4xl md:text-5xl font-bold text-foreground">
-            Booking Confirmed!
-          </h1>
-          <p className="text-lg text-muted-foreground">
-            Your event is all set. We'll see you soon!
-          </p>
+          <h1 className="text-4xl md:text-5xl font-bold text-foreground">Booking Confirmed!</h1>
+          <p className="text-lg text-muted-foreground">Your event is all set. We'll see you soon!</p>
         </div>
 
-        {/* Booking Reference */}
         <Card className="bg-gradient-to-br from-green-50 dark:from-green-950/40 to-green-50/50 dark:to-green-900/20 border-green-200 dark:border-green-800/40 shadow-xl">
           <CardContent className="pt-6">
             <div className="text-center space-y-3">
               <p className="text-sm text-muted-foreground font-medium">BOOKING REFERENCE</p>
-              <p className="text-3xl font-bold font-mono text-green-700 dark:text-green-400 tracking-widest">
-                {bookingNumber}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Confirmation email has been sent to your registered email address
-              </p>
+              <p className="text-3xl font-bold font-mono text-green-700 dark:text-green-400 tracking-widest">{bookingNumber}</p>
+              <p className="text-sm text-muted-foreground">Confirmation email has been sent to your registered email address</p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Event Summary */}
         <div className="grid md:grid-cols-2 gap-6">
-          {/* Venue Details */}
           <Card className="bg-gradient-to-br from-card/60 to-card/40 backdrop-blur-2xl border-border/40 shadow-xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPinIcon className="h-5 w-5 text-primary" />
-                Event Venue
-              </CardTitle>
+              <CardTitle className="flex items-center gap-2"><MapPinIcon className="h-5 w-5 text-primary" />Event Venue</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -117,18 +100,14 @@ export default function SuccessPage() {
             </CardContent>
           </Card>
 
-          {/* Event Details */}
           <Card className="bg-gradient-to-br from-card/60 to-card/40 backdrop-blur-2xl border-border/40 shadow-xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarDaysIcon className="h-5 w-5 text-primary" />
-                Event Date & Time
-              </CardTitle>
+              <CardTitle className="flex items-center gap-2"><CalendarDaysIcon className="h-5 w-5 text-primary" />Event Date & Time</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Date</p>
-                <p className="font-semibold text-lg">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</p>
+                <p className="font-semibold text-lg">{formatDateFull(selectedDate)}</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Event Type</p>
@@ -137,13 +116,9 @@ export default function SuccessPage() {
             </CardContent>
           </Card>
 
-          {/* Guest Details */}
           <Card className="bg-gradient-to-br from-card/60 to-card/40 backdrop-blur-2xl border-border/40 shadow-xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <UsersIcon className="h-5 w-5 text-primary" />
-                Guest Information
-              </CardTitle>
+              <CardTitle className="flex items-center gap-2"><UsersIcon className="h-5 w-5 text-primary" />Guest Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -152,20 +127,14 @@ export default function SuccessPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Capacity</p>
-                <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">
-                  ✓ Within Capacity
-                </Badge>
+                <Badge className="bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">✓ Within Capacity</Badge>
               </div>
             </CardContent>
           </Card>
 
-          {/* Payment Summary */}
           <Card className="bg-gradient-to-br from-card/60 to-card/40 backdrop-blur-2xl border-border/40 shadow-xl">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCardIcon className="h-5 w-5 text-primary" />
-                Payment Status
-              </CardTitle>
+              <CardTitle className="flex items-center gap-2"><CreditCardIcon className="h-5 w-5 text-primary" />Payment Status</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -175,93 +144,27 @@ export default function SuccessPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Payment Method</span>
-                  <Badge variant="secondary" className="text-xs">
-                    {paymentMethod === 'online' ? '💳 Online' : '💵 Cash'}
-                  </Badge>
+                  <Badge variant="secondary" className="text-xs">{paymentMethod === 'online' ? '💳 Online' : '💵 Cash'}</Badge>
                 </div>
               </div>
-              <Badge className="w-full justify-center py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">
-                ✓ {paymentMethod === 'online' ? 'Paid' : 'Pending at Venue'}
-              </Badge>
+              <Badge className="w-full justify-center py-1.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800">✓ {paymentMethod === 'online' ? 'Paid' : 'Pending at Venue'}</Badge>
             </CardContent>
           </Card>
         </div>
 
-        {/* Next Steps */}
-        <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-lg">What's Next?</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex gap-3 items-start">
-              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold">
-                1
-              </div>
-              <div>
-                <p className="font-semibold text-sm">Check Your Email</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Your booking confirmation and event details have been sent to your email
-                </p>
-              </div>
-            </div>
-            <Separator className="my-2" />
-            <div className="flex gap-3 items-start">
-              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold">
-                2
-              </div>
-              <div>
-                <p className="font-semibold text-sm">Review Event Guidelines</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Check the venue policies and event guidelines sent in your confirmation email
-                </p>
-              </div>
-            </div>
-            <Separator className="my-2" />
-            <div className="flex gap-3 items-start">
-              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-sm font-bold">
-                3
-              </div>
-              <div>
-                <p className="font-semibold text-sm">Prepare for Your Event</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {paymentMethod === 'cash'
-                    ? 'Arrange payment for the day of your event. A reminder will be sent 7 days before.'
-                    : 'Your venue is confirmed! A reminder will be sent 7 days before your event.'}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Action Buttons */}
         <div className="space-y-3">
           <div className="grid sm:grid-cols-3 gap-3">
-            <Button
-              onClick={handleDownloadReceipt}
-              variant="outline"
-              size="lg"
-              className="gap-2 h-12 border-2 hover:border-primary/30 hover:bg-muted/60 transition-all duration-300 font-medium rounded-xl"
-            >
+            <Button onClick={handleDownloadReceipt} variant="outline" size="lg" className="gap-2 h-12 border-2 hover:border-primary/30 hover:bg-muted/60 transition-all duration-300 font-medium rounded-xl">
               <DownloadIcon className="h-4 w-4" />
               <span className="hidden sm:inline">Download Receipt</span>
               <span className="sm:hidden">Download</span>
             </Button>
-            <Button
-              onClick={() => handleShareBooking('email')}
-              variant="outline"
-              size="lg"
-              className="gap-2 h-12 border-2 hover:border-primary/30 hover:bg-muted/60 transition-all duration-300 font-medium rounded-xl"
-            >
+            <Button onClick={() => handleShareBooking('email')} variant="outline" size="lg" className="gap-2 h-12 border-2 hover:border-primary/30 hover:bg-muted/60 transition-all duration-300 font-medium rounded-xl">
               <MailIcon className="h-4 w-4" />
               <span className="hidden sm:inline">Share via Email</span>
               <span className="sm:hidden">Email</span>
             </Button>
-            <Button
-              onClick={() => handleShareBooking('whatsapp')}
-              variant="outline"
-              size="lg"
-              className="gap-2 h-12 border-2 hover:border-primary/30 hover:bg-muted/60 transition-all duration-300 font-medium rounded-xl"
-            >
+            <Button onClick={() => handleShareBooking('whatsapp')} variant="outline" size="lg" className="gap-2 h-12 border-2 hover:border-primary/30 hover:bg-muted/60 transition-all duration-300 font-medium rounded-xl">
               <ShareIcon className="h-4 w-4" />
               <span className="hidden sm:inline">Share on WhatsApp</span>
               <span className="sm:hidden">WhatsApp</span>
@@ -269,22 +172,17 @@ export default function SuccessPage() {
           </div>
 
           <Link href="/">
-            <Button
-              size="lg"
-              className="w-full h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 shadow-lg hover:shadow-xl transition-all duration-300 font-medium rounded-xl"
-            >
+            <Button size="lg" className="w-full h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 shadow-lg hover:shadow-xl transition-all duration-300 font-medium rounded-xl">
               <HomeIcon className="mr-2 h-4 w-4" />
               Back to Home
             </Button>
           </Link>
         </div>
 
-        {/* Info Alert */}
         <Alert className="border-blue-200 dark:border-blue-800/40 bg-blue-50 dark:bg-blue-900/20">
           <MailIcon className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           <AlertDescription className="text-sm text-blue-800 dark:text-blue-200">
-            Keep your booking reference <span className="font-mono font-semibold">{bookingNumber}</span> safe. You'll need it for check-in
-            at the venue and for any future communications.
+            Keep your booking reference <span className="font-mono font-semibold">{bookingNumber}</span> safe. You'll need it for check-in at the venue and for any future communications.
           </AlertDescription>
         </Alert>
       </div>
