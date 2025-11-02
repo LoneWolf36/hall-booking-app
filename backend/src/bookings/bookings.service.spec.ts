@@ -97,6 +97,21 @@ describe('BookingsService', () => {
     payments: [],
   };
 
+  // ✅ GLOBAL createBookingDto - Available in all tests
+  const createBookingDto: CreateBookingDto = {
+    venueId: mockVenueId,
+    customer: {
+      name: 'Rahul Sharma',
+      phone: '+91 9876 543 210',
+      email: 'rahul@example.com',
+    },
+    startTs: '2025-12-25T04:30:00.000Z', // Indian morning time
+    endTs: '2025-12-25T20:30:00.000Z', // Indian evening time
+    eventType: 'wedding',
+    guestCount: 300,
+    specialRequests: 'Decoration setup needed',
+  };
+
   // Mock services - Enhanced with better type safety
   const mockPrismaService = {
     venue: {
@@ -209,20 +224,6 @@ describe('BookingsService', () => {
   });
 
   describe('createBooking', () => {
-    const createBookingDto: CreateBookingDto = {
-      venueId: mockVenueId,
-      customer: {
-        name: 'Rahul Sharma',
-        phone: '+91 9876 543 210',
-        email: 'rahul@example.com',
-      },
-      startTs: '2025-12-25T04:30:00.000Z', // Indian morning time
-      endTs: '2025-12-25T20:30:00.000Z', // Indian evening time
-      eventType: 'wedding',
-      guestCount: 300,
-      specialRequests: 'Decoration setup needed',
-    };
-
     it('should create booking successfully with new customer', async () => {
       // Mock venue validation returns venue (already done by validateVenue mock)
       // Mock customer creation
@@ -568,7 +569,7 @@ describe('BookingsService', () => {
 
       const result = await service.createBooking(
         mockTenantId,
-        createBookingDto,
+        createBookingDto, // ✅ NOW AVAILABLE - Fixed scope issue
       );
 
       expect(result.booking.holdExpiresAt).toBeDefined();
@@ -973,6 +974,7 @@ describe('BookingsService', () => {
  * ✅ RETAINED: PostgreSQL exclusion constraint testing
  * ✅ PRESERVED: Calendar generation and pagination tests
  * ✅ MAINTAINED: Refund calculation logic tests
+ * ✅ FIXED: Moved createBookingDto to global scope to fix undefined variable error
  *
  * 📊 Test Coverage Maintained:
  * - Booking creation: 7 test cases (all scenarios)
