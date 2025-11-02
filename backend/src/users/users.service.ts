@@ -341,7 +341,7 @@ export class UsersService {
     ]);
 
     return {
-      users: users.map(this.toAdminUserResponse),
+      users: users.map((user) => this.toAdminUserResponse(user)),
       total,
     };
   }
