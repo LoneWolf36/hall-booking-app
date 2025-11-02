@@ -3,12 +3,15 @@
  * 
  * Manages the entire booking flow state across multiple steps.
  * Persisted to localStorage for recovery on page refresh.
+ * Enhanced with hold management for temporary date reservations.
  */
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Venue } from '@/types/venue';
 import type { PaymentMethod, PaymentProfile } from '@/types/payment';
+import { createHold, refreshHold, releaseHold, type Hold } from '@/lib/api/holds';
+import { formatDateForAPI } from '@/lib/dates';
 
 /**
  * Booking flow steps
@@ -56,10 +59,16 @@ export interface BookingState {
   
   // Venue selection
   selectedVenue: Venue | null;
-  selectedDates: Date[]; // Changed from selectedDate: Date
+  selectedDates: Date[];
   selectedDate: Date | null; // Kept for backward compatibility
   startTime: string | null;
   endTime: string | null;
+  
+  // Hold management
+  currentHold: Hold | null;
+  holdExpiresAt: Date | null;
+  holdCountdown: number; // minutes remaining
+  isHoldActive: boolean;
   
   // Event details
   eventType: EventType | null;
@@ -105,6 +114,15 @@ export interface BookingActions {
   // Venue selection
   setVenueDetails: (venue: Venue, date: Date, startTime: string, endTime: string) => void;
   setSelectedDates: (dates: Date[]) => void;
+  updateSelectedDates: (dates: Date[]) => Promise<void>;
+  
+  // Hold management
+  createDateHold: (venueId: string, dates: Date[], token?: string) => Promise<boolean>;
+  refreshDateHold: (token?: string) => Promise<boolean>;
+  releaseDateHold: (token?: string) => Promise<void>;
+  updateHoldCountdown: () => void;
+  startHoldTimer: () => void;
+  stopHoldTimer: () => void;
   
   // Event details
   setEventDetails: (eventType: EventType, guestCount: number, specialRequests?: string) => void;
@@ -142,6 +160,10 @@ const initialState: BookingState = {
   selectedDate: null,
   startTime: null,
   endTime: null,
+  currentHold: null,
+  holdExpiresAt: null,
+  holdCountdown: 0,
+  isHoldActive: false,
   eventType: null,
   guestCount: 0,
   specialRequests: '',
@@ -175,11 +197,13 @@ const STEP_ORDER: BookingStep[] = [
   'success',
 ];
 
+// Hold timer reference
+let holdTimerInterval: NodeJS.Timeout | null = null;
+
 /**
- * Booking store with persistence
+ * Booking store with persistence and hold management
  */
-export const useBookingStore = create<BookingState & BookingActions>()(
-  persist(
+export const useBookingStore = create<BookingState & BookingActions>()(n  persist(
     (set, get) => ({
       ...initialState,
 
@@ -208,7 +232,11 @@ export const useBookingStore = create<BookingState & BookingActions>()(
         }
       },
       
-      resetFlow: () => set(initialState),
+      resetFlow: () => {
+        get().stopHoldTimer();
+        get().releaseDateHold();
+        set(initialState);
+      },
 
       // Venue selection
       setVenueDetails: (venue, date, startTime, endTime) => {
@@ -224,13 +252,147 @@ export const useBookingStore = create<BookingState & BookingActions>()(
         get().calculateTotals();
       },
       
-      // New method to set multiple dates
       setSelectedDates: (dates: Date[]) => {
         set({
           selectedDates: dates,
           selectedDate: dates.length > 0 ? dates[0] : null,
         });
         get().calculateTotals();
+      },
+      
+      // Enhanced method that also manages holds
+      updateSelectedDates: async (dates: Date[]) => {
+        const { selectedVenue, currentHold } = get();
+        
+        set({
+          selectedDates: dates,
+          selectedDate: dates.length > 0 ? dates[0] : null,
+        });
+        
+        // If we have a venue and dates, create/refresh hold
+        if (selectedVenue && dates.length > 0) {
+          await get().createDateHold(selectedVenue.id, dates);
+        } else if (currentHold) {
+          // Release hold if no dates selected
+          await get().releaseDateHold();
+        }
+        
+        get().calculateTotals();
+      },
+
+      // Hold management
+      createDateHold: async (venueId: string, dates: Date[], token?: string): Promise<boolean> => {
+        try {
+          set({ isProcessing: true, error: null });
+          
+          // Release existing hold first
+          await get().releaseDateHold(token);
+          
+          const response = await createHold({
+            venueId,
+            selectedDates: dates.map(formatDateForAPI),
+            duration: 30, // 30 minutes
+          }, token);
+          
+          if (response.success && response.data) {
+            set({
+              currentHold: response.data,
+              holdExpiresAt: new Date(response.data.expiresAt),
+              isHoldActive: true,
+            });
+            
+            get().startHoldTimer();
+            return true;
+          } else {
+            set({ error: response.message || 'Failed to create hold' });
+            return false;
+          }
+        } catch (error) {
+          console.error('Failed to create hold:', error);
+          set({ error: 'Failed to create temporary reservation' });
+          return false;
+        } finally {
+          set({ isProcessing: false });
+        }
+      },
+      
+      refreshDateHold: async (token?: string): Promise<boolean> => {
+        const { currentHold } = get();
+        if (!currentHold) return false;
+        
+        try {
+          const response = await refreshHold(currentHold.id, token);
+          
+          if (response.success && response.data) {
+            set({
+              currentHold: response.data,
+              holdExpiresAt: new Date(response.data.expiresAt),
+              isHoldActive: true,
+            });
+            return true;
+          } else {
+            set({ 
+              currentHold: null,
+              holdExpiresAt: null,
+              isHoldActive: false,
+              error: response.message || 'Hold expired'
+            });
+            return false;
+          }
+        } catch (error) {
+          console.error('Failed to refresh hold:', error);
+          return false;
+        }
+      },
+      
+      releaseDateHold: async (token?: string): Promise<void> => {
+        const { currentHold } = get();
+        if (!currentHold) return;
+        
+        get().stopHoldTimer();
+        
+        try {
+          await releaseHold(currentHold.id, token);
+        } catch (error) {
+          console.error('Failed to release hold:', error);
+        } finally {
+          set({
+            currentHold: null,
+            holdExpiresAt: null,
+            isHoldActive: false,
+            holdCountdown: 0,
+          });
+        }
+      },
+      
+      updateHoldCountdown: () => {
+        const { holdExpiresAt, isHoldActive } = get();
+        if (!holdExpiresAt || !isHoldActive) return;
+        
+        const now = new Date();
+        const timeLeft = Math.max(0, Math.floor((holdExpiresAt.getTime() - now.getTime()) / (1000 * 60)));
+        
+        set({ holdCountdown: timeLeft });
+        
+        if (timeLeft <= 0) {
+          set({ isHoldActive: false });
+          get().stopHoldTimer();
+        }
+      },
+      
+      startHoldTimer: () => {
+        get().stopHoldTimer(); // Clear existing timer
+        
+        holdTimerInterval = setInterval(() => {
+          get().updateHoldCountdown();
+        }, 60000); // Update every minute
+      },
+      
+      stopHoldTimer: () => {
+        if (holdTimerInterval) {
+          clearInterval(holdTimerInterval);
+          holdTimerInterval = null;
+        }
       },
 
       // Event details
@@ -273,11 +435,12 @@ export const useBookingStore = create<BookingState & BookingActions>()(
       // Pricing
       calculateTotals: () => {
         const state = get();
+        const daysCount = state.selectedDates.length || 1;
         const addonsTotal = state.selectedAddons.reduce(
           (sum, addon) => sum + addon.price * addon.quantity,
           0
         );
-        const subtotal = state.basePrice + addonsTotal;
+        const subtotal = (state.basePrice * daysCount) + addonsTotal;
         const taxAmount = subtotal * 0.18; // 18% GST
         
         // Platform fee based on payment profile
@@ -320,12 +483,14 @@ export const useBookingStore = create<BookingState & BookingActions>()(
       name: 'booking-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        // Only persist relevant data, not UI state
+        // Only persist relevant data, not UI state or timers
         selectedVenue: state.selectedVenue,
         selectedDates: state.selectedDates,
         selectedDate: state.selectedDate,
         startTime: state.startTime,
         endTime: state.endTime,
+        currentHold: state.currentHold,
+        holdExpiresAt: state.holdExpiresAt,
         eventType: state.eventType,
         guestCount: state.guestCount,
         specialRequests: state.specialRequests,
@@ -344,6 +509,21 @@ export const useBookingStore = create<BookingState & BookingActions>()(
         currentStep: state.currentStep,
         completedSteps: state.completedSteps,
       }),
+      onRehydrateStorage: () => (state) => {
+        // Restart hold timer on rehydration if hold is active
+        if (state?.currentHold && state?.holdExpiresAt) {
+          const holdExpiry = new Date(state.holdExpiresAt);
+          if (holdExpiry > new Date()) {
+            state.isHoldActive = true;
+            state.startHoldTimer();
+          } else {
+            // Hold expired during offline time
+            state.currentHold = null;
+            state.holdExpiresAt = null;
+            state.isHoldActive = false;
+          }
+        }
+      },
     }
   )
 );
