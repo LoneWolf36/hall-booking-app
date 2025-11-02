@@ -198,12 +198,13 @@ const STEP_ORDER: BookingStep[] = [
 ];
 
 // Hold timer reference
-let holdTimerInterval: NodeJS.Timeout | null = null;
+let holdTimerInterval: ReturnType<typeof setInterval> | null = null;
 
 /**
  * Booking store with persistence and hold management
  */
-export const useBookingStore = create<BookingState & BookingActions>()(n  persist(
+export const useBookingStore = create<BookingState & BookingActions>()(
+  persist(
     (set, get) => ({
       ...initialState,
 
@@ -243,7 +244,7 @@ export const useBookingStore = create<BookingState & BookingActions>()(n  persis
         set({
           selectedVenue: venue,
           selectedDate: date,
-          selectedDates: [date], // Initialize with single date
+          selectedDates: [date],
           startTime,
           endTime,
           basePrice: venue.basePriceCents / 100,
@@ -260,7 +261,6 @@ export const useBookingStore = create<BookingState & BookingActions>()(n  persis
         get().calculateTotals();
       },
       
-      // Enhanced method that also manages holds
       updateSelectedDates: async (dates: Date[]) => {
         const { selectedVenue, currentHold } = get();
         
@@ -269,11 +269,9 @@ export const useBookingStore = create<BookingState & BookingActions>()(n  persis
           selectedDate: dates.length > 0 ? dates[0] : null,
         });
         
-        // If we have a venue and dates, create/refresh hold
         if (selectedVenue && dates.length > 0) {
           await get().createDateHold(selectedVenue.id, dates);
         } else if (currentHold) {
-          // Release hold if no dates selected
           await get().releaseDateHold();
         }
         
@@ -285,13 +283,12 @@ export const useBookingStore = create<BookingState & BookingActions>()(n  persis
         try {
           set({ isProcessing: true, error: null });
           
-          // Release existing hold first
           await get().releaseDateHold(token);
           
           const response = await createHold({
             venueId,
             selectedDates: dates.map(formatDateForAPI),
-            duration: 30, // 30 minutes
+            duration: 30,
           }, token);
           
           if (response.success && response.data) {
@@ -381,11 +378,11 @@ export const useBookingStore = create<BookingState & BookingActions>()(n  persis
       },
       
       startHoldTimer: () => {
-        get().stopHoldTimer(); // Clear existing timer
+        get().stopHoldTimer();
         
         holdTimerInterval = setInterval(() => {
           get().updateHoldCountdown();
-        }, 60000); // Update every minute
+        }, 60000);
       },
       
       stopHoldTimer: () => {
@@ -441,9 +438,8 @@ export const useBookingStore = create<BookingState & BookingActions>()(n  persis
           0
         );
         const subtotal = (state.basePrice * daysCount) + addonsTotal;
-        const taxAmount = subtotal * 0.18; // 18% GST
+        const taxAmount = subtotal * 0.18;
         
-        // Platform fee based on payment profile
         let platformFeePercentage = 0;
         if (state.paymentProfile === 'cash_only') platformFeePercentage = 0.05;
         else if (state.paymentProfile === 'cash_deposit' || state.paymentProfile === 'hybrid') platformFeePercentage = 0.08;
@@ -483,7 +479,6 @@ export const useBookingStore = create<BookingState & BookingActions>()(n  persis
       name: 'booking-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
-        // Only persist relevant data, not UI state or timers
         selectedVenue: state.selectedVenue,
         selectedDates: state.selectedDates,
         selectedDate: state.selectedDate,
@@ -510,14 +505,12 @@ export const useBookingStore = create<BookingState & BookingActions>()(n  persis
         completedSteps: state.completedSteps,
       }),
       onRehydrateStorage: () => (state) => {
-        // Restart hold timer on rehydration if hold is active
         if (state?.currentHold && state?.holdExpiresAt) {
           const holdExpiry = new Date(state.holdExpiresAt);
           if (holdExpiry > new Date()) {
             state.isHoldActive = true;
             state.startHoldTimer();
           } else {
-            // Hold expired during offline time
             state.currentHold = null;
             state.holdExpiresAt = null;
             state.isHoldActive = false;
