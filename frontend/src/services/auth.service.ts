@@ -1,8 +1,8 @@
 /**
- * Authentication Service
+ * Authentication Service - Fixed Backend Integration
  * 
- * Handles phone-based OTP authentication flow with proper error handling.
- * Fixed to match backend API contract exactly.
+ * Handles phone-based OTP authentication with corrected API payloads
+ * and proper error handling for all auth flow scenarios.
  */
 
 import { apiCall } from '@/lib/api/client';
@@ -20,8 +20,7 @@ import type {
  */
 export class AuthService {
   /**
-   * Request OTP for phone number
-   * Fixed to match backend DTO exactly
+   * Request OTP for phone number - Fixed payload structure
    */
   static async requestOtp(phone: string, countryCode: string = '+91'): Promise<OtpResponseDto> {
     try {
@@ -34,10 +33,9 @@ export class AuthService {
         throw new Error(validation.error || 'Invalid phone number');
       }
 
+      // FIXED: Simplified payload to match backend expectation
       const payload = {
-        phone: cleanPhone, // Send only digits
-        countryCode: countryCode,
-        // tenantId will be handled by backend or set to default
+        phone: `${countryCode}${cleanPhone}`, // Include country code in phone field
       };
 
       console.log('Requesting OTP with payload:', payload);
@@ -49,6 +47,8 @@ export class AuthService {
         },
         body: JSON.stringify(payload),
       });
+
+      console.log('OTP request response:', response);
 
       if (!response.success) {
         throw new Error(response.message || 'Failed to send OTP');
@@ -63,13 +63,17 @@ export class AuthService {
     } catch (error: any) {
       console.error('OTP request failed:', error);
       
-      // Handle specific error types
-      if (error.name === 'ValidationError') {
-        throw new Error('Please check your phone number and try again');
+      // Enhanced error handling
+      if (error.status === 400) {
+        throw new Error('Please enter a valid phone number');
       }
       
-      if (error.message?.includes('rate limit')) {
+      if (error.status === 429) {
         throw new Error('Too many OTP requests. Please wait before trying again.');
+      }
+      
+      if (error.status >= 500) {
+        throw new Error('Server error. Please try again later.');
       }
       
       throw new Error(
@@ -79,8 +83,7 @@ export class AuthService {
   }
 
   /**
-   * Verify OTP and login
-   * Fixed to match backend DTO exactly
+   * Verify OTP and login - Fixed payload structure
    */
   static async verifyOtp(
     phone: string,
@@ -97,9 +100,10 @@ export class AuthService {
         throw new Error('Please enter a valid 6-digit OTP');
       }
 
+      // FIXED: Backend expects phone with country code and 'code' field
       const payload: any = {
-        phone: cleanPhone,
-        code: cleanOtp, // Backend expects 'code', not 'otp'
+        phone: `+91${cleanPhone}`, // Full phone with country code
+        code: cleanOtp, // Use 'code' not 'otp'
       };
       
       // Add name only if provided (for new users)
@@ -117,6 +121,8 @@ export class AuthService {
         body: JSON.stringify(payload),
       });
 
+      console.log('OTP verify response:', response);
+
       if (!response.success) {
         throw new Error(response.message || 'OTP verification failed');
       }
@@ -124,32 +130,43 @@ export class AuthService {
       return {
         success: true,
         message: response.message || 'Login successful',
-        accessToken: response.data.accessToken,
-        refreshToken: response.data.refreshToken,
+        accessToken: response.data?.accessToken || response.data?.token,
+        refreshToken: response.data?.refreshToken,
         user: {
-          id: response.data.user.id,
-          phone: response.data.user.phone,
-          name: response.data.user.name,
-          role: response.data.user.role || 'customer',
-          tenantId: response.data.user.tenantId,
-          isNewUser: response.data.user.isNewUser || false,
-          createdAt: response.data.user.createdAt,
+          id: response.data?.user?.id,
+          phone: response.data?.user?.phone || `+91${cleanPhone}`,
+          name: response.data?.user?.name || name,
+          role: response.data?.user?.role || 'customer',
+          tenantId: response.data?.user?.tenantId,
+          isNewUser: response.data?.user?.isNewUser || false,
+          createdAt: response.data?.user?.createdAt,
         },
       };
     } catch (error: any) {
       console.error('OTP verification failed:', error);
       
-      // Handle specific error types
-      if (error.message?.includes('expired')) {
-        throw new Error('OTP has expired. Please request a new one.');
+      // Enhanced error handling with status codes
+      if (error.status === 400) {
+        if (error.message?.includes('code')) {
+          throw new Error('Invalid OTP format. Please enter 6 digits.');
+        }
+        throw new Error('Invalid phone number or OTP.');
       }
       
-      if (error.message?.includes('invalid') || error.message?.includes('incorrect')) {
+      if (error.status === 401 || error.status === 403) {
         throw new Error('Incorrect OTP. Please check and try again.');
       }
       
-      if (error.message?.includes('attempts')) {
+      if (error.status === 410) {
+        throw new Error('OTP has expired. Please request a new one.');
+      }
+      
+      if (error.status === 429) {
         throw new Error('Too many failed attempts. Please request a new OTP.');
+      }
+      
+      if (error.status >= 500) {
+        throw new Error('Server error. Please try again later.');
       }
       
       throw new Error(
@@ -183,7 +200,7 @@ export class AuthService {
   }
 
   /**
-   * Validate phone number format
+   * Validate phone number format - Enhanced validation
    */
   static validatePhone(phone: string, countryCode: string = '+91'): PhoneValidation {
     // Remove all non-digit characters
@@ -205,6 +222,15 @@ export class AuthService {
         };
       }
 
+      // Allow any 10-digit number in development
+      if (process.env.NODE_ENV === 'development') {
+        return {
+          isValid: true,
+          formatted: `${countryCode} ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`,
+        };
+      }
+
+      // Production validation - must start with 6-9
       if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
         return {
           isValid: false,
@@ -254,7 +280,7 @@ export class AuthService {
   }
 
   /**
-   * Check if user is authenticated (from localStorage)
+   * Check if user is authenticated
    */
   static isAuthenticated(): boolean {
     if (typeof window === 'undefined') return false;
