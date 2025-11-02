@@ -1,10 +1,11 @@
 /**
- * Booking Store - Complete Flow Management
+ * Booking Store - Enhanced with Time Slot Support
  * 
- * End-to-end booking flow with:
+ * Complete flow management with:
  * - Persistent state across navigation and refresh
  * - Step navigation with back support
  * - Multi-date selection and editing
+ * - Time slot support with pricing multipliers
  * - Proper rehydration and error recovery
  */
 
@@ -41,11 +42,21 @@ export interface AddonItem {
   category: 'catering' | 'decoration' | 'equipment' | 'photography' | 'other';
 }
 
+export interface TimeSlotInfo {
+  id: string;
+  label: string;
+  startTime: string;
+  endTime: string;
+  duration: number;
+  priceMultiplier: number;
+}
+
 export interface BookingState {
-  // Navigation
+  // Navigation - Enhanced persistence
   currentStep: BookingStep;
   completedSteps: BookingStep[];
-  stepHistory: BookingStep[]; // For intelligent back navigation
+  stepHistory: BookingStep[];
+  navigationLocked: boolean; // Prevent clearing state during navigation
   
   // Venue selection
   selectedVenue: Venue | null;
@@ -53,6 +64,7 @@ export interface BookingState {
   selectedDate: Date | null; // Backward compatibility
   startTime: string | null;
   endTime: string | null;
+  timeSlot: TimeSlotInfo | null; // Enhanced time slot info
   
   // Event details
   eventType: EventType | null;
@@ -66,8 +78,9 @@ export interface BookingState {
   paymentMethod: PaymentMethod | null;
   paymentProfile: PaymentProfile | null;
   
-  // Pricing
+  // Pricing with time slot support
   basePrice: number;
+  adjustedBasePrice: number; // Price after time slot multiplier
   addonsTotal: number;
   taxAmount: number;
   platformFee: number;
@@ -85,19 +98,22 @@ export interface BookingState {
 }
 
 export interface BookingActions {
-  // Navigation
+  // Navigation - Enhanced with lock
   setCurrentStep: (step: BookingStep) => void;
   markStepCompleted: (step: BookingStep) => void;
   goToNextStep: () => void;
   goToPreviousStep: () => BookingStep | null;
   getPreviousStep: () => BookingStep | null;
+  lockNavigation: () => void;
+  unlockNavigation: () => void;
   resetFlow: () => void;
   
-  // Venue selection
-  setVenueDetails: (venue: Venue, dates: Date[], startTime: string, endTime: string) => void;
+  // Venue selection with time slot
+  setVenueDetails: (venue: Venue, dates: Date[], startTime: string, endTime: string, timeSlot?: TimeSlotInfo) => void;
   setSelectedDates: (dates: Date[]) => void;
   removeSelectedDate: (date: Date) => void;
   clearSelectedDates: () => void;
+  setTimeSlot: (timeSlot: TimeSlotInfo) => void;
   
   // Event details
   setEventDetails: (eventType: EventType, guestCount: number, specialRequests?: string) => void;
@@ -128,11 +144,13 @@ const initialState: BookingState = {
   currentStep: 'venue_selection',
   completedSteps: [],
   stepHistory: [],
+  navigationLocked: false,
   selectedVenue: null,
   selectedDates: [],
   selectedDate: null,
   startTime: null,
   endTime: null,
+  timeSlot: null,
   eventType: null,
   guestCount: 0,
   specialRequests: '',
@@ -140,6 +158,7 @@ const initialState: BookingState = {
   paymentMethod: null,
   paymentProfile: null,
   basePrice: 0,
+  adjustedBasePrice: 0,
   addonsTotal: 0,
   taxAmount: 0,
   platformFee: 0,
@@ -168,10 +187,13 @@ export const useBookingStore = create<BookingState & BookingActions>()(
     (set, get) => ({
       ...initialState,
 
-      // Navigation
+      // Navigation - Enhanced with locking
       setCurrentStep: (step) => {
-        const current = get().currentStep;
-        const history = get().stepHistory;
+        const state = get();
+        if (state.navigationLocked) return;
+        
+        const current = state.currentStep;
+        const history = state.stepHistory;
         
         // Add current step to history if different
         if (current !== step && !history.includes(current)) {
@@ -183,6 +205,9 @@ export const useBookingStore = create<BookingState & BookingActions>()(
           set({ currentStep: step });
         }
       },
+      
+      lockNavigation: () => set({ navigationLocked: true }),
+      unlockNavigation: () => set({ navigationLocked: false }),
       
       markStepCompleted: (step) => set((state) => ({
         completedSteps: state.completedSteps.includes(step)
@@ -202,10 +227,11 @@ export const useBookingStore = create<BookingState & BookingActions>()(
       },
       
       getPreviousStep: () => {
-        const history = get().stepHistory;
-        const currentIndex = STEP_ORDER.indexOf(get().currentStep);
+        const state = get();
+        const history = state.stepHistory;
+        const currentIndex = STEP_ORDER.indexOf(state.currentStep);
         
-        // Try to get from history first
+        // Try to get from history first (preserve flow)
         if (history.length > 0) {
           const previousStep = history[history.length - 1];
           // Remove from history and set as current
@@ -227,18 +253,24 @@ export const useBookingStore = create<BookingState & BookingActions>()(
       },
       
       resetFlow: () => {
-        set(initialState);
+        set({ ...initialState, navigationLocked: false });
       },
 
-      // Venue selection
-      setVenueDetails: (venue, dates, startTime, endTime) => {
+      // Venue selection with enhanced time slot support
+      setVenueDetails: (venue, dates, startTime, endTime, timeSlot) => {
+        const basePrice = venue.basePriceCents / 100;
+        const multiplier = timeSlot?.priceMultiplier || 1.0;
+        const adjustedPrice = Math.round(basePrice * multiplier);
+        
         set({
           selectedVenue: venue,
           selectedDates: dates,
           selectedDate: dates.length > 0 ? dates[0] : null,
           startTime,
           endTime,
-          basePrice: venue.basePriceCents / 100,
+          timeSlot,
+          basePrice,
+          adjustedBasePrice: adjustedPrice,
         });
         get().markStepCompleted('venue_selection');
         get().calculateTotals();
@@ -262,6 +294,20 @@ export const useBookingStore = create<BookingState & BookingActions>()(
       
       clearSelectedDates: () => {
         set({ selectedDates: [], selectedDate: null });
+        get().calculateTotals();
+      },
+      
+      setTimeSlot: (timeSlot: TimeSlotInfo) => {
+        const state = get();
+        const basePrice = state.basePrice;
+        const adjustedPrice = Math.round(basePrice * timeSlot.priceMultiplier);
+        
+        set({
+          timeSlot,
+          startTime: timeSlot.startTime,
+          endTime: timeSlot.endTime,
+          adjustedBasePrice: adjustedPrice,
+        });
         get().calculateTotals();
       },
 
@@ -302,25 +348,34 @@ export const useBookingStore = create<BookingState & BookingActions>()(
         get().calculateTotals();
       },
 
-      // Pricing
+      // Enhanced pricing with time slot support
       calculateTotals: () => {
         const state = get();
         const daysCount = state.selectedDates.length || 1;
+        const effectiveBasePrice = state.adjustedBasePrice || state.basePrice;
+        
+        // Calculate add-ons total
         const addonsTotal = state.selectedAddons.reduce(
           (sum, addon) => sum + addon.price * addon.quantity,
           0
         );
-        const subtotal = (state.basePrice * daysCount) + addonsTotal;
-        const taxAmount = subtotal * 0.18;
         
+        // Calculate venue subtotal with time slot pricing
+        const venueSubtotal = effectiveBasePrice * daysCount;
+        const subtotal = venueSubtotal + addonsTotal;
+        
+        // Calculate taxes (18% GST)
+        const taxAmount = Math.round(subtotal * 0.18 * 100) / 100;
+        
+        // Calculate platform fee based on payment profile
         let platformFeePercentage = 0;
         if (state.paymentProfile === 'cash_only') platformFeePercentage = 0.05;
         else if (state.paymentProfile === 'cash_deposit' || state.paymentProfile === 'hybrid') platformFeePercentage = 0.08;
         else if (state.paymentProfile === 'full_online') platformFeePercentage = 0.12;
         else if (state.paymentProfile === 'marketplace') platformFeePercentage = 0.15;
         
-        const platformFee = subtotal * platformFeePercentage;
-        const totalAmount = subtotal + taxAmount + platformFee - state.discount;
+        const platformFee = Math.round(subtotal * platformFeePercentage * 100) / 100;
+        const totalAmount = Math.round((subtotal + taxAmount + platformFee - state.discount) * 100) / 100;
 
         set({
           addonsTotal,
@@ -358,6 +413,7 @@ export const useBookingStore = create<BookingState & BookingActions>()(
         selectedDate: state.selectedDate,
         startTime: state.startTime,
         endTime: state.endTime,
+        timeSlot: state.timeSlot,
         eventType: state.eventType,
         guestCount: state.guestCount,
         specialRequests: state.specialRequests,
@@ -365,6 +421,7 @@ export const useBookingStore = create<BookingState & BookingActions>()(
         paymentMethod: state.paymentMethod,
         paymentProfile: state.paymentProfile,
         basePrice: state.basePrice,
+        adjustedBasePrice: state.adjustedBasePrice,
         addonsTotal: state.addonsTotal,
         taxAmount: state.taxAmount,
         platformFee: state.platformFee,
@@ -376,6 +433,7 @@ export const useBookingStore = create<BookingState & BookingActions>()(
         currentStep: state.currentStep,
         completedSteps: state.completedSteps,
         stepHistory: state.stepHistory,
+        // Don't persist navigationLocked - always start unlocked
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
@@ -388,6 +446,8 @@ export const useBookingStore = create<BookingState & BookingActions>()(
           if (state.selectedDate && !(state.selectedDate instanceof Date)) {
             state.selectedDate = new Date(state.selectedDate);
           }
+          // Ensure navigation is unlocked on app start
+          state.navigationLocked = false;
         }
       },
     }
