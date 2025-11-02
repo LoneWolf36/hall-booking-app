@@ -1,19 +1,15 @@
 /**
- * Holds API Service
+ * Holds API Service - backend paths fix
  * 
- * Manages temporary date holds during the booking process
- * - Creates holds when dates are selected
- * - Refreshes holds to prevent expiry
- * - Releases holds when cancelled or completed
- * - Handles hold conflicts and expiry
+ * Adjusted endpoints to match backend routing (v1 prefix)
  */
 
 import { apiCall } from './client';
 
 export interface CreateHoldRequest {
   venueId: string;
-  selectedDates: string[]; // YYYY-MM-DD format
-  duration?: number; // minutes, default 30
+  selectedDates: string[];
+  duration?: number;
 }
 
 export interface Hold {
@@ -21,7 +17,7 @@ export interface Hold {
   venueId: string;
   userId: string;
   selectedDates: string[];
-  expiresAt: string; // ISO timestamp
+  expiresAt: string;
   createdAt: string;
   status: 'active' | 'expired' | 'released';
 }
@@ -30,144 +26,98 @@ export interface HoldResponse {
   success: boolean;
   data?: Hold;
   message?: string;
-  conflictDates?: string[]; // Dates that are no longer available
+  conflictDates?: string[];
 }
 
-/**
- * Create a temporary hold on selected dates
- * Returns hold ID and expiry time
- */
+const BASE = '/api/v1/bookings/holds';
+
 export async function createHold(
   request: CreateHoldRequest,
   token?: string
 ): Promise<HoldResponse> {
   try {
     const response = await apiCall(
-      '/bookings/holds',
+      BASE,
       {
         method: 'POST',
         body: JSON.stringify(request),
       },
       token
     );
-    
     return response;
   } catch (error) {
     console.error('Failed to create hold:', error);
-    return {
-      success: false,
-      message: 'Failed to create temporary hold',
-    };
+    return { success: false, message: 'Failed to create temporary hold' };
   }
 }
 
-/**
- * Refresh an existing hold to extend its expiry
- * Use this when user is active in the booking flow
- */
 export async function refreshHold(
   holdId: string,
   token?: string
 ): Promise<HoldResponse> {
   try {
     const response = await apiCall(
-      `/bookings/holds/${holdId}/refresh`,
-      {
-        method: 'PATCH',
-      },
+      `${BASE}/${holdId}/refresh`,
+      { method: 'PATCH' },
       token
     );
-    
     return response;
   } catch (error) {
     console.error('Failed to refresh hold:', error);
-    return {
-      success: false,
-      message: 'Failed to refresh hold',
-    };
+    return { success: false, message: 'Failed to refresh hold' };
   }
 }
 
-/**
- * Release a hold (when user cancels or completes booking)
- */
 export async function releaseHold(
   holdId: string,
   token?: string
 ): Promise<HoldResponse> {
   try {
     const response = await apiCall(
-      `/bookings/holds/${holdId}`,
-      {
-        method: 'DELETE',
-      },
+      `${BASE}/${holdId}`,
+      { method: 'DELETE' },
       token
     );
-    
     return response;
   } catch (error) {
     console.error('Failed to release hold:', error);
-    return {
-      success: false,
-      message: 'Failed to release hold',
-    };
+    return { success: false, message: 'Failed to release hold' };
   }
 }
 
-/**
- * Get current hold for user (if any)
- */
 export async function getCurrentHold(
   token?: string
 ): Promise<HoldResponse> {
   try {
     const response = await apiCall(
-      '/bookings/holds/current',
-      {
-        method: 'GET',
-      },
+      `${BASE}/current`,
+      { method: 'GET' },
       token
     );
-    
     return response;
   } catch (error) {
     console.error('Failed to get current hold:', error);
-    return {
-      success: false,
-      message: 'Failed to get current hold',
-    };
+    return { success: false, message: 'Failed to get current hold' };
   }
 }
 
-/**
- * Check if dates are still available (not held by others)
- */
 export async function checkDateAvailability(
   venueId: string,
   dates: string[],
   token?: string
-): Promise<{
-  success: boolean;
-  availableDates?: string[];
-  conflictDates?: string[];
-  message?: string;
-}> {
+): Promise<{ success: boolean; availableDates?: string[]; conflictDates?: string[]; message?: string; }> {
   try {
     const response = await apiCall(
-      '/bookings/availability/check',
+      '/api/v1/bookings/availability/check',
       {
         method: 'POST',
         body: JSON.stringify({ venueId, dates }),
       },
       token
     );
-    
     return response;
   } catch (error) {
     console.error('Failed to check availability:', error);
-    return {
-      success: false,
-      message: 'Failed to check availability',
-    };
+    return { success: false, message: 'Failed to check availability' };
   }
 }
