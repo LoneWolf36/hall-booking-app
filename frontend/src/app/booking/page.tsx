@@ -1,12 +1,13 @@
 /**
- * Booking Page - Enhanced with Time Slots and Quick Shortcuts
+ * Booking Page - Enhanced with Intelligent Time Slots
  * 
  * Complete implementation with:
  * - Multi-date selection with persistence
  * - Quick date shortcuts (Today, Tomorrow, Weekend)
- * - Time slot selection (Morning, Afternoon, Evening, Full Day)
+ * - Intelligent time slot selection based on venue capability
  * - Proper navigation and back support
  * - State rehydration and error recovery
+ * - Backend integration with proper timestamp conversion
  */
 
 "use client";
@@ -17,8 +18,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookingCalendar } from "@/components/booking/BookingCalendar";
 import { QuickDateShortcuts } from "@/components/booking/QuickDateShortcuts";
-import { TimeSlotSelector, getDefaultTimeSlot, getTimeSlotById, type TimeSlot } from "@/components/booking/TimeSlotSelector";
-import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon } from "lucide-react";
+import { TimeSlotSelector, getDefaultTimeSlot, getTimeSlotById, timeSlotToTimestamps, type TimeSlot } from "@/components/booking/TimeSlotSelector";
+import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon, ClockIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/stores";
 import { useStepGuard } from "@/hooks/useStepGuard";
@@ -64,22 +65,18 @@ export default function BookingPage() {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot>(() => {
     // Try to restore from stored start/end time
     if (storedStartTime && storedEndTime) {
-      // Since TIME_SLOTS is not accessible, we need to check against known slots
-      // using the getTimeSlotById function or find matching times
-      const defaultSlot = getDefaultTimeSlot();
-      
       // Check if stored times match any of the known slot patterns
       if (storedStartTime === '06:00' && storedEndTime === '12:00') {
-        return getTimeSlotById('morning') || defaultSlot;
+        return getTimeSlotById('morning') || getDefaultTimeSlot();
       }
       if (storedStartTime === '12:00' && storedEndTime === '18:00') {
-        return getTimeSlotById('afternoon') || defaultSlot;
+        return getTimeSlotById('afternoon') || getDefaultTimeSlot();
       }
       if (storedStartTime === '18:00' && storedEndTime === '00:00') {
-        return getTimeSlotById('evening') || defaultSlot;
+        return getTimeSlotById('evening') || getDefaultTimeSlot();
       }
       if (storedStartTime === '00:00' && storedEndTime === '23:59') {
-        return getTimeSlotById('full_day') || defaultSlot;
+        return getTimeSlotById('full_day') || getDefaultTimeSlot();
       }
     }
     return getDefaultTimeSlot();
@@ -139,6 +136,17 @@ export default function BookingPage() {
       console.log('Restored selected dates:', normalized.length);
     }
   }, [selectedVenue, storedDates]);
+
+  // Update default time slot when venue changes
+  useEffect(() => {
+    if (isVenueLoaded && currentVenue) {
+      const venueDefaultSlot = getDefaultTimeSlot(currentVenue);
+      // Only update if we're using the generic default (not a user selection)
+      if (selectedTimeSlot.id === 'full_day' && !storedStartTime) {
+        setSelectedTimeSlot(venueDefaultSlot);
+      }
+    }
+  }, [isVenueLoaded, currentVenue]);
 
   // Load availability when venue is ready
   useEffect(() => {
@@ -266,6 +274,19 @@ export default function BookingPage() {
     // Update store with complete venue details, multiple dates, and time slot
     setVenueDetails(venueInfo, sorted, selectedTimeSlot.startTime, selectedTimeSlot.endTime);
     
+    // Log the timestamps that will be sent to backend for debugging
+    console.log('Booking timestamps:', {
+      dates: sorted.map(date => {
+        const { startTs, endTs } = timeSlotToTimestamps(date, selectedTimeSlot);
+        return {
+          date: format(date, 'yyyy-MM-dd'),
+          startTs: startTs.toISOString(),
+          endTs: endTs.toISOString(),
+          timeSlot: selectedTimeSlot.label
+        };
+      })
+    });
+    
     toast.success(
       `Proceeding with ${sorted.length} day${sorted.length !== 1 ? 's' : ''} • ${selectedTimeSlot.label}`
     );
@@ -320,9 +341,17 @@ export default function BookingPage() {
             <h1 className="text-4xl font-bold tracking-tight">Select Your Event Dates & Time</h1>
             <p className="text-lg text-muted-foreground">Choose dates and duration for your event</p>
             {venueInfo && (
-              <Badge variant="secondary" className="text-sm px-4 py-1">
-                Booking for: {venueInfo.name}
-              </Badge>
+              <div className="flex items-center justify-center gap-2">
+                <Badge variant="secondary" className="text-sm px-4 py-1">
+                  Booking for: {venueInfo.name}
+                </Badge>
+                {venueInfo.settings?.timeslotSupport?.enabled && (
+                  <Badge variant="default" className="text-xs px-2 py-1">
+                    <ClockIcon className="h-3 w-3 mr-1" />
+                    Flexible Timing
+                  </Badge>
+                )}
+              </div>
             )}
           </div>
 
@@ -406,6 +435,7 @@ export default function BookingPage() {
                       onChange={handleTimeSlotChange}
                       basePrice={basePrice}
                       disabled={isLoadingVenues}
+                      venue={currentVenue}
                     />
                   </CardContent>
                 </Card>
@@ -421,8 +451,14 @@ export default function BookingPage() {
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm text-muted-foreground">
                   <p>• Select consecutive dates for multi-day events to get better rates</p>
-                  <p>• Morning and afternoon slots offer significant savings</p>
-                  <p>• Full day bookings include 24-hour access with setup time</p>
+                  <p>• {venueInfo?.settings?.timeslotSupport?.enabled 
+                    ? 'Morning and afternoon slots offer significant savings'
+                    : 'Full day bookings include complete venue access'
+                  }</p>
+                  <p>• {venueInfo?.settings?.timeslotSupport?.enabled 
+                    ? 'Full day bookings include 24-hour access with setup time'
+                    : 'You have complete control over the venue for the entire day'
+                  }</p>
                   <p>• You can edit your selection in later steps</p>
                 </CardContent>
               </Card>
