@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { QueryProvider } from "@/components/query-provider";
+import { AuthProvider } from "@/contexts/AuthContext";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Navigation } from "@/components/navigation";
 import { Toaster } from "@/components/ui/sonner";
@@ -48,13 +49,15 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <ErrorBoundary>
-              <div className="relative flex min-h-screen flex-col">
-                <Navigation />
-                <main className="flex-1">{children}</main>
-              </div>
-              <Toaster position="top-center" richColors closeButton />
-            </ErrorBoundary>
+            <AuthProvider>
+              <ErrorBoundary>
+                <div className="relative flex min-h-screen flex-col">
+                  <Navigation />
+                  <main className="flex-1">{children}</main>
+                </div>
+                <Toaster position="top-center" richColors closeButton />
+              </ErrorBoundary>
+            </AuthProvider>
           </ThemeProvider>
         </QueryProvider>
       </body>
