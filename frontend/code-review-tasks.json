@@ -1,0 +1,65 @@
+{
+  "meta": {
+    "agent": "Code-Review-Agent",
+    "repo": "hall-booking-app/frontend",
+    "runAt": "2025-11-02T15:58:00Z",
+    "version": "v1.0"
+  },
+  "review": [
+    {
+      "id": "CR-001",
+      "title": "Fix infinite update loop caused by setCurrentStep in useStepGuard",
+      "status": "open",
+      "severity": "critical",
+      "files": [
+        "src/hooks/useStepGuard.ts",
+        "src/stores/booking-store.ts"
+      ],
+      "problem": "useStepGuard calls setCurrentStep in useEffect every render, which itself triggers state update and causes React's 'Maximum update depth exceeded' error.",
+      "resolution": {
+        "actions": [
+          "Guard setCurrentStep with conditional: only set if currentStep differs from store.currentStep",
+          "Use a ref to ensure setCurrentStep is called at most once per mount for the same step",
+          "Ensure STEP_REQUIREMENTS check is pure and not recreating objects each render"
+        ],
+        "diffHint": "Wrap setCurrentStep with if (store.currentStep !== currentStep) setCurrentStep(currentStep); and add a hasSetStepRef to prevent loops"
+      }
+    },
+    {
+      "id": "CR-002",
+      "title": "Calendar visual refinements: rounded pill range and arrow alignment",
+      "status": "open",
+      "severity": "medium",
+      "files": [
+        "src/components/booking/BookingCalendar.tsx"
+      ],
+      "problem": "Start/end cells appear as solid blocks and mid cells don't have cohesive rounded pill styling; nav arrows need aligned placement and smoother transitions.",
+      "resolution": {
+        "actions": [
+          "Apply rounded-full for start/end, and a soft gradient ring for edges",
+          "Use bg-primary/15 for middle with consistent rounded class and remove squared corners",
+          "Align prev/next buttons with calendar header using flex and uniform padding; add 150ms motion transitions"
+        ],
+        "diffHint": "Introduce pillBase, edgeOutline, middleBg classes and set whileHover/whileTap tweaks; ensure buttons use rounded-lg and h-8 w-8"
+      }
+    },
+    {
+      "id": "CR-003",
+      "title": "Auth verify payload and dev OTP consistency",
+      "status": "closed",
+      "severity": "low",
+      "files": [
+        "src/services/auth.service.ts",
+        "src/app/auth/page.tsx"
+      ],
+      "problem": "Mismatch between 'otp' vs 'code' and lack of clear dev instruction.",
+      "resolution": {
+        "actions": [
+          "Use 'code' field in verify payload",
+          "Display dev hint about '000000' in development",
+          "Surface backend error messages in UI"
+        ]
+      }
+    }
+  ]
+}
