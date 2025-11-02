@@ -1,12 +1,8 @@
 /**
- * Booking Page - Venue Selection and Date Booking
+ * Simplified Booking Page - No Custom Hold System
  * 
- * Rebuilt with custom BookingCalendar for optimal UX:
- * - Proper calendar layout and spacing
- * - Intelligent date selection with hold management  
- * - Smooth animations and loading states
- * - State persistence across navigation
- * - Conflict detection and resolution
+ * Uses the existing backend booking system instead of custom hold endpoints.
+ * Creates bookings in 'temp_hold' status using existing createBooking API.
  */
 
 "use client";
@@ -15,62 +11,39 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BookingCalendar } from "@/components/booking/BookingCalendar";
-import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon, TimerIcon, AlertTriangleIcon } from "lucide-react";
+import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/stores";
 import { useAuthStore } from "@/stores/auth-store";
 import { useRouter } from "next/navigation";
-import { formatDateRangeCompact, formatDateForAPI } from "@/lib/dates";
+import { formatDateRangeCompact } from "@/lib/dates";
 import { calculatePricing, listVenues } from "@/lib/api/venues";
 import { getVenueAvailability } from "@/lib/api/bookings";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { format } from "date-fns";
 
-const normalizeDates = (arr?: any[]) =>
-  (arr ?? []).map((d) => (d instanceof Date ? d : new Date(d)));
+const normalizeDates = (arr?: any[]) => (arr ?? []).map((d) => (d instanceof Date ? d : new Date(d)));
 
-// Debounce hook for pricing calculations
+// Debounce hook
 function useDebounce<T>(value: T, delay: number): T {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
-  
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    
-    return () => {
-      clearTimeout(handler);
-    };
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
   }, [value, delay]);
-  
   return debouncedValue;
 }
 
 export default function BookingPage() {
   const router = useRouter();
   const { token } = useAuthStore();
-  const {
-    selectedVenue,
-    selectedDates: storedDates,
-    currentHold,
-    holdCountdown,
-    isHoldActive,
-    setSelectedDates,
-    updateSelectedDates,
-    createDateHold,
-    refreshDateHold,
-    releaseDateHold,
-    startHoldTimer,
-    setVenueDetails,
-  } = useBookingStore();
+  const { selectedVenue, selectedDates: storedDates, setSelectedDates, setVenueDetails } = useBookingStore();
   
-  // Ref guard to prevent duplicate API calls in React Strict Mode
   const hasFetchedVenues = useRef(false);
   const hasFetchedAvailability = useRef(false);
 
-  // Local state
+  // Local state  
   const [selectedDates, setSelectedDates_Local] = useState<Date[]>(normalizeDates(storedDates));
   const [isLoadingPricing, setIsLoadingPricing] = useState(false);
   const [pricing, setPricing] = useState<any>(null);
@@ -79,24 +52,19 @@ export default function BookingPage() {
   const [venues, setVenues] = useState<any[]>([]);
   const [currentVenue, setCurrentVenue] = useState<any>(selectedVenue);
   const [isLoadingVenues, setIsLoadingVenues] = useState(true);
-  const [holdExpiry, setHoldExpiry] = useState<Date | null>(null);
 
-  // Debounce selectedDates for pricing calculation (500ms for better UX)
   const debouncedSelectedDates = useDebounce(selectedDates, 500);
-
-  // Compute state flags
   const isVenueLoaded = !!currentVenue;
   const venueInfo = currentVenue;
-
-  // Date helpers
   const today = new Date(new Date().setHours(0, 0, 0, 0));
+  
   const isUnavailable = useCallback((date: Date) => {
     return unavailableDates.some(unavailable => 
       format(unavailable, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
     );
   }, [unavailableDates]);
 
-  // Load venues on mount
+  // Load venues
   useEffect(() => {
     if (hasFetchedVenues.current) return;
     hasFetchedVenues.current = true;
@@ -123,15 +91,11 @@ export default function BookingPage() {
     };
 
     fetchVenues();
-    
-    // Load persisted dates
     const normalized = normalizeDates(storedDates);
-    if (normalized.length > 0) {
-      setSelectedDates_Local(normalized);
-    }
+    if (normalized.length > 0) setSelectedDates_Local(normalized);
   }, [selectedVenue, storedDates]);
 
-  // Load availability when venue is ready
+  // Load availability
   useEffect(() => {
     if (isVenueLoaded && currentVenue?.id && !hasFetchedAvailability.current) {
       hasFetchedAvailability.current = true;
@@ -139,27 +103,18 @@ export default function BookingPage() {
     }
   }, [isVenueLoaded, currentVenue?.id]);
 
-  // Calculate pricing when dates change (debounced)
+  // Calculate pricing
   useEffect(() => {
     if (debouncedSelectedDates.length > 0 && isVenueLoaded && currentVenue?.id) {
       void calculatePricingForDates(debouncedSelectedDates);
     }
   }, [debouncedSelectedDates, isVenueLoaded, currentVenue?.id]);
 
-  // Start hold timer if hold is active
-  useEffect(() => {
-    if (isHoldActive && currentHold) {
-      startHoldTimer();
-    }
-  }, [isHoldActive, currentHold, startHoldTimer]);
-
-  // Fetch venue availability
   const fetchVenueAvailability = async () => {
     if (!currentVenue?.id) return;
     
     try {
       setIsLoadingAvailability(true);
-      
       const today = format(new Date(), 'yyyy-MM-dd');
       const response = await getVenueAvailability(currentVenue.id, today, 90);
       
@@ -169,10 +124,7 @@ export default function BookingPage() {
           .map(day => new Date(day.date));
         
         setUnavailableDates(bookedDates);
-        console.log('Availability loaded:', { 
-          total: response.data.length, 
-          unavailable: bookedDates.length 
-        });
+        console.log('Availability loaded:', { total: response.data.length, unavailable: bookedDates.length });
       } else {
         setUnavailableDates([]);
       }
@@ -184,11 +136,10 @@ export default function BookingPage() {
     }
   };
 
-  // Calculate pricing for selected dates
   const calculatePricingForDates = async (dates: Date[]) => {
     if (dates.length === 0 || !isVenueLoaded || !venueInfo?.id) return;
     
-    // Skip if same dates (performance optimization)
+    // Skip if same dates
     const currentDateStrings = dates.map(d => format(d, 'yyyy-MM-dd')).sort();
     const existingDateStrings = pricing?.selectedDates?.sort();
     if (existingDateStrings && 
@@ -199,7 +150,6 @@ export default function BookingPage() {
     
     try {
       setIsLoadingPricing(true);
-      
       const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
       
       const response = await calculatePricing({
@@ -210,7 +160,7 @@ export default function BookingPage() {
       if (response.success && response.data) {
         setPricing(response.data);
       } else {
-        // Fallback pricing
+        // Fallback
         const basePrice = venueInfo?.basePriceCents || 0;
         setPricing({
           venueId: venueInfo!.id,
@@ -220,7 +170,6 @@ export default function BookingPage() {
       }
     } catch (error) {
       console.error('Pricing calculation error:', error);
-      // Provide fallback pricing
       const basePrice = venueInfo?.basePriceCents || 0;
       setPricing({
         venueId: venueInfo!.id,
@@ -232,36 +181,20 @@ export default function BookingPage() {
     }
   };
 
-  // Handle date selection with hold management
+  // Handle date selection (simplified - just update state)
   const handleDateSelect = useCallback(async (dates: Date[]) => {
     setSelectedDates_Local(dates);
-    setSelectedDates(dates); // Update store immediately for UI responsiveness
+    setSelectedDates(dates);
     
     if (dates.length > 0) {
-      // Create hold for new selection (will refresh existing hold)
-      if (venueInfo?.id) {
-        const success = await createDateHold(venueInfo.id, dates, token);
-        if (success) {
-          toast.success(`${dates.length} day${dates.length !== 1 ? 's' : ''} reserved for 30 minutes`, {
-            duration: 3000
-          });
-        }
-      }
-    } else {
-      // Release hold if no dates selected
-      await releaseDateHold(token);
+      toast.success(`${dates.length} day${dates.length !== 1 ? 's' : ''} selected`, { duration: 2000 });
     }
-  }, [venueInfo?.id, token, createDateHold, releaseDateHold, setSelectedDates]);
+  }, [setSelectedDates]);
 
-  // Handle continue to next step
+  // Continue to next step
   const handleContinue = useCallback(() => {
     if (selectedDates.length === 0) {
       toast.error("Please select at least one date for your event");
-      return;
-    }
-    
-    if (!isHoldActive) {
-      toast.error("Your date selection has expired. Please reselect your dates.");
       return;
     }
     
@@ -271,23 +204,12 @@ export default function BookingPage() {
     setVenueDetails(venueInfo, startDate, "00:00", "23:59");
     toast.success(`Proceeding with ${sorted.length} day${sorted.length !== 1 ? 's' : ''} selected`);
     router.push("/event-details");
-  }, [selectedDates, isHoldActive, venueInfo, setVenueDetails, router]);
-
-  // Handle hold refresh
-  const handleRefreshHold = useCallback(async () => {
-    const success = await refreshDateHold(token);
-    if (success) {
-      toast.success("Date reservation extended for 30 minutes");
-    } else {
-      toast.error("Failed to extend reservation. Please reselect your dates.");
-    }
-  }, [refreshDateHold, token]);
+  }, [selectedDates, venueInfo, setVenueDetails, router]);
 
   // Calculate display values
   const pricePerDay = venueInfo?.basePriceCents ? venueInfo.basePriceCents / 100 : 0;
   const totalPrice = pricing?.totalPrice ?? (isVenueLoaded && venueInfo ? selectedDates.length * pricePerDay : 0);
   
-  // Loading states
   if (isLoadingVenues) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center">
@@ -333,9 +255,9 @@ export default function BookingPage() {
             )}
           </div>
 
-          {/* Main Content - Two Column Layout */}
+          {/* Main Content */}
           <div className="grid lg:grid-cols-5 gap-8">
-            {/* Left: Calendar (3/5 width) */}
+            {/* Left: Calendar */}
             <div className="lg:col-span-3 space-y-6">
               <Card className="border-2 shadow-xl bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-sm">
                 <CardHeader>
@@ -369,54 +291,25 @@ export default function BookingPage() {
                 </CardContent>
               </Card>
 
-              {/* Booking Tips */}
+              {/* Tips */}
               <Card className="bg-primary/5 border-primary/20">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
                     <InfoIcon className="h-5 w-5" />
-                    Booking Tips
+                    Booking Information
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm text-muted-foreground">
                   <p>• Select consecutive dates for multi-day events to get better rates</p>
                   <p>• Each day is a full 24-hour booking (00:00 - 23:59)</p>
-                  <p>• Selected dates are held for 30 minutes while you complete booking</p>
                   <p>• Pricing may vary by day (weekends typically cost more)</p>
+                  <p>• Booking will be confirmed after payment completion</p>
                 </CardContent>
               </Card>
             </div>
 
-            {/* Right: Summary and Actions (2/5 width) */}
+            {/* Right: Summary */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Hold Status */}
-              {isHoldActive && currentHold && (
-                <motion.div
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="sticky top-4"
-                >
-                  <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800/40 dark:bg-amber-900/20">
-                    <TimerIcon className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                    <AlertDescription className="text-sm text-amber-800 dark:text-amber-200">
-                      <div className="flex items-center justify-between">
-                        <span>
-                          Dates reserved: {holdCountdown}m remaining
-                        </span>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={handleRefreshHold}
-                          className="text-xs h-6 px-2"
-                        >
-                          Extend
-                        </Button>
-                      </div>
-                    </AlertDescription>
-                  </Alert>
-                </motion.div>
-              )}
-
-              {/* Booking Summary */}
               <Card className="border-2 shadow-xl bg-gradient-to-br from-card/60 to-card/40 backdrop-blur-sm sticky top-20">
                 <CardHeader>
                   <CardTitle className="text-xl">Booking Summary</CardTitle>
@@ -426,7 +319,7 @@ export default function BookingPage() {
                 </CardHeader>
                 
                 <CardContent className="space-y-6">
-                  {/* Selected Dates Display */}
+                  {/* Selected Dates */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-muted-foreground">Selected Dates</span>
@@ -437,14 +330,12 @@ export default function BookingPage() {
 
                     {selectedDates.length > 0 ? (
                       <div className="space-y-3">
-                        {/* Intelligent Range Display */}
                         <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
                           <p className="text-sm font-medium text-primary">
                             {formatDateRangeCompact([...selectedDates].sort((a, b) => a.getTime() - b.getTime()))}
                           </p>
                         </div>
                         
-                        {/* Individual Dates (if more than 3, show scrollable) */}
                         {selectedDates.length <= 3 ? (
                           <div className="space-y-2">
                             {[...selectedDates].sort((a, b) => a.getTime() - b.getTime()).map((date, idx) => (
@@ -474,7 +365,7 @@ export default function BookingPage() {
                     )}
                   </div>
 
-                  {/* Pricing Section */}
+                  {/* Pricing */}
                   {selectedDates.length > 0 && isVenueLoaded && (
                     <div className="space-y-4 pt-4 border-t">
                       <div className="flex items-center justify-between text-sm">
@@ -482,7 +373,6 @@ export default function BookingPage() {
                         <span className="font-medium">₹{pricePerDay.toLocaleString()}</span>
                       </div>
 
-                      {/* Dynamic Pricing Breakdown */}
                       {pricing?.breakdown && (
                         <div className="text-xs bg-muted/50 p-3 rounded-lg border max-h-40 overflow-y-auto">
                           <p className="font-semibold text-foreground mb-2">Pricing Breakdown:</p>
@@ -525,21 +415,11 @@ export default function BookingPage() {
                     </div>
                   )}
 
-                  {/* Hold Expiry Warning */}
-                  {!isHoldActive && selectedDates.length > 0 && (
-                    <Alert variant="destructive">
-                      <AlertTriangleIcon className="h-4 w-4" />
-                      <AlertDescription className="text-sm">
-                        Your date selection has expired. Please reselect your dates to continue.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
                   {/* Continue Button */}
                   <div className="pt-4">
                     <Button
                       onClick={handleContinue}
-                      disabled={selectedDates.length === 0 || !isHoldActive}
+                      disabled={selectedDates.length === 0}
                       className="w-full h-12 text-base bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                       size="lg"
                     >
@@ -550,12 +430,6 @@ export default function BookingPage() {
                     {selectedDates.length === 0 && (
                       <p className="text-xs text-center text-muted-foreground mt-2">
                         Select dates to continue
-                      </p>
-                    )}
-                    
-                    {selectedDates.length > 0 && !isHoldActive && (
-                      <p className="text-xs text-center text-destructive mt-2">
-                        Selection expired - please reselect dates
                       </p>
                     )}
                   </div>
