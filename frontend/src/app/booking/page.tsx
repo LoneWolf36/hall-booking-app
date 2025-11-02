@@ -1,13 +1,8 @@
 /**
- * Booking Page - Enhanced with Intelligent Time Slots
+ * Booking Page - SIMPLIFIED VERSION
  * 
- * Complete implementation with:
- * - Multi-date selection with persistence
- * - Quick date shortcuts (Today, Tomorrow, Weekend)
- * - Intelligent time slot selection based on venue capability
- * - Proper navigation and back support
- * - State rehydration and error recovery
- * - Backend integration with proper timestamp conversion
+ * Removed all overengineered venue intelligence and complex timeslot logic.
+ * Clean, simple, user-focused experience.
  */
 
 "use client";
@@ -19,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { BookingCalendar } from "@/components/booking/BookingCalendar";
 import { QuickDateShortcuts } from "@/components/booking/QuickDateShortcuts";
 import { TimeSlotSelector, getDefaultTimeSlot, getTimeSlotById, timeSlotToTimestamps, type TimeSlot } from "@/components/booking/TimeSlotSelector";
-import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon, ClockIcon } from "lucide-react";
+import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/stores";
 import { useStepGuard } from "@/hooks/useStepGuard";
@@ -54,7 +49,6 @@ export default function BookingPage() {
     endTime: storedEndTime,
     setSelectedDates,
     setVenueDetails,
-    setCurrentStep,
   } = useBookingStore();
   
   const hasFetchedVenues = useRef(false);
@@ -63,20 +57,13 @@ export default function BookingPage() {
   // Local state  
   const [selectedDates, setSelectedDates_Local] = useState<Date[]>(normalizeDates(storedDates));
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot>(() => {
-    // Try to restore from stored start/end time
+    // Simple restoration - no complex logic
     if (storedStartTime && storedEndTime) {
-      // Check if stored times match any of the known slot patterns
-      if (storedStartTime === '06:00' && storedEndTime === '12:00') {
-        return getTimeSlotById('morning') || getDefaultTimeSlot();
+      if (storedStartTime === '09:00' && storedEndTime === '15:00') {
+        return getTimeSlotById('morning_session') || getDefaultTimeSlot();
       }
-      if (storedStartTime === '12:00' && storedEndTime === '18:00') {
-        return getTimeSlotById('afternoon') || getDefaultTimeSlot();
-      }
-      if (storedStartTime === '18:00' && storedEndTime === '00:00') {
-        return getTimeSlotById('evening') || getDefaultTimeSlot();
-      }
-      if (storedStartTime === '00:00' && storedEndTime === '23:59') {
-        return getTimeSlotById('full_day') || getDefaultTimeSlot();
+      if (storedStartTime === '16:00' && storedEndTime === '22:00') {
+        return getTimeSlotById('evening_session') || getDefaultTimeSlot();
       }
     }
     return getDefaultTimeSlot();
@@ -115,7 +102,6 @@ export default function BookingPage() {
           setVenues(response.data);
           const venue = selectedVenue || response.data[0];
           setCurrentVenue(venue);
-          console.log('Venues loaded successfully:', response.data.length);
         } else {
           toast.error(response.message || 'No venues available');
         }
@@ -133,20 +119,8 @@ export default function BookingPage() {
     const normalized = normalizeDates(storedDates);
     if (normalized.length > 0) {
       setSelectedDates_Local(normalized);
-      console.log('Restored selected dates:', normalized.length);
     }
   }, [selectedVenue, storedDates]);
-
-  // Update default time slot when venue changes
-  useEffect(() => {
-    if (isVenueLoaded && currentVenue) {
-      const venueDefaultSlot = getDefaultTimeSlot(currentVenue);
-      // Only update if we're using the generic default (not a user selection)
-      if (selectedTimeSlot.id === 'full_day' && !storedStartTime) {
-        setSelectedTimeSlot(venueDefaultSlot);
-      }
-    }
-  }, [isVenueLoaded, currentVenue]);
 
   // Load availability when venue is ready
   useEffect(() => {
@@ -177,7 +151,6 @@ export default function BookingPage() {
           .map(day => new Date(day.date));
         
         setUnavailableDates(bookedDates);
-        console.log('Availability loaded:', { total: response.data.length, unavailable: bookedDates.length });
       } else {
         setUnavailableDates([]);
       }
@@ -196,7 +169,7 @@ export default function BookingPage() {
       setIsLoadingPricing(true);
       const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
       
-      // Calculate with time slot multiplier
+      // Simple pricing calculation
       const basePricePerDay = (venueInfo.basePriceCents || 0) / 100;
       const adjustedPricePerDay = Math.round(basePricePerDay * timeSlot.priceMultiplier);
       
@@ -214,7 +187,7 @@ export default function BookingPage() {
           adjustedPricePerDay,
         });
       } else {
-        // Fallback pricing with time slot adjustment
+        // Fallback pricing
         setPricing({
           venueId: venueInfo!.id,
           totalPrice: adjustedPricePerDay * dates.length,
@@ -242,7 +215,7 @@ export default function BookingPage() {
   // Handle date selection with store sync
   const handleDateSelect = useCallback(async (dates: Date[]) => {
     setSelectedDates_Local(dates);
-    setSelectedDates(dates); // Update store immediately
+    setSelectedDates(dates);
     
     if (dates.length > 0) {
       toast.success(`${dates.length} day${dates.length !== 1 ? 's' : ''} selected`, { duration: 2000 });
@@ -254,7 +227,7 @@ export default function BookingPage() {
   // Handle time slot change
   const handleTimeSlotChange = useCallback((timeSlot: TimeSlot) => {
     setSelectedTimeSlot(timeSlot);
-    toast.success(`Time slot: ${timeSlot.label} (${timeSlot.startTime}-${timeSlot.endTime})`);
+    toast.success(`${timeSlot.label} selected`);
   }, []);
 
   // Handle continue to next step
@@ -271,21 +244,8 @@ export default function BookingPage() {
     
     const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
     
-    // Update store with complete venue details, multiple dates, and time slot
+    // Update store with venue details and time slot
     setVenueDetails(venueInfo, sorted, selectedTimeSlot.startTime, selectedTimeSlot.endTime);
-    
-    // Log the timestamps that will be sent to backend for debugging
-    console.log('Booking timestamps:', {
-      dates: sorted.map(date => {
-        const { startTs, endTs } = timeSlotToTimestamps(date, selectedTimeSlot);
-        return {
-          date: format(date, 'yyyy-MM-dd'),
-          startTs: startTs.toISOString(),
-          endTs: endTs.toISOString(),
-          timeSlot: selectedTimeSlot.label
-        };
-      })
-    });
     
     toast.success(
       `Proceeding with ${sorted.length} day${sorted.length !== 1 ? 's' : ''} • ${selectedTimeSlot.label}`
@@ -341,17 +301,9 @@ export default function BookingPage() {
             <h1 className="text-4xl font-bold tracking-tight">Select Your Event Dates & Time</h1>
             <p className="text-lg text-muted-foreground">Choose dates and duration for your event</p>
             {venueInfo && (
-              <div className="flex items-center justify-center gap-2">
-                <Badge variant="secondary" className="text-sm px-4 py-1">
-                  Booking for: {venueInfo.name}
-                </Badge>
-                {venueInfo.settings?.timeslotSupport?.enabled && (
-                  <Badge variant="default" className="text-xs px-2 py-1">
-                    <ClockIcon className="h-3 w-3 mr-1" />
-                    Flexible Timing
-                  </Badge>
-                )}
-              </div>
+              <Badge variant="secondary" className="text-sm px-4 py-1">
+                {venueInfo.name}
+              </Badge>
             )}
           </div>
 
@@ -415,7 +367,7 @@ export default function BookingPage() {
                 </Card>
               </motion.div>
 
-              {/* Time Slot Selection */}
+              {/* Time Slot Selection - SIMPLIFIED */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -423,9 +375,9 @@ export default function BookingPage() {
               >
                 <Card className="border-2 shadow-xl bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-sm">
                   <CardHeader>
-                    <CardTitle className="text-xl">Event Duration</CardTitle>
+                    <CardTitle className="text-xl">Choose Duration & Save Money</CardTitle>
                     <CardDescription>
-                      Choose the time slot that fits your event
+                      Save up to 40% with shorter sessions, or get full venue control with 24-hour access
                     </CardDescription>
                   </CardHeader>
                   
@@ -435,31 +387,23 @@ export default function BookingPage() {
                       onChange={handleTimeSlotChange}
                       basePrice={basePrice}
                       disabled={isLoadingVenues}
-                      venue={currentVenue}
                     />
                   </CardContent>
                 </Card>
               </motion.div>
 
-              {/* Booking Tips */}
-              <Card className="bg-primary/5 border-primary/20">
+              {/* Simple Booking Tips */}
+              <Card className="bg-blue-50 border-blue-200">
                 <CardHeader>
-                  <CardTitle className="text-lg flex items-center gap-2">
+                  <CardTitle className="text-lg flex items-center gap-2 text-blue-800">
                     <InfoIcon className="h-5 w-5" />
-                    Booking Information
+                    Pro Tips
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2 text-sm text-muted-foreground">
-                  <p>• Select consecutive dates for multi-day events to get better rates</p>
-                  <p>• {venueInfo?.settings?.timeslotSupport?.enabled 
-                    ? 'Morning and afternoon slots offer significant savings'
-                    : 'Full day bookings include complete venue access'
-                  }</p>
-                  <p>• {venueInfo?.settings?.timeslotSupport?.enabled 
-                    ? 'Full day bookings include 24-hour access with setup time'
-                    : 'You have complete control over the venue for the entire day'
-                  }</p>
-                  <p>• You can edit your selection in later steps</p>
+                <CardContent className="space-y-2 text-sm text-blue-700">
+                  <p>• Morning & Evening sessions offer great savings</p>
+                  <p>• Full Day gives you complete control and setup time</p>
+                  <p>• You can modify your selection in the next step</p>
                 </CardContent>
               </Card>
             </div>
@@ -470,7 +414,7 @@ export default function BookingPage() {
                 <CardHeader>
                   <CardTitle className="text-xl">Booking Summary</CardTitle>
                   <CardDescription>
-                    {isVenueLoaded && venueInfo?.name ? venueInfo.name : 'Loading venue...'}
+                    {venueInfo?.name || 'Loading venue...'}
                   </CardDescription>
                 </CardHeader>
                 
@@ -478,9 +422,9 @@ export default function BookingPage() {
                   {/* Time Slot Summary */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-muted-foreground">Selected Time</span>
+                      <span className="text-sm font-medium text-muted-foreground">Selected Duration</span>
                       <Badge variant="outline" className="text-xs">
-                        {selectedTimeSlot.duration}h duration
+                        {selectedTimeSlot.duration}h
                       </Badge>
                     </div>
                     
@@ -515,14 +459,14 @@ export default function BookingPage() {
 
                     {selectedDates.length > 0 ? (
                       <div className="space-y-3">
-                        {/* Intelligent Range Display */}
+                        {/* Date Range Display */}
                         <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
                           <p className="text-sm font-medium text-primary">
                             {formatDateRangeCompact([...selectedDates].sort((a, b) => a.getTime() - b.getTime()))}
                           </p>
                         </div>
                         
-                        {/* Individual Dates Preview */}
+                        {/* Individual Dates */}
                         {selectedDates.length <= 5 ? (
                           <div className="space-y-2">
                             {[...selectedDates].sort((a, b) => a.getTime() - b.getTime()).map((date, idx) => (
@@ -542,9 +486,6 @@ export default function BookingPage() {
                                 <span className="text-muted-foreground">({format(date, "EEE")})</span>
                               </div>
                             ))}
-                            <p className="text-xs text-muted-foreground text-center mt-2">
-                              You can edit these in the next step
-                            </p>
                           </div>
                         )}
                       </div>
@@ -575,21 +516,14 @@ export default function BookingPage() {
                         </div>
 
                         <div className="flex items-center justify-between pt-3 border-t">
-                          <span className="font-semibold">Estimated Total</span>
+                          <span className="font-semibold">Total Amount</span>
                           <span className="text-2xl font-bold text-primary">
                             ₹{totalPrice.toLocaleString()}
                           </span>
                         </div>
-
-                        {isLoadingPricing && (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <LoaderIcon className="h-3 w-3 animate-spin" />
-                            <span>Calculating pricing...</span>
-                          </div>
-                        )}
                         
-                        <p className="text-xs text-muted-foreground">
-                          *Final amount includes taxes and may vary based on selected add-ons
+                        <p className="text-xs text-muted-foreground text-center">
+                          *Final amount includes taxes and may vary based on add-ons
                         </p>
                       </div>
                     </>
