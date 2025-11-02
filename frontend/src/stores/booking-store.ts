@@ -1,21 +1,19 @@
 /**
- * Booking Store - Zustand State Management
+ * Booking Store - Complete Flow Management
  * 
- * Manages the entire booking flow state across multiple steps.
- * Persisted to localStorage for recovery on page refresh.
- * Enhanced with hold management for temporary date reservations.
+ * End-to-end booking flow with:
+ * - Persistent state across navigation and refresh
+ * - Step navigation with back support
+ * - Multi-date selection and editing
+ * - Proper rehydration and error recovery
  */
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { Venue } from '@/types/venue';
 import type { PaymentMethod, PaymentProfile } from '@/types/payment';
-import { createHold, refreshHold, releaseHold, type Hold } from '@/lib/api/holds';
 import { formatDateForAPI } from '@/lib/dates';
 
-/**
- * Booking flow steps
- */
 export type BookingStep = 
   | 'venue_selection'
   | 'event_details'
@@ -26,9 +24,6 @@ export type BookingStep =
   | 'processing'
   | 'success';
 
-/**
- * Event type options
- */
 export type EventType = 
   | 'wedding'
   | 'corporate'
@@ -37,9 +32,6 @@ export type EventType =
   | 'party'
   | 'other';
 
-/**
- * Add-on item
- */
 export interface AddonItem {
   id: string;
   name: string;
@@ -49,33 +41,25 @@ export interface AddonItem {
   category: 'catering' | 'decoration' | 'equipment' | 'photography' | 'other';
 }
 
-/**
- * Booking state interface
- */
 export interface BookingState {
-  // Current step
+  // Navigation
   currentStep: BookingStep;
   completedSteps: BookingStep[];
+  stepHistory: BookingStep[]; // For intelligent back navigation
   
   // Venue selection
   selectedVenue: Venue | null;
   selectedDates: Date[];
-  selectedDate: Date | null; // Kept for backward compatibility
+  selectedDate: Date | null; // Backward compatibility
   startTime: string | null;
   endTime: string | null;
-  
-  // Hold management
-  currentHold: Hold | null;
-  holdExpiresAt: Date | null;
-  holdCountdown: number; // minutes remaining
-  isHoldActive: boolean;
   
   // Event details
   eventType: EventType | null;
   guestCount: number;
   specialRequests: string;
   
-  // Add-ons (optional)
+  // Add-ons
   selectedAddons: AddonItem[];
   
   // Payment
@@ -100,29 +84,20 @@ export interface BookingState {
   error: string | null;
 }
 
-/**
- * Booking actions interface
- */
 export interface BookingActions {
-  // Step navigation
+  // Navigation
   setCurrentStep: (step: BookingStep) => void;
   markStepCompleted: (step: BookingStep) => void;
   goToNextStep: () => void;
-  goToPreviousStep: () => void;
+  goToPreviousStep: () => BookingStep | null;
+  getPreviousStep: () => BookingStep | null;
   resetFlow: () => void;
   
   // Venue selection
-  setVenueDetails: (venue: Venue, date: Date, startTime: string, endTime: string) => void;
+  setVenueDetails: (venue: Venue, dates: Date[], startTime: string, endTime: string) => void;
   setSelectedDates: (dates: Date[]) => void;
-  updateSelectedDates: (dates: Date[]) => Promise<void>;
-  
-  // Hold management
-  createDateHold: (venueId: string, dates: Date[], token?: string) => Promise<boolean>;
-  refreshDateHold: (token?: string) => Promise<boolean>;
-  releaseDateHold: (token?: string) => Promise<void>;
-  updateHoldCountdown: () => void;
-  startHoldTimer: () => void;
-  stopHoldTimer: () => void;
+  removeSelectedDate: (date: Date) => void;
+  clearSelectedDates: () => void;
   
   // Event details
   setEventDetails: (eventType: EventType, guestCount: number, specialRequests?: string) => void;
@@ -149,21 +124,15 @@ export interface BookingActions {
   setError: (error: string | null) => void;
 }
 
-/**
- * Initial state
- */
 const initialState: BookingState = {
   currentStep: 'venue_selection',
   completedSteps: [],
+  stepHistory: [],
   selectedVenue: null,
   selectedDates: [],
   selectedDate: null,
   startTime: null,
   endTime: null,
-  currentHold: null,
-  holdExpiresAt: null,
-  holdCountdown: 0,
-  isHoldActive: false,
   eventType: null,
   guestCount: 0,
   specialRequests: '',
@@ -183,9 +152,6 @@ const initialState: BookingState = {
   error: null,
 };
 
-/**
- * Step flow order
- */
 const STEP_ORDER: BookingStep[] = [
   'venue_selection',
   'event_details',
@@ -197,19 +163,26 @@ const STEP_ORDER: BookingStep[] = [
   'success',
 ];
 
-// Hold timer reference
-let holdTimerInterval: ReturnType<typeof setInterval> | null = null;
-
-/**
- * Booking store with persistence and hold management
- */
 export const useBookingStore = create<BookingState & BookingActions>()(
   persist(
     (set, get) => ({
       ...initialState,
 
-      // Step navigation
-      setCurrentStep: (step) => set({ currentStep: step }),
+      // Navigation
+      setCurrentStep: (step) => {
+        const current = get().currentStep;
+        const history = get().stepHistory;
+        
+        // Add current step to history if different
+        if (current !== step && !history.includes(current)) {
+          set({ 
+            currentStep: step,
+            stepHistory: [...history, current]
+          });
+        } else {
+          set({ currentStep: step });
+        }
+      },
       
       markStepCompleted: (step) => set((state) => ({
         completedSteps: state.completedSteps.includes(step)
@@ -220,31 +193,49 @@ export const useBookingStore = create<BookingState & BookingActions>()(
       goToNextStep: () => {
         const currentIndex = STEP_ORDER.indexOf(get().currentStep);
         if (currentIndex < STEP_ORDER.length - 1) {
-          const nextStep = STEP_ORDER[currentIndex + 1];
-          set({ currentStep: nextStep });
+          get().setCurrentStep(STEP_ORDER[currentIndex + 1]);
         }
       },
       
       goToPreviousStep: () => {
+        return get().getPreviousStep();
+      },
+      
+      getPreviousStep: () => {
+        const history = get().stepHistory;
         const currentIndex = STEP_ORDER.indexOf(get().currentStep);
+        
+        // Try to get from history first
+        if (history.length > 0) {
+          const previousStep = history[history.length - 1];
+          // Remove from history and set as current
+          set({ 
+            stepHistory: history.slice(0, -1),
+            currentStep: previousStep 
+          });
+          return previousStep;
+        }
+        
+        // Fallback to step order
         if (currentIndex > 0) {
           const previousStep = STEP_ORDER[currentIndex - 1];
           set({ currentStep: previousStep });
+          return previousStep;
         }
+        
+        return null;
       },
       
       resetFlow: () => {
-        get().stopHoldTimer();
-        get().releaseDateHold();
         set(initialState);
       },
 
       // Venue selection
-      setVenueDetails: (venue, date, startTime, endTime) => {
+      setVenueDetails: (venue, dates, startTime, endTime) => {
         set({
           selectedVenue: venue,
-          selectedDate: date,
-          selectedDates: [date],
+          selectedDates: dates,
+          selectedDate: dates.length > 0 ? dates[0] : null,
           startTime,
           endTime,
           basePrice: venue.basePriceCents / 100,
@@ -261,135 +252,17 @@ export const useBookingStore = create<BookingState & BookingActions>()(
         get().calculateTotals();
       },
       
-      updateSelectedDates: async (dates: Date[]) => {
-        const { selectedVenue, currentHold } = get();
-        
-        set({
-          selectedDates: dates,
-          selectedDate: dates.length > 0 ? dates[0] : null,
-        });
-        
-        if (selectedVenue && dates.length > 0) {
-          await get().createDateHold(selectedVenue.id, dates);
-        } else if (currentHold) {
-          await get().releaseDateHold();
-        }
-        
+      removeSelectedDate: (dateToRemove: Date) => {
+        const currentDates = get().selectedDates;
+        const newDates = currentDates.filter(date => 
+          date.toDateString() !== dateToRemove.toDateString()
+        );
+        get().setSelectedDates(newDates);
+      },
+      
+      clearSelectedDates: () => {
+        set({ selectedDates: [], selectedDate: null });
         get().calculateTotals();
-      },
-
-      // Hold management
-      createDateHold: async (venueId: string, dates: Date[], token?: string): Promise<boolean> => {
-        try {
-          set({ isProcessing: true, error: null });
-          
-          await get().releaseDateHold(token);
-          
-          const response = await createHold({
-            venueId,
-            selectedDates: dates.map(formatDateForAPI),
-            duration: 30,
-          }, token);
-          
-          if (response.success && response.data) {
-            set({
-              currentHold: response.data,
-              holdExpiresAt: new Date(response.data.expiresAt),
-              isHoldActive: true,
-            });
-            
-            get().startHoldTimer();
-            return true;
-          } else {
-            set({ error: response.message || 'Failed to create hold' });
-            return false;
-          }
-        } catch (error) {
-          console.error('Failed to create hold:', error);
-          set({ error: 'Failed to create temporary reservation' });
-          return false;
-        } finally {
-          set({ isProcessing: false });
-        }
-      },
-      
-      refreshDateHold: async (token?: string): Promise<boolean> => {
-        const { currentHold } = get();
-        if (!currentHold) return false;
-        
-        try {
-          const response = await refreshHold(currentHold.id, token);
-          
-          if (response.success && response.data) {
-            set({
-              currentHold: response.data,
-              holdExpiresAt: new Date(response.data.expiresAt),
-              isHoldActive: true,
-            });
-            return true;
-          } else {
-            set({ 
-              currentHold: null,
-              holdExpiresAt: null,
-              isHoldActive: false,
-              error: response.message || 'Hold expired'
-            });
-            return false;
-          }
-        } catch (error) {
-          console.error('Failed to refresh hold:', error);
-          return false;
-        }
-      },
-      
-      releaseDateHold: async (token?: string): Promise<void> => {
-        const { currentHold } = get();
-        if (!currentHold) return;
-        
-        get().stopHoldTimer();
-        
-        try {
-          await releaseHold(currentHold.id, token);
-        } catch (error) {
-          console.error('Failed to release hold:', error);
-        } finally {
-          set({
-            currentHold: null,
-            holdExpiresAt: null,
-            isHoldActive: false,
-            holdCountdown: 0,
-          });
-        }
-      },
-      
-      updateHoldCountdown: () => {
-        const { holdExpiresAt, isHoldActive } = get();
-        if (!holdExpiresAt || !isHoldActive) return;
-        
-        const now = new Date();
-        const timeLeft = Math.max(0, Math.floor((holdExpiresAt.getTime() - now.getTime()) / (1000 * 60)));
-        
-        set({ holdCountdown: timeLeft });
-        
-        if (timeLeft <= 0) {
-          set({ isHoldActive: false });
-          get().stopHoldTimer();
-        }
-      },
-      
-      startHoldTimer: () => {
-        get().stopHoldTimer();
-        
-        holdTimerInterval = setInterval(() => {
-          get().updateHoldCountdown();
-        }, 60000);
-      },
-      
-      stopHoldTimer: () => {
-        if (holdTimerInterval) {
-          clearInterval(holdTimerInterval);
-          holdTimerInterval = null;
-        }
       },
 
       // Event details
@@ -479,13 +352,12 @@ export const useBookingStore = create<BookingState & BookingActions>()(
       name: 'booking-storage',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
+        // Persist core booking data
         selectedVenue: state.selectedVenue,
         selectedDates: state.selectedDates,
         selectedDate: state.selectedDate,
         startTime: state.startTime,
         endTime: state.endTime,
-        currentHold: state.currentHold,
-        holdExpiresAt: state.holdExpiresAt,
         eventType: state.eventType,
         guestCount: state.guestCount,
         specialRequests: state.specialRequests,
@@ -503,17 +375,18 @@ export const useBookingStore = create<BookingState & BookingActions>()(
         idempotencyKey: state.idempotencyKey,
         currentStep: state.currentStep,
         completedSteps: state.completedSteps,
+        stepHistory: state.stepHistory,
       }),
       onRehydrateStorage: () => (state) => {
-        if (state?.currentHold && state?.holdExpiresAt) {
-          const holdExpiry = new Date(state.holdExpiresAt);
-          if (holdExpiry > new Date()) {
-            state.isHoldActive = true;
-            state.startHoldTimer();
-          } else {
-            state.currentHold = null;
-            state.holdExpiresAt = null;
-            state.isHoldActive = false;
+        if (state) {
+          // Convert string dates back to Date objects after rehydration
+          if (state.selectedDates) {
+            state.selectedDates = state.selectedDates.map((d: any) => 
+              d instanceof Date ? d : new Date(d)
+            );
+          }
+          if (state.selectedDate && !(state.selectedDate instanceof Date)) {
+            state.selectedDate = new Date(state.selectedDate);
           }
         }
       },
