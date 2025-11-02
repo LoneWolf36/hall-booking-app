@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -11,6 +11,7 @@ import { enGB } from "date-fns/locale";
 import { toast } from "sonner";
 import { useBookingStore } from "@/stores";
 import { useRouter } from "next/navigation";
+import { formatDateRangeCompact } from "@/lib/dates";
 
 // Use consistent API services
 import { calculatePricing, listVenues } from "@/lib/api/venues";
@@ -19,12 +20,30 @@ import { getVenueAvailability } from "@/lib/api/bookings";
 const normalizeDates = (arr?: any[]) =>
   (arr ?? []).map((d) => (d instanceof Date ? d : new Date(d)));
 
+// Debounce hook for pricing calculations
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+  
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  
+  return debouncedValue;
+}
+
 export default function BookingPage() {
   const router = useRouter();
   const { setVenueDetails, setSelectedDates, selectedDates: storedDates } = useBookingStore();
   
   // Ref guard to prevent duplicate API calls in React Strict Mode
   const hasFetchedVenues = useRef(false);
+  const pricingTimeoutRef = useRef<NodeJS.Timeout>();
 
   // Normalize any persisted strings into Date objects to avoid getTime errors
   const [selectedDates, setSelectedDates_Local] = useState<Date[]>(normalizeDates(storedDates));
@@ -36,6 +55,9 @@ export default function BookingPage() {
   const [venues, setVenues] = useState<any[]>([]);
   const [currentVenue, setCurrentVenue] = useState<any>(null);
   const [isLoadingVenues, setIsLoadingVenues] = useState(true);
+
+  // Debounce selectedDates for pricing calculation
+  const debouncedSelectedDates = useDebounce(selectedDates, 300);
 
   // Compute whether venue is loaded
   const isVenueLoaded = !!currentVenue;
@@ -88,15 +110,19 @@ export default function BookingPage() {
     }
   }, []); // Empty dependency array with ref guard
 
-  // Trigger availability/pricing fetch when venue loads
+  // Trigger availability fetch when venue loads
   useEffect(() => {
     if (isVenueLoaded && currentVenue?.id) {
       void fetchVenueAvailability();
-      if (selectedDates.length > 0) {
-        void calculatePricingForDates(selectedDates);
-      }
     }
-  }, [isVenueLoaded, currentVenue?.id, selectedDates.length]);
+  }, [isVenueLoaded, currentVenue?.id]);
+
+  // Debounced pricing calculation
+  useEffect(() => {
+    if (debouncedSelectedDates.length > 0 && isVenueLoaded && currentVenue?.id) {
+      void calculatePricingForDates(debouncedSelectedDates);
+    }
+  }, [debouncedSelectedDates, isVenueLoaded, currentVenue?.id]);
 
   // Fetch venue availability from backend using proper API service
   const fetchVenueAvailability = async () => {
@@ -140,7 +166,7 @@ export default function BookingPage() {
     }
   };
 
-  const handleDateSelect = (dates: Date[] | undefined) => {
+  const handleDateSelect = useCallback((dates: Date[] | undefined) => {
     if (!dates || dates.length === 0) {
       setSelectedDates_Local([]);
       setPricing(null);
@@ -148,11 +174,22 @@ export default function BookingPage() {
     }
     const normalized = normalizeDates(dates);
     setSelectedDates_Local(normalized);
-    void calculatePricingForDates(normalized);
-  };
+    
+    // Show immediate feedback
+    toast.success(`${normalized.length} day(s) selected`, { duration: 1500 });
+  }, []);
 
   const calculatePricingForDates = async (dates: Date[]) => {
     if (dates.length === 0 || !isVenueLoaded || !venueInfo?.id) return;
+    
+    // Skip if same dates (deep equal)
+    const currentDateStrings = dates.map(d => format(d, 'yyyy-MM-dd')).sort();
+    const existingDateStrings = pricing?.selectedDates?.sort();
+    if (existingDateStrings && 
+        currentDateStrings.length === existingDateStrings.length &&
+        currentDateStrings.every((date, idx) => date === existingDateStrings[idx])) {
+      return; // Skip duplicate calculation
+    }
     
     try {
       setIsLoadingPricing(true);
@@ -224,7 +261,7 @@ export default function BookingPage() {
     setSelectedDates(sorted);
     setVenueDetails(venueInfo, startDate, "00:00", "23:59");
 
-    toast.success(`${sorted.length} day(s) selected`);
+    toast.success(`${sorted.length} day(s) selected - proceeding to event details`);
     router.push("/event-details");
   };
 
@@ -302,11 +339,54 @@ export default function BookingPage() {
                   </CardTitle>
                   <CardDescription className="text-xs sm:text-sm">
                     {isLoadingAvailability ? 'Loading availability...' : 'Tap dates to select'}
+                    {selectedDates.length > 0 && (
+                      <Badge className="ml-2 bg-primary/20 text-primary border-primary/30">
+                        {selectedDates.length} day{selectedDates.length !== 1 ? 's' : ''} selected
+                      </Badge>
+                    )}
                   </CardDescription>
                 </CardHeader>
-                {/* Responsive calendar container with proper sizing */}
+                {/* Enhanced calendar with better styling */}
                 <CardContent className="flex justify-center p-3 sm:p-6">
-                  <div className="w-full max-w-[400px] sm:max-w-[450px]">
+                  <div className="w-full max-w-[420px] sm:max-w-[480px]">
+                    <style jsx global>{`
+                      .rdp-day {
+                        width: 2.5rem !important;
+                        height: 2.5rem !important;
+                        line-height: 2.5rem !important;
+                        border-radius: 0.5rem !important;
+                        margin: 1px !important;
+                        transition: all 0.2s ease !important;
+                      }
+                      .rdp-week {
+                        min-height: 2.75rem !important;
+                        margin-bottom: 2px !important;
+                      }
+                      .rdp-day_range_start {
+                        background: hsl(var(--primary)) !important;
+                        color: hsl(var(--primary-foreground)) !important;
+                        border-top-left-radius: 0.5rem !important;
+                        border-bottom-left-radius: 0.5rem !important;
+                        border-top-right-radius: 0.125rem !important;
+                        border-bottom-right-radius: 0.125rem !important;
+                      }
+                      .rdp-day_range_middle {
+                        background: hsl(var(--primary) / 0.3) !important;
+                        color: hsl(var(--primary)) !important;
+                        border-radius: 0.125rem !important;
+                      }
+                      .rdp-day_range_end {
+                        background: hsl(var(--primary)) !important;
+                        color: hsl(var(--primary-foreground)) !important;
+                        border-top-left-radius: 0.125rem !important;
+                        border-bottom-left-radius: 0.125rem !important;
+                        border-top-right-radius: 0.5rem !important;
+                        border-bottom-right-radius: 0.5rem !important;
+                      }
+                      .rdp-day_selected:hover {
+                        background: hsl(var(--primary) / 0.9) !important;
+                      }
+                    `}</style>
                     <Calendar
                       mode="multiple"
                       locale={enGB}
@@ -391,10 +471,14 @@ export default function BookingPage() {
 
                     {sortedDates.length > 0 ? (
                       <div className="space-y-1 sm:space-y-2 max-h-40 sm:max-h-60 overflow-y-auto bg-muted/30 rounded-lg p-2 sm:p-3">
+                        <div className="text-xs font-medium text-primary mb-2">
+                          {formatDateRangeCompact(sortedDates)}
+                        </div>
                         {sortedDates.map((date, idx) => (
                           <div key={idx} className="flex items-center gap-2 text-xs sm:text-sm">
                             <CheckCircle2Icon className="h-3 w-3 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
                             <span className="font-medium">{format(date, "MMM d, yyyy")}</span>
+                            <span className="text-muted-foreground">({format(date, "EEE")})</span>
                           </div>
                         ))}
                       </div>
