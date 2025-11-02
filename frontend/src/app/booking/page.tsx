@@ -1,8 +1,11 @@
 /**
- * Simplified Booking Page - No Custom Hold System
+ * Booking Page - Venue Selection and Date Booking
  * 
- * Uses the existing backend booking system instead of custom hold endpoints.
- * Creates bookings in 'temp_hold' status using existing createBooking API.
+ * Complete implementation with:
+ * - Multi-date selection with persistence
+ * - Proper navigation and back support
+ * - State rehydration and error recovery
+ * - Integration with step guard system
  */
 
 "use client";
@@ -15,12 +18,11 @@ import { BookingCalendar } from "@/components/booking/BookingCalendar";
 import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/stores";
-import { useAuthStore } from "@/stores/auth-store";
+import { useStepGuard } from "@/hooks/useStepGuard";
 import { useRouter } from "next/navigation";
 import { formatDateRangeCompact } from "@/lib/dates";
 import { calculatePricing, listVenues } from "@/lib/api/venues";
 import { getVenueAvailability } from "@/lib/api/bookings";
-import { motion } from "framer-motion";
 import { format } from "date-fns";
 
 const normalizeDates = (arr?: any[]) => (arr ?? []).map((d) => (d instanceof Date ? d : new Date(d)));
@@ -37,8 +39,15 @@ function useDebounce<T>(value: T, delay: number): T {
 
 export default function BookingPage() {
   const router = useRouter();
-  const { token } = useAuthStore();
-  const { selectedVenue, selectedDates: storedDates, setSelectedDates, setVenueDetails } = useBookingStore();
+  const { isValid } = useStepGuard('venue_selection');
+  
+  const {
+    selectedVenue,
+    selectedDates: storedDates,
+    setSelectedDates,
+    setVenueDetails,
+    setCurrentStep,
+  } = useBookingStore();
   
   const hasFetchedVenues = useRef(false);
   const hasFetchedAvailability = useRef(false);
@@ -53,10 +62,9 @@ export default function BookingPage() {
   const [currentVenue, setCurrentVenue] = useState<any>(selectedVenue);
   const [isLoadingVenues, setIsLoadingVenues] = useState(true);
 
-  const debouncedSelectedDates = useDebounce(selectedDates, 500);
+  const debouncedSelectedDates = useDebounce(selectedDates, 300);
   const isVenueLoaded = !!currentVenue;
   const venueInfo = currentVenue;
-  const today = new Date(new Date().setHours(0, 0, 0, 0));
   
   const isUnavailable = useCallback((date: Date) => {
     return unavailableDates.some(unavailable => 
@@ -64,7 +72,7 @@ export default function BookingPage() {
     );
   }, [unavailableDates]);
 
-  // Load venues
+  // Load venues on mount
   useEffect(() => {
     if (hasFetchedVenues.current) return;
     hasFetchedVenues.current = true;
@@ -91,11 +99,16 @@ export default function BookingPage() {
     };
 
     fetchVenues();
+    
+    // Restore persisted dates
     const normalized = normalizeDates(storedDates);
-    if (normalized.length > 0) setSelectedDates_Local(normalized);
+    if (normalized.length > 0) {
+      setSelectedDates_Local(normalized);
+      console.log('Restored selected dates:', normalized.length);
+    }
   }, [selectedVenue, storedDates]);
 
-  // Load availability
+  // Load availability when venue is ready
   useEffect(() => {
     if (isVenueLoaded && currentVenue?.id && !hasFetchedAvailability.current) {
       hasFetchedAvailability.current = true;
@@ -103,7 +116,7 @@ export default function BookingPage() {
     }
   }, [isVenueLoaded, currentVenue?.id]);
 
-  // Calculate pricing
+  // Calculate pricing when dates change (debounced)
   useEffect(() => {
     if (debouncedSelectedDates.length > 0 && isVenueLoaded && currentVenue?.id) {
       void calculatePricingForDates(debouncedSelectedDates);
@@ -139,7 +152,7 @@ export default function BookingPage() {
   const calculatePricingForDates = async (dates: Date[]) => {
     if (dates.length === 0 || !isVenueLoaded || !venueInfo?.id) return;
     
-    // Skip if same dates
+    // Skip if same dates (performance optimization)
     const currentDateStrings = dates.map(d => format(d, 'yyyy-MM-dd')).sort();
     const existingDateStrings = pricing?.selectedDates?.sort();
     if (existingDateStrings && 
@@ -160,7 +173,7 @@ export default function BookingPage() {
       if (response.success && response.data) {
         setPricing(response.data);
       } else {
-        // Fallback
+        // Fallback pricing
         const basePrice = venueInfo?.basePriceCents || 0;
         setPricing({
           venueId: venueInfo!.id,
@@ -181,35 +194,43 @@ export default function BookingPage() {
     }
   };
 
-  // Handle date selection (simplified - just update state)
+  // Handle date selection with store sync
   const handleDateSelect = useCallback(async (dates: Date[]) => {
     setSelectedDates_Local(dates);
-    setSelectedDates(dates);
+    setSelectedDates(dates); // Update store immediately
     
     if (dates.length > 0) {
       toast.success(`${dates.length} day${dates.length !== 1 ? 's' : ''} selected`, { duration: 2000 });
+    } else {
+      toast.info('All dates cleared');
     }
   }, [setSelectedDates]);
 
-  // Continue to next step
+  // Handle continue to next step
   const handleContinue = useCallback(() => {
     if (selectedDates.length === 0) {
       toast.error("Please select at least one date for your event");
       return;
     }
     
+    if (!venueInfo) {
+      toast.error("Please wait for venue information to load");
+      return;
+    }
+    
     const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
-    const startDate = sorted[0];
-
-    setVenueDetails(venueInfo, startDate, "00:00", "23:59");
+    
+    // Update store with complete venue details and multiple dates
+    setVenueDetails(venueInfo, sorted, "00:00", "23:59");
+    
     toast.success(`Proceeding with ${sorted.length} day${sorted.length !== 1 ? 's' : ''} selected`);
     router.push("/event-details");
   }, [selectedDates, venueInfo, setVenueDetails, router]);
 
-  // Calculate display values
   const pricePerDay = venueInfo?.basePriceCents ? venueInfo.basePriceCents / 100 : 0;
   const totalPrice = pricing?.totalPrice ?? (isVenueLoaded && venueInfo ? selectedDates.length * pricePerDay : 0);
   
+  // Loading states
   if (isLoadingVenues) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center">
@@ -240,6 +261,10 @@ export default function BookingPage() {
     );
   }
 
+  if (!isValid) {
+    return null; // useStepGuard will handle redirect
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
@@ -267,7 +292,7 @@ export default function BookingPage() {
                       <div>
                         <CardTitle className="text-xl">Event Calendar</CardTitle>
                         <CardDescription>
-                          {isLoadingAvailability ? 'Loading availability...' : 'Select your event dates'}
+                          {isLoadingAvailability ? 'Loading availability...' : 'Tap dates to select multiple days'}
                         </CardDescription>
                       </div>
                     </div>
@@ -291,7 +316,7 @@ export default function BookingPage() {
                 </CardContent>
               </Card>
 
-              {/* Tips */}
+              {/* Booking Tips */}
               <Card className="bg-primary/5 border-primary/20">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -303,7 +328,7 @@ export default function BookingPage() {
                   <p>• Select consecutive dates for multi-day events to get better rates</p>
                   <p>• Each day is a full 24-hour booking (00:00 - 23:59)</p>
                   <p>• Pricing may vary by day (weekends typically cost more)</p>
-                  <p>• Booking will be confirmed after payment completion</p>
+                  <p>• You can edit your selection in later steps</p>
                 </CardContent>
               </Card>
             </div>
@@ -319,7 +344,7 @@ export default function BookingPage() {
                 </CardHeader>
                 
                 <CardContent className="space-y-6">
-                  {/* Selected Dates */}
+                  {/* Selected Dates Display */}
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-medium text-muted-foreground">Selected Dates</span>
@@ -330,13 +355,15 @@ export default function BookingPage() {
 
                     {selectedDates.length > 0 ? (
                       <div className="space-y-3">
+                        {/* Intelligent Range Display */}
                         <div className="p-3 rounded-lg bg-primary/5 border border-primary/20">
                           <p className="text-sm font-medium text-primary">
                             {formatDateRangeCompact([...selectedDates].sort((a, b) => a.getTime() - b.getTime()))}
                           </p>
                         </div>
                         
-                        {selectedDates.length <= 3 ? (
+                        {/* Individual Dates Preview */}
+                        {selectedDates.length <= 5 ? (
                           <div className="space-y-2">
                             {[...selectedDates].sort((a, b) => a.getTime() - b.getTime()).map((date, idx) => (
                               <div key={idx} className="flex items-center gap-2 text-sm">
@@ -355,6 +382,9 @@ export default function BookingPage() {
                                 <span className="text-muted-foreground">({format(date, "EEE")})</span>
                               </div>
                             ))}
+                            <p className="text-xs text-muted-foreground text-center mt-2">
+                              You can edit these dates in the next step
+                            </p>
                           </div>
                         )}
                       </div>
@@ -365,7 +395,7 @@ export default function BookingPage() {
                     )}
                   </div>
 
-                  {/* Pricing */}
+                  {/* Pricing Section */}
                   {selectedDates.length > 0 && isVenueLoaded && (
                     <div className="space-y-4 pt-4 border-t">
                       <div className="flex items-center justify-between text-sm">
@@ -373,6 +403,7 @@ export default function BookingPage() {
                         <span className="font-medium">₹{pricePerDay.toLocaleString()}</span>
                       </div>
 
+                      {/* Dynamic Pricing Breakdown */}
                       {pricing?.breakdown && (
                         <div className="text-xs bg-muted/50 p-3 rounded-lg border max-h-40 overflow-y-auto">
                           <p className="font-semibold text-foreground mb-2">Pricing Breakdown:</p>
@@ -405,7 +436,7 @@ export default function BookingPage() {
                       {isLoadingPricing && (
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <LoaderIcon className="h-3 w-3 animate-spin" />
-                          <span>Updating pricing...</span>
+                          <span>Calculating pricing...</span>
                         </div>
                       )}
                       
@@ -419,7 +450,7 @@ export default function BookingPage() {
                   <div className="pt-4">
                     <Button
                       onClick={handleContinue}
-                      disabled={selectedDates.length === 0}
+                      disabled={selectedDates.length === 0 || isLoadingPricing}
                       className="w-full h-12 text-base bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                       size="lg"
                     >
@@ -429,7 +460,7 @@ export default function BookingPage() {
 
                     {selectedDates.length === 0 && (
                       <p className="text-xs text-center text-muted-foreground mt-2">
-                        Select dates to continue
+                        Select at least one date to continue
                       </p>
                     )}
                   </div>
