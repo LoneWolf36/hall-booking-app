@@ -1,3 +1,8 @@
-// Custom hooks (if needed in future)
-// Currently using Zustand stores directly
-// See src/stores/ for useBookingStore and useAuthStore
+/**
+ * Hooks Export Index
+ * 
+ * Centralized exports for all custom hooks used in the booking system.
+ */
+
+export { useStepGuard, useBookingNavigation, routeToStep } from './useStepGuard';
+export { useAdmin } from './useAdmin';
