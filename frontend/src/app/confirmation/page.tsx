@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { BookingProgress } from '@/components/booking/ProgressIndicator';
 import { useBookingStore } from '@/stores';
+import { useAuthStore } from '@/stores/auth-store';
 import { toast } from 'sonner';
 import {
   CheckCircleIcon,
@@ -26,6 +27,7 @@ import { formatDateRange, formatDateForAPI } from '@/lib/dates';
 
 export default function ConfirmationPage() {
   const router = useRouter();
+  const { token, isAuthenticated } = useAuthStore();
   const {
     selectedVenue,
     selectedDate,
@@ -42,6 +44,15 @@ export default function ConfirmationPage() {
 
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Redirect to auth if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated || !token) {
+      const currentPath = `/confirmation`;
+      router.push(`/auth?redirect=${encodeURIComponent(currentPath)}`);
+      return;
+    }
+  }, [isAuthenticated, token, router]);
 
   useEffect(() => {
     if (!selectedVenue || !eventType || !paymentMethod) {
@@ -69,6 +80,12 @@ export default function ConfirmationPage() {
       return;
     }
 
+    if (!token || !isAuthenticated) {
+      toast.error('Please login to continue');
+      router.push('/auth?redirect=' + encodeURIComponent('/confirmation'));
+      return;
+    }
+
     setIsLoading(true);
     try {
       const sortedDates = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
@@ -78,6 +95,8 @@ export default function ConfirmationPage() {
 
       const idempotencyKey = generateIdempotencyKey();
 
+      console.log('Creating booking with token:', token ? 'present' : 'missing');
+      
       const response = await createBooking(
         {
           venueId: selectedVenue.id,
@@ -88,19 +107,32 @@ export default function ConfirmationPage() {
           endTs: endDate.toISOString(),
           idempotencyKey,
         },
-        localStorage.getItem('auth_token') || undefined
+        token // Use auth store token instead of localStorage
       );
 
       if (response.success && response.data) {
         setBookingIds(response.data.id, response.data.bookingNumber);
         toast.success(`Booking #${response.data.bookingNumber} created!`);
-        router.push(paymentMethod === 'online' ? '/payment/processing' : '/success');
+        
+        // Navigate based on payment method
+        if (paymentMethod === 'online') {
+          router.push(`/payment/processing?bookingId=${response.data.id}`);
+        } else {
+          router.push('/success');
+        }
       } else {
         toast.error(response.message || 'Failed to create booking');
       }
     } catch (error) {
       console.error('Booking creation error:', error);
-      toast.error('Failed to create booking. Please try again.');
+      
+      // Handle specific auth errors
+      if (error instanceof Error && error.message.includes('401')) {
+        toast.error('Authentication expired. Please login again.');
+        router.push('/auth?redirect=' + encodeURIComponent('/confirmation'));
+      } else {
+        toast.error('Failed to create booking. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -123,6 +155,11 @@ export default function ConfirmationPage() {
         break;
     }
   };
+
+  // Don't render if not authenticated
+  if (!isAuthenticated || !token) {
+    return null;
+  }
 
   if (!selectedVenue || !eventType || !selectedDates || selectedDates.length === 0) {
     return null;
