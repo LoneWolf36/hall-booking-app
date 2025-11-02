@@ -1,10 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
-import { PrismaService } from '../src/prisma/prisma.service';
-import { PaymentsService } from '../src/payments/payments.service';
-import { FlexiblePaymentService } from '../src/payments/services/flexible-payment.service';
-import { RazorpayService } from '../src/payments/services/razorpay.service';
-import { AppModule } from '../src/app.module';
+import { PrismaService } from '../../src/prisma/prisma.service';
+import { PaymentsService } from '../../src/payments/payments.service';
+import { FlexiblePaymentService } from '../../src/payments/services/flexible-payment.service';
+import { RazorpayService } from '../../src/payments/services/razorpay.service';
+import { AppModule } from '../../src/app.module';
 import * as request from 'supertest';
 import { PaymentTestEnvironment } from '../setup/payment-test-environment';
 import { MockRazorpayWebhook } from '../mocks/razorpay-webhook.mock';
