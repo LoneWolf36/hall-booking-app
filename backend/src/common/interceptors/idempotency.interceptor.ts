@@ -51,18 +51,27 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
     const cacheKey = `${CACHE_PREFIXES.IDEMPOTENCY}:${idempotencyKey}`;
 
+    // ✅ FIXED: Handle cache.get failures gracefully
+    let cachedResponse = null;
     try {
-      const cachedResponse = await this.cacheService.get(cacheKey);
-      if (cachedResponse) {
-        this.logger.log(
-          `Returning cached response for idempotency key: ${idempotencyKey}`,
-        );
-        return from([cachedResponse]);
-      }
+      cachedResponse = await this.cacheService.get(cacheKey);
+    } catch (error) {
+      this.logger.error('Idempotency interceptor error', error);
+      // Continue without cache
+    }
 
-      return next.handle().pipe(
-        tap(async (response) => {
-          if (response && !this.isErrorResponse(response)) {
+    if (cachedResponse) {
+      this.logger.log(
+        `Returning cached response for idempotency key: ${idempotencyKey}`,
+      );
+      return from([cachedResponse]);
+    }
+
+    return next.handle().pipe(
+      tap(async (response) => {
+        if (response && !this.isErrorResponse(response)) {
+          // ✅ FIXED: Handle cache.set failures gracefully
+          try {
             await this.cacheService.set(
               cacheKey,
               response,
@@ -71,13 +80,13 @@ export class IdempotencyInterceptor implements NestInterceptor {
             this.logger.log(
               `Cached response for idempotency key: ${idempotencyKey}`,
             );
+          } catch (error) {
+            this.logger.error('Idempotency interceptor error', error);
+            // Don't throw - continue with successful response
           }
-        }),
-      );
-    } catch (error) {
-      this.logger.error('Idempotency interceptor error', error);
-      return next.handle();
-    }
+        }
+      }),
+    );
   }
 
   private extractAndValidateKey(request: any): string | null {
