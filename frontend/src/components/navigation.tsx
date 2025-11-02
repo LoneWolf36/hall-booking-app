@@ -3,13 +3,31 @@
 import Link from "next/link"
 import { useTheme } from "next-themes"
 import { Button } from "@/components/ui/button"
-import { MoonIcon, SunIcon, CalendarIcon, PhoneIcon } from "lucide-react"
+import { useAuthStore } from "@/stores"
+import { MoonIcon, SunIcon, CalendarIcon, PhoneIcon, LayoutDashboardIcon, LogOutIcon } from "lucide-react"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 export function Navigation() {
   const { setTheme, theme } = useTheme()
+  const { isAuthenticated, user, logout } = useAuthStore()
 
   // Venue info (would come from configuration)
   const venueName = "Faisal Function Hall";
+
+  const handleLogout = () => {
+    logout();
+    window.location.href = '/'; // Redirect to home after logout
+  };
+
+  const getUserInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map(part => part.charAt(0).toUpperCase())
+      .slice(0, 2)
+      .join('');
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/90 backdrop-blur-xl supports-[backdrop-filter]:bg-background/75 shadow-sm overflow-hidden">
@@ -34,14 +52,78 @@ export function Navigation() {
             </Button>
           </Link>
 
-          {/* Book Now Button */}
-          <Link href="/booking" className="flex-shrink-0">
-            <Button size="sm" className="gap-1.5 sm:gap-2 shadow-md hover:shadow-lg transition-all duration-300 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 font-medium px-3 sm:px-5 rounded-lg text-xs sm:text-sm h-8 sm:h-9">
-              <CalendarIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-              <span className="hidden sm:inline">Book Now</span>
-              <span className="sm:hidden">Book</span>
-            </Button>
-          </Link>
+          {/* Authentication-dependent buttons */}
+          {isAuthenticated ? (
+            <>
+              {/* Dashboard Button */}
+              <Link href="/dashboard" className="hidden sm:inline-flex">
+                <Button variant="ghost" size="sm" className="gap-2 hover:bg-primary/10 transition-all duration-300 font-medium rounded-lg">
+                  <LayoutDashboardIcon className="h-4 w-4" />
+                  Dashboard
+                </Button>
+              </Link>
+              
+              {/* User Menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full">
+                    <Avatar className="h-8 w-8 sm:h-10 sm:w-10">
+                      <AvatarFallback className="bg-primary text-primary-foreground text-xs sm:text-sm font-semibold">
+                        {getUserInitials(user?.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <div className="flex flex-col space-y-1 p-2">
+                    <p className="text-sm font-medium leading-none">{user?.name || 'User'}</p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user?.phone || 'No phone'}
+                    </p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link href="/dashboard" className="flex items-center">
+                      <LayoutDashboardIcon className="mr-2 h-4 w-4" />
+                      <span>Dashboard</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild className="cursor-pointer">
+                    <Link href="/booking" className="flex items-center">
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      <span>New Booking</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={handleLogout}
+                    className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20"
+                  >
+                    <LogOutIcon className="mr-2 h-4 w-4" />
+                    <span>Logout</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
+          ) : (
+            <>
+              {/* Book Now Button for non-authenticated users */}
+              <Link href="/booking" className="flex-shrink-0">
+                <Button size="sm" className="gap-1.5 sm:gap-2 shadow-md hover:shadow-lg transition-all duration-300 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 font-medium px-3 sm:px-5 rounded-lg text-xs sm:text-sm h-8 sm:h-9">
+                  <CalendarIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <span className="hidden sm:inline">Book Now</span>
+                  <span className="sm:hidden">Book</span>
+                </Button>
+              </Link>
+              
+              {/* Login Button */}
+              <Link href="/auth">
+                <Button variant="outline" size="sm" className="gap-2 hover:bg-primary/10 transition-all duration-300 font-medium rounded-lg">
+                  Login
+                </Button>
+              </Link>
+            </>
+          )}
 
           {/* Theme Toggle */}
           <Button
