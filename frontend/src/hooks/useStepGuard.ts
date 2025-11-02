@@ -1,7 +1,10 @@
 /**
- * Step Guard Hook (loop-safe)
+ * Step Guard Hook - Enhanced Navigation with State Preservation
  * 
- * Prevents infinite updates by only calling setCurrentStep when it changes.
+ * Fixes:
+ * - Prevents infinite loops with conditional setCurrentStep
+ * - Preserves state during navigation
+ * - Smart back navigation that doesn't reset data
  */
 
 'use client';
@@ -32,12 +35,12 @@ const STEP_REQUIREMENTS: StepRequirements = {
   },
   payment_method: {
     requires: (s) => s.selectedVenue && s.selectedDates.length > 0 && s.eventType,
-    redirectTo: '/event-details',
+    redirectTo: '/addons',
     message: 'Please complete event details first',
   },
   auth: {
     requires: (s) => s.selectedVenue && s.selectedDates.length > 0 && s.paymentMethod,
-    redirectTo: '/payment-method',
+    redirectTo: '/payment',
     message: 'Please select a payment method first',
   },
   confirmation: {
@@ -60,63 +63,120 @@ const STEP_REQUIREMENTS: StepRequirements = {
   },
 };
 
+/**
+ * Enhanced step guard with state preservation
+ */
 export function useStepGuard(currentStep: BookingStep) {
   const router = useRouter();
   const bookingState = useBookingStore();
-  const { setCurrentStep, currentStep: storeStep } = useBookingStore();
+  const { setCurrentStep, currentStep: storeStep, lockNavigation } = useBookingStore();
 
-  // Run at most once per mount for a given step
-  const didSetRef = useRef<string | null>(null);
+  // Prevent multiple executions for the same step
+  const didProcessRef = useRef<string | null>(null);
+  const hasRedirectedRef = useRef(false);
 
   useEffect(() => {
-    const requirement = STEP_REQUIREMENTS[currentStep];
-
-    // 1) Update current step in store only if changed and not already set for this mount
-    if (storeStep !== currentStep && didSetRef.current !== currentStep) {
+    const stepKey = `${currentStep}-${Date.now()}`;
+    
+    // Avoid processing the same step repeatedly
+    if (didProcessRef.current === currentStep && hasRedirectedRef.current) {
+      return;
+    }
+    
+    didProcessRef.current = currentStep;
+    
+    // Update store step only if different (prevents loops)
+    if (storeStep !== currentStep) {
       setCurrentStep(currentStep);
-      didSetRef.current = currentStep;
     }
-
-    // 2) If requirement fails, redirect (only once)
+    
+    // Check requirements
+    const requirement = STEP_REQUIREMENTS[currentStep];
     if (requirement && !requirement.requires(bookingState)) {
-      // avoid repeated toasts and pushes
-      if (didSetRef.current !== `${currentStep}:redirected`) {
+      if (!hasRedirectedRef.current) {
+        hasRedirectedRef.current = true;
         toast.error(requirement.message);
-        didSetRef.current = `${currentStep}:redirected`;
-        router.push(requirement.redirectTo);
+        
+        // Lock navigation briefly to preserve state
+        lockNavigation();
+        
+        setTimeout(() => {
+          router.push(requirement.redirectTo);
+          // Unlock after navigation
+          setTimeout(() => {
+            useBookingStore.getState().unlockNavigation();
+            hasRedirectedRef.current = false;
+          }, 100);
+        }, 50);
       }
+    } else {
+      hasRedirectedRef.current = false;
     }
-  }, [currentStep, storeStep, bookingState, setCurrentStep, router]);
+  }, [currentStep, storeStep, bookingState, setCurrentStep, router, lockNavigation]);
 
   const isValid = !STEP_REQUIREMENTS[currentStep] || STEP_REQUIREMENTS[currentStep].requires(bookingState);
 
   return { isValid, bookingState };
 }
 
+/**
+ * Enhanced booking navigation with state preservation
+ */
 export function useBookingNavigation() {
   const router = useRouter();
-  const { getPreviousStep, currentStep } = useBookingStore();
+  const { getPreviousStep, currentStep, lockNavigation, unlockNavigation } = useBookingStore();
 
   const goBack = () => {
-    if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back();
-      return;
+    try {
+      // Lock navigation to preserve state
+      lockNavigation();
+      
+      // Try browser back first (preserves form state better)
+      if (typeof window !== 'undefined' && window.history.length > 1) {
+        // Brief delay to ensure state is locked before navigation
+        setTimeout(() => {
+          router.back();
+          // Unlock after navigation
+          setTimeout(() => unlockNavigation(), 100);
+        }, 50);
+      } else {
+        // Fallback to step navigation
+        const previousStep = getPreviousStep();
+        const route = stepToRoute(previousStep || 'venue_selection');
+        setTimeout(() => {
+          router.push(route);
+          // Unlock after navigation
+          setTimeout(() => unlockNavigation(), 100);
+        }, 50);
+      }
+    } catch (error) {
+      console.error('Navigation error:', error);
+      unlockNavigation(); // Ensure we don't stay locked
+      router.push('/booking'); // Safety fallback
     }
-    const previousStep = getPreviousStep();
-    router.push(stepToRoute(previousStep || 'venue_selection'));
   };
 
-  const goToStep = (step: BookingStep) => router.push(stepToRoute(step));
+  const goToStep = (step: BookingStep) => {
+    lockNavigation();
+    const route = stepToRoute(step);
+    setTimeout(() => {
+      router.push(route);
+      setTimeout(() => unlockNavigation(), 100);
+    }, 50);
+  };
 
   return { goBack, goToStep, currentStep };
 }
 
+/**
+ * Convert booking step to route path
+ */
 function stepToRoute(step: BookingStep): string {
   const routes: Record<BookingStep, string> = {
     venue_selection: '/booking',
     event_details: '/event-details',
     addons: '/addons',
-    payment_method: '/payment-method',
+    payment_method: '/payment',
     auth: '/auth',
     confirmation: '/confirmation',
     processing: '/processing',
@@ -125,12 +185,15 @@ function stepToRoute(step: BookingStep): string {
   return routes[step] || '/booking';
 }
 
+/**
+ * Convert route path to booking step
+ */
 export function routeToStep(route: string): BookingStep {
   const steps: Record<string, BookingStep> = {
     '/booking': 'venue_selection',
     '/event-details': 'event_details',
     '/addons': 'addons',
-    '/payment-method': 'payment_method',
+    '/payment': 'payment_method',
     '/auth': 'auth',
     '/confirmation': 'confirmation',
     '/processing': 'processing',
