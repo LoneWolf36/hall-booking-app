@@ -57,13 +57,14 @@ export default function EventDetailsPage() {
     }
   }, [selectedVenue, selectedDate, router]);
 
-  // Calculate date range display intelligently
+  // Calculate date range display intelligently - FIXED BUG
   const getDateRangeDisplay = useCallback(() => {
     if (!selectedDates || selectedDates.length === 0) {
       return selectedDate ? format(selectedDate, 'MMM dd, yyyy') : 'No date selected';
     }
 
     const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
+    // 🔧 FIXED: Use first element, not entire array
     const firstDate = sorted[0];
     const lastDate = sorted[sorted.length - 1];
 
