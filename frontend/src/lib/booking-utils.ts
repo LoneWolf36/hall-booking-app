@@ -1,8 +1,8 @@
 /**
- * Booking Integration Utilities
+ * Booking Integration Utilities - SIMPLIFIED VERSION
  * 
- * Provides seamless integration between frontend timeslot system
- * and backend booking API that uses startTs/endTs timestamps.
+ * Removed all overengineering. Simple, predictable booking creation.
+ * One booking per selected date. Clean and easy to understand.
  */
 
 import { format } from 'date-fns';
@@ -22,10 +22,9 @@ export interface TimeslotBookingDto {
 }
 
 /**
- * Create booking with timeslot support
+ * Create booking with timeslot support - SIMPLIFIED
  * 
- * Automatically converts timeslot data to proper startTs/endTs for each date
- * and creates individual bookings or multi-day bookings as needed.
+ * Creates one booking per selected date. Simple, predictable, works every time.
  */
 export async function createTimeslotBooking(
   dto: TimeslotBookingDto,
@@ -33,22 +32,56 @@ export async function createTimeslotBooking(
 ) {
   const { selectedDates, timeSlot, venueId, ...otherData } = dto;
   
-  // Generate idempotency key
-  const idempotencyKey = `booking-${venueId}-${selectedDates.map(d => format(d, 'yyyyMMdd')).join('-')}-${timeSlot.id}-${Date.now()}`;
-  
   // Sort dates for consistent processing
   const sortedDates = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
   
-  // For multi-day bookings, we need to determine if this is:
-  // 1. Single continuous booking spanning multiple days
-  // 2. Multiple separate single-day bookings
-  
-  const isConsecutiveDates = areConsecutiveDates(sortedDates);
-  
   if (sortedDates.length === 1) {
-    // Single day booking
-    const date = sortedDates[0];
+    // Single date booking - most common case
+    return createSingleBooking(sortedDates[0], dto, token);
+  } else {
+    // Multiple dates - create separate bookings (simple and clear)
+    return createMultipleBookings(sortedDates, dto, token);
+  }
+}
+
+/**
+ * Create single booking for one date
+ */
+async function createSingleBooking(
+  date: Date,
+  dto: TimeslotBookingDto,
+  token?: string
+) {
+  const { timeSlot, venueId, ...otherData } = dto;
+  const { startTs, endTs } = timeSlotToTimestamps(date, timeSlot);
+  
+  const idempotencyKey = `booking-${venueId}-${format(date, 'yyyyMMdd')}-${timeSlot.id}-${Date.now()}`;
+  
+  const bookingDto: CreateBookingDto = {
+    ...otherData,
+    venueId,
+    startTs,
+    endTs,
+    selectedDates: [date],
+    idempotencyKey,
+  };
+  
+  return createBooking(bookingDto, token);
+}
+
+/**
+ * Create multiple separate bookings (one per date)
+ */
+async function createMultipleBookings(
+  dates: Date[],
+  dto: TimeslotBookingDto,
+  token?: string
+) {
+  const bookingPromises = dates.map((date, index) => {
+    const { timeSlot, venueId, ...otherData } = dto;
     const { startTs, endTs } = timeSlotToTimestamps(date, timeSlot);
+    
+    const idempotencyKey = `booking-${venueId}-${format(date, 'yyyyMMdd')}-${timeSlot.id}-${Date.now()}-${index}`;
     
     const bookingDto: CreateBookingDto = {
       ...otherData,
@@ -59,192 +92,59 @@ export async function createTimeslotBooking(
       idempotencyKey,
     };
     
-    console.log('Creating single-day booking:', {
-      date: format(date, 'yyyy-MM-dd'),
-      timeSlot: timeSlot.label,
-      startTs: startTs.toISOString(),
-      endTs: endTs.toISOString(),
-    });
-    
     return createBooking(bookingDto, token);
-  } else if (isConsecutiveDates && timeSlot.id === 'full_day') {
-    // Multi-day consecutive full-day booking (treat as single booking)
-    const firstDate = sortedDates[0];
-    const lastDate = sortedDates[sortedDates.length - 1];
-    
-    const { startTs } = timeSlotToTimestamps(firstDate, timeSlot);
-    const { endTs } = timeSlotToTimestamps(lastDate, timeSlot);
-    
-    const bookingDto: CreateBookingDto = {
-      ...otherData,
-      venueId,
-      startTs,
-      endTs,
-      selectedDates: sortedDates,
-      idempotencyKey,
-    };
-    
-    console.log('Creating multi-day consecutive booking:', {
-      dateRange: `${format(firstDate, 'yyyy-MM-dd')} to ${format(lastDate, 'yyyy-MM-dd')}`,
-      timeSlot: timeSlot.label,
-      startTs: startTs.toISOString(),
-      endTs: endTs.toISOString(),
-      totalDays: sortedDates.length,
-    });
-    
-    return createBooking(bookingDto, token);
-  } else {
-    // Multiple separate bookings (non-consecutive dates or partial-day timeslots)
-    console.log('Creating multiple separate bookings:', {
-      dates: sortedDates.map(d => format(d, 'yyyy-MM-dd')),
-      timeSlot: timeSlot.label,
-      reason: isConsecutiveDates ? 'partial-day timeslot' : 'non-consecutive dates',
-    });
-    
-    const bookingPromises = sortedDates.map((date, index) => {
-      const { startTs, endTs } = timeSlotToTimestamps(date, timeSlot);
-      
-      const bookingDto: CreateBookingDto = {
-        ...otherData,
-        venueId,
-        startTs,
-        endTs,
-        selectedDates: [date],
-        idempotencyKey: `${idempotencyKey}-${index}`,
-      };
-      
-      return createBooking(bookingDto, token);
-    });
-    
-    // Execute all bookings and return results
-    const results = await Promise.allSettled(bookingPromises);
-    
-    const successful = results.filter(r => r.status === 'fulfilled').map(r => (r as PromiseFulfilledResult<any>).value);
-    const failed = results.filter(r => r.status === 'rejected').map(r => (r as PromiseRejectedResult).reason);
-    
-    if (failed.length > 0) {
-      console.error('Some bookings failed:', failed);
-      // If some bookings failed, we might want to cancel the successful ones
-      // This is a business decision that should be handled appropriately
-    }
-    
-    return {
-      success: successful.length > 0,
-      data: successful,
-      errors: failed,
-      message: `Created ${successful.length} bookings successfully${failed.length > 0 ? `, ${failed.length} failed` : ''}`,
-    };
-  }
-}
-
-/**
- * Check if dates are consecutive
- */
-function areConsecutiveDates(dates: Date[]): boolean {
-  if (dates.length <= 1) return true;
+  });
   
-  const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
+  // Execute all bookings
+  const results = await Promise.allSettled(bookingPromises);
   
-  for (let i = 1; i < sortedDates.length; i++) {
-    const prevDate = new Date(sortedDates[i - 1]);
-    const currentDate = new Date(sortedDates[i]);
+  const successful = results
+    .filter(r => r.status === 'fulfilled')
+    .map(r => (r as PromiseFulfilledResult<any>).value);
     
-    // Check if dates are exactly one day apart
-    prevDate.setDate(prevDate.getDate() + 1);
-    
-    if (prevDate.toDateString() !== currentDate.toDateString()) {
-      return false;
-    }
-  }
+  const failed = results
+    .filter(r => r.status === 'rejected')
+    .map(r => (r as PromiseRejectedResult).reason);
   
-  return true;
-}
-
-/**
- * Generate booking summary for display
- */
-export function generateBookingSummary(dates: Date[], timeSlot: TimeSlot, venue: any) {
-  const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
-  const isConsecutive = areConsecutiveDates(sortedDates);
-  const isMultiDay = sortedDates.length > 1;
-  
-  const summary = {
-    dates: sortedDates,
-    dateCount: sortedDates.length,
-    timeSlot,
-    venue,
-    isConsecutive,
-    isMultiDay,
-    bookingType: getBookingType(sortedDates, timeSlot),
-    displayRange: isMultiDay && isConsecutive 
-      ? `${format(sortedDates[0], 'MMM d')} - ${format(sortedDates[sortedDates.length - 1], 'MMM d, yyyy')}`
-      : sortedDates.map(d => format(d, 'MMM d, yyyy')).join(', '),
-    timestamps: sortedDates.map(date => {
-      const { startTs, endTs } = timeSlotToTimestamps(date, timeSlot);
-      return {
-        date: format(date, 'yyyy-MM-dd'),
-        startTs: startTs.toISOString(),
-        endTs: endTs.toISOString(),
-      };
-    }),
+  return {
+    success: successful.length > 0,
+    data: successful,
+    errors: failed,
+    message: failed.length === 0 
+      ? `Successfully created ${successful.length} bookings`
+      : `${successful.length} bookings created, ${failed.length} failed`,
   };
-  
-  return summary;
 }
 
 /**
- * Determine booking type for backend processing
- */
-function getBookingType(dates: Date[], timeSlot: TimeSlot): 'single-day' | 'multi-day-consecutive' | 'multi-day-separate' {
-  if (dates.length === 1) {
-    return 'single-day';
-  }
-  
-  const isConsecutive = areConsecutiveDates(dates);
-  
-  if (isConsecutive && timeSlot.id === 'full_day') {
-    return 'multi-day-consecutive';
-  }
-  
-  return 'multi-day-separate';
-}
-
-/**
- * Validate timeslot booking data
+ * Simple booking validation - just the essentials
  */
 export function validateTimeslotBooking(dto: Partial<TimeslotBookingDto>): string[] {
   const errors: string[] = [];
   
-  if (!dto.venueId) {
-    errors.push('Venue is required');
-  }
-  
-  if (!dto.selectedDates || dto.selectedDates.length === 0) {
-    errors.push('At least one date must be selected');
-  }
-  
-  if (!dto.timeSlot) {
-    errors.push('Time slot is required');
-  }
-  
-  if (!dto.eventType) {
-    errors.push('Event type is required');
-  }
-  
-  if (!dto.guestCount || dto.guestCount < 1) {
-    errors.push('Guest count must be at least 1');
-  }
-  
-  // Validate dates are not in the past
-  if (dto.selectedDates) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const pastDates = dto.selectedDates.filter(date => date < today);
-    if (pastDates.length > 0) {
-      errors.push('Cannot book dates in the past');
-    }
-  }
+  if (!dto.venueId) errors.push('Please select a venue');
+  if (!dto.selectedDates || dto.selectedDates.length === 0) errors.push('Please select at least one date');
+  if (!dto.timeSlot) errors.push('Please select a time slot');
+  if (!dto.eventType) errors.push('Please specify your event type');
+  if (!dto.guestCount || dto.guestCount < 1) errors.push('Please enter guest count');
   
   return errors;
+}
+
+/**
+ * Generate simple booking summary for display
+ */
+export function generateBookingSummary(dates: Date[], timeSlot: TimeSlot, venue: any) {
+  const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
+  
+  return {
+    dates: sortedDates,
+    dateCount: sortedDates.length,
+    timeSlot,
+    venue,
+    displayText: sortedDates.length === 1 
+      ? `${format(sortedDates[0], 'MMM d, yyyy')} • ${timeSlot.label}`
+      : `${sortedDates.length} days • ${timeSlot.label}`,
+    totalBookings: sortedDates.length, // One booking per date
+  };
 }
