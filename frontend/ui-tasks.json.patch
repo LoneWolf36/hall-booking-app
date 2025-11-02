@@ -1,0 +1,32 @@
+{
+  "op": "update",
+  "meta": {
+    "lastUpdate": "2025-11-02T16:02:00Z"
+  },
+  "tasksPatch": [
+    {
+      "id": "UI-004",
+      "appendNotes": [
+        "🎯 Style follow-up: Align prev/next arrow buttons within calendar header; unified h-8 w-8 size, rounded-lg, 150ms transition.",
+        "🎯 Visual: Rounded pill selection across start/middle/end states using ring-primary for edges and bg-primary/15 for middle",
+        "🔧 Implemented BookingCalendar visual polish with cohesive range styling"
+      ]
+    },
+    {
+      "id": "UI-011",
+      "appendNotes": [
+        "🧭 Added BookingProgress component for consistent step indication",
+        "🧱 Added useStepGuard and useBookingNavigation hooks for safe navigation and guardrails"
+      ]
+    },
+    {
+      "id": "UI-018",
+      "status": "in_progress",
+      "appendNotes": [
+        "Integrated Event Details with store-driven date state; removed direct fetch remnants",
+        "Added guard redirects for missing prerequisites",
+        "Remaining: connect price recomputation to backend endpoint as per pricing service contract"
+      ]
+    }
+  ]
+}
