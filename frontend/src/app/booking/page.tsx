@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookingCalendar } from "@/components/booking/BookingCalendar";
 import { QuickDateShortcuts } from "@/components/booking/QuickDateShortcuts";
-import { TimeSlotSelector, getDefaultTimeSlot, type TimeSlot } from "@/components/booking/TimeSlotSelector";
+import { TimeSlotSelector, getDefaultTimeSlot, getTimeSlotById, type TimeSlot } from "@/components/booking/TimeSlotSelector";
 import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/stores";
@@ -64,10 +64,23 @@ export default function BookingPage() {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot>(() => {
     // Try to restore from stored start/end time
     if (storedStartTime && storedEndTime) {
-      const stored = TIME_SLOTS.find(slot => 
-        slot.startTime === storedStartTime && slot.endTime === storedEndTime
-      );
-      if (stored) return stored;
+      // Since TIME_SLOTS is not accessible, we need to check against known slots
+      // using the getTimeSlotById function or find matching times
+      const defaultSlot = getDefaultTimeSlot();
+      
+      // Check if stored times match any of the known slot patterns
+      if (storedStartTime === '06:00' && storedEndTime === '12:00') {
+        return getTimeSlotById('morning') || defaultSlot;
+      }
+      if (storedStartTime === '12:00' && storedEndTime === '18:00') {
+        return getTimeSlotById('afternoon') || defaultSlot;
+      }
+      if (storedStartTime === '18:00' && storedEndTime === '00:00') {
+        return getTimeSlotById('evening') || defaultSlot;
+      }
+      if (storedStartTime === '00:00' && storedEndTime === '23:59') {
+        return getTimeSlotById('full_day') || defaultSlot;
+      }
     }
     return getDefaultTimeSlot();
   });
