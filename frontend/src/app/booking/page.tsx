@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -22,6 +22,9 @@ const normalizeDates = (arr?: any[]) =>
 export default function BookingPage() {
   const router = useRouter();
   const { setVenueDetails, setSelectedDates, selectedDates: storedDates } = useBookingStore();
+  
+  // Ref guard to prevent duplicate API calls in React Strict Mode
+  const hasFetchedVenues = useRef(false);
 
   // Normalize any persisted strings into Date objects to avoid getTime errors
   const [selectedDates, setSelectedDates_Local] = useState<Date[]>(normalizeDates(storedDates));
@@ -38,8 +41,19 @@ export default function BookingPage() {
   const isVenueLoaded = !!currentVenue;
   const venueInfo = currentVenue;
 
-  // On mount, fetch venues and load persisted dates
+  // Date helpers for calendar
+  const today = new Date(new Date().setHours(0, 0, 0, 0));
+  const isUnavailable = (date: Date) => 
+    unavailableDates.some(unavailable => 
+      format(unavailable, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
+    );
+
+  // On mount, fetch venues once and load persisted dates
   useEffect(() => {
+    // Prevent duplicate fetches in React Strict Mode
+    if (hasFetchedVenues.current) return;
+    hasFetchedVenues.current = true;
+
     const fetchVenues = async () => {
       try {
         setIsLoadingVenues(true);
@@ -72,7 +86,7 @@ export default function BookingPage() {
     if (normalized.length > 0) {
       setSelectedDates_Local(normalized);
     }
-  }, [storedDates]);
+  }, []); // Empty dependency array with ref guard
 
   // Trigger availability/pricing fetch when venue loads
   useEffect(() => {
@@ -273,12 +287,12 @@ export default function BookingPage() {
             )}
           </div>
 
-          {/* Mobile: Single column, Desktop: 3 column grid */}
+          {/* Mobile: Single column, Desktop: 2 column grid */}
           <div className="grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 w-full max-w-full">
             {/* Left: Calendar */}
             <div className="lg:col-span-2 space-y-3 sm:space-y-6">
-              <Card className="calendar-lg border-2 bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-2xl shadow-2xl overflow-hidden">
-                <CardHeader className="px-3 sm:px-6">
+              <Card className="border-2 bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-2xl shadow-2xl overflow-hidden min-h-[520px] sm:min-h-[580px]">
+                <CardHeader className="px-3 sm:px-6 pb-3">
                   <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                     <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                     Event Calendar
@@ -290,43 +304,47 @@ export default function BookingPage() {
                     {isLoadingAvailability ? 'Loading availability...' : 'Tap dates to select'}
                   </CardDescription>
                 </CardHeader>
-                {/* Responsive calendar container */}
-                <CardContent className="flex justify-center p-2 sm:p-4 overflow-hidden">
-                  <div className="w-full max-w-full">
+                {/* Responsive calendar container with proper sizing */}
+                <CardContent className="flex justify-center p-3 sm:p-6">
+                  <div className="w-full max-w-[400px] sm:max-w-[450px]">
                     <Calendar
                       mode="multiple"
                       locale={enGB}
                       selected={selectedDates}
                       onSelect={handleDateSelect}
                       disabled={(date) => {
+                        // Show loading state while availability loads
+                        if (isLoadingAvailability) {
+                          return date < today;
+                        }
+                        
                         // Disable past dates
-                        if (date < new Date(new Date().setHours(0, 0, 0, 0))) return true;
+                        if (date < today) return true;
                         
                         // Disable already booked dates
-                        return unavailableDates.some(
-                          unavailable => format(unavailable, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
-                        );
+                        return isUnavailable(date);
                       }}
                       numberOfMonths={1}
                       className="w-full mx-auto"
                       classNames={{
-                        months: "w-full",
-                        month: "w-full space-y-2 sm:space-y-4",
-                        caption: "flex justify-center pt-1 relative items-center px-1 sm:px-2",
-                        caption_label: "text-sm sm:text-base font-semibold",
+                        months: "w-full flex flex-col",
+                        month: "w-full space-y-4",
+                        caption: "flex justify-center pt-2 pb-2 relative items-center",
+                        caption_label: "text-base font-semibold",
                         nav: "space-x-1 flex items-center",
-                        nav_button: "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100",
-                        table: "w-full border-collapse space-y-1",
-                        head_row: "flex w-full",
-                        head_cell: "text-muted-foreground rounded-md w-full font-normal text-[0.65rem] sm:text-xs flex-1 min-h-[28px] sm:min-h-[32px] flex items-center justify-center",
-                        row: "flex w-full mt-1 sm:mt-2",
-                        cell: "relative p-0 text-center text-xs sm:text-sm focus-within:relative focus-within:z-20 flex-1 min-h-[32px] sm:min-h-[36px]",
-                        day: "h-8 w-full sm:h-10 text-xs sm:text-sm p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground rounded-md transition-colors min-h-[32px] sm:min-h-[40px] flex items-center justify-center",
-                        day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-                        day_today: "bg-accent text-accent-foreground font-semibold",
-                        day_outside: "text-muted-foreground opacity-50",
-                        day_disabled: "text-muted-foreground opacity-30 line-through",
-                        day_range_middle: "aria-selected:bg-accent aria-selected:text-accent-foreground",
+                        nav_button: "h-8 w-8 bg-transparent p-0 opacity-70 hover:opacity-100 rounded-md hover:bg-accent",
+                        nav_button_previous: "absolute left-2",
+                        nav_button_next: "absolute right-2",
+                        table: "w-full border-collapse",
+                        head_row: "flex w-full mb-2",
+                        head_cell: "text-muted-foreground rounded-md w-full font-medium text-sm flex-1 h-10 flex items-center justify-center",
+                        row: "flex w-full mb-1",
+                        cell: "relative p-0 text-center focus-within:relative focus-within:z-20 flex-1",
+                        day: "h-10 w-full text-sm p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground rounded-md transition-all duration-200 flex items-center justify-center border border-transparent hover:border-accent",
+                        day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground border-primary",
+                        day_today: "bg-accent text-accent-foreground font-semibold border-accent",
+                        day_outside: "text-muted-foreground/50 opacity-50",
+                        day_disabled: "text-muted-foreground/30 opacity-30 line-through cursor-not-allowed",
                         day_hidden: "invisible",
                       }}
                     />
@@ -345,7 +363,7 @@ export default function BookingPage() {
                   <p>• Select consecutive dates for multi-day events</p>
                   <p>• Each day is a full 24-hour booking</p>
                   <p>• You can select non-consecutive dates for flexibility</p>
-                  <p>• Pricing is per day selected</p>
+                  <p>• Pricing may vary by day (weekends, seasons)</p>
                 </CardContent>
               </Card>
             </div>
