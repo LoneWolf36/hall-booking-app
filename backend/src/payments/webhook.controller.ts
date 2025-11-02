@@ -25,60 +25,13 @@ interface RazorpayWebhookEvent {
   event: string;
   payload: {
     payment?: {
-      entity: {
-        id: string;
-        amount: number;
-        currency: string;
-        status: string;
-        order_id: string;
-        invoice_id?: string;
-        international: boolean;
-        method: string;
-        amount_refunded: number;
-        refund_status?: string;
-        captured: boolean;
-        description?: string;
-        card_id?: string;
-        bank?: string;
-        wallet?: string;
-        vpa?: string;
-        email: string;
-        contact: string;
-        notes: Record<string, any>;
-        fee?: number;
-        tax?: number;
-        error_code?: string;
-        error_description?: string;
-        error_source?: string;
-        error_step?: string;
-        error_reason?: string;
-        acquirer_data?: Record<string, any>;
-        created_at: number;
-      };
+      entity: any;
     };
     order?: {
-      entity: {
-        id: string;
-        amount: number;
-        amount_paid: number;
-        amount_due: number;
-        currency: string;
-        receipt?: string;
-        offer_id?: string;
-        status: string;
-        attempts: number;
-        notes: Record<string, any>;
-        created_at: number;
-      };
+      entity: any;
     };
     payment_link?: {
-      entity: {
-        id: string;
-        status: string;
-        amount: number;
-        currency: string;
-        description?: string;
-      };
+      entity: any;
     };
   };
 }
@@ -115,14 +68,22 @@ export class PaymentsWebhookController {
       this.logger.log('Webhook received', {
         event: body.event,
         account_id: body.account_id,
-        created_at: new Date(body.created_at * 1000).toISOString(),
+        created_at: new Date(body.created_at * 1000).toISOString?.() || new Date().toISOString(),
       });
 
-      // Step 3: Process event using existing PaymentsService webhook handler
+      // Step 3: Adapt payload to RazorpayWebhookDto shape expected by service
+      const adaptedPayload: { payment_link: { entity: any }; payment?: { entity: any } } = {
+        payment_link: {
+          entity: body.payload.payment_link?.entity ?? {},
+        },
+        ...(body.payload.payment ? { payment: { entity: body.payload.payment.entity } } : {}),
+      };
+
       const result = await this.paymentsService.handleWebhook({
         event: body.event,
-        payload: body.payload,
-      });
+        payload: adaptedPayload,
+        created_at: body.created_at ?? Math.floor(Date.now() / 1000),
+      } as any);
 
       // Step 4: Return success
       return res.status(HttpStatus.OK).json({ 
@@ -136,7 +97,7 @@ export class PaymentsWebhookController {
     } catch (error) {
       this.logger.error('Webhook processing failed', {
         error: error.message,
-        event: body.event,
+        event: (body as any)?.event,
         stack: error.stack,
       });
 
@@ -206,36 +167,3 @@ export class PaymentsWebhookController {
     }
   }
 }
-
-/**
- * ENVIRONMENT VARIABLES REQUIRED:
- * 
- * Backend (.env):
- * - RAZORPAY_KEY_ID=rzp_test_xxxxxxx (test mode)
- * - RAZORPAY_KEY_SECRET=your_secret_key
- * - RAZORPAY_WEBHOOK_SECRET=webhook_secret_from_dashboard
- * 
- * Frontend (.env.local):
- * - NEXT_PUBLIC_RAZORPAY_KEY_ID=rzp_test_xxxxxxx
- * - NEXT_PUBLIC_API_BASE_URL=http://localhost:3000 (or staging URL)
- * 
- * WEBHOOK SETUP IN RAZORPAY DASHBOARD:
- * 1. Go to Settings > Webhooks
- * 2. Add endpoint: https://yourdomain.com/api/v1/payments/webhook
- * 3. Select events: payment_link.paid, payment_link.expired, payment.captured, payment.failed
- * 4. Copy webhook secret to environment variables
- * 
- * TESTING COMMANDS:
- * 
- * # Test webhook locally (use ngrok or similar)
- * curl -X POST http://localhost:3000/api/v1/payments/webhook \
- *   -H "Content-Type: application/json" \
- *   -H "X-Razorpay-Signature: your_test_signature" \
- *   -d '{"event":"payment_link.paid","payload":{"payment_link":{"entity":{"id":"plink_test123"}}}}'
- * 
- * # Test payment link creation
- * curl -X POST http://localhost:3000/api/v1/payments/create-link \
- *   -H "Content-Type: application/json" \
- *   -H "Authorization: Bearer your_jwt_token" \
- *   -d '{"bookingId":"booking-123","tenantId":"tenant-123"}'
- */
