@@ -21,8 +21,8 @@ import {
   EditIcon,
   InfoIcon,
 } from 'lucide-react';
-import { format } from 'date-fns';
 import { createBooking } from '@/lib/api/bookings';
+import { formatDateRange, formatDateForAPI } from '@/lib/dates';
 
 export default function ConfirmationPage() {
   const router = useRouter();
@@ -83,7 +83,7 @@ export default function ConfirmationPage() {
           venueId: selectedVenue.id,
           eventType: eventType || 'other',
           guestCount: guestCount || 0,
-          selectedDates: selectedDates.map(d => format(d, 'yyyy-MM-dd')),
+          selectedDates: selectedDates.map(d => formatDateForAPI(d)),
           startTs: startDate.toISOString(),
           endTs: endDate.toISOString(),
           idempotencyKey,
@@ -94,7 +94,6 @@ export default function ConfirmationPage() {
       if (response.success && response.data) {
         setBookingIds(response.data.id, response.data.bookingNumber);
         toast.success(`Booking #${response.data.bookingNumber} created!`);
-        // Navigate to payment processing or success based on payment method
         router.push(paymentMethod === 'online' ? '/payment/processing' : '/success');
       } else {
         toast.error(response.message || 'Failed to create booking');
@@ -132,16 +131,13 @@ export default function ConfirmationPage() {
   return (
     <div className="min-h-screen py-6 sm:py-8 px-3 sm:px-4 pb-24 lg:pb-8 overflow-x-hidden">
       <div className="container max-w-4xl mx-auto space-y-6 sm:space-y-8 w-full">
-        {/* Progress Indicator */}
         <BookingProgress variant="horizontal" className="mb-8" />
 
-        {/* Header */}
         <div className="space-y-2">
           <h1 className="text-3xl md:text-4xl font-bold">Review Your Booking</h1>
           <p className="text-muted-foreground">Verify all details before confirming</p>
         </div>
 
-        {/* Booking Summary - Dates */}
         <Card className="bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-2xl border-border/40 shadow-xl hover:shadow-lg transition-all duration-300">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -149,12 +145,7 @@ export default function ConfirmationPage() {
                 <CalendarDaysIcon className="h-5 w-5 text-primary" />
                 <CardTitle>Event Date & Time</CardTitle>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleEdit('dates')}
-                className="gap-2 text-xs"
-              >
+              <Button variant="ghost" size="sm" onClick={() => handleEdit('dates')} className="gap-2 text-xs">
                 <EditIcon className="h-4 w-4" />
                 Edit
               </Button>
@@ -162,21 +153,10 @@ export default function ConfirmationPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {selectedDates && selectedDates.length > 0 && (
-              <>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Date Range</p>
-                  {selectedDates.length === 1 ? (
-                    <p className="font-semibold">{format(selectedDates[0], 'MMMM d, yyyy')}</p>
-                  ) : (
-                    <>
-                      <p className="font-semibold">
-                        {format([...selectedDates].sort((a, b) => a.getTime() - b.getTime())[0], 'MMMM d')} - {format([...selectedDates].sort((a, b) => a.getTime() - b.getTime())[selectedDates.length - 1], 'd, yyyy')}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">{selectedDates.length} days total</p>
-                    </>
-                  )}
-                </div>
-              </>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Date Range</p>
+                <p className="font-semibold">{formatDateRange([...selectedDates])}</p>
+              </div>
             )}
             <div>
               <p className="text-sm text-muted-foreground mb-1">Time</p>
@@ -185,7 +165,6 @@ export default function ConfirmationPage() {
           </CardContent>
         </Card>
 
-        {/* All Selected Dates */}
         {selectedDates && selectedDates.length > 1 && (
           <Card className="bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-2xl border-border/40 shadow-xl">
             <CardHeader>
@@ -195,8 +174,8 @@ export default function ConfirmationPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
                 {[...selectedDates].sort((a, b) => a.getTime() - b.getTime()).map((date, idx) => (
                   <div key={idx} className="p-3 rounded-lg bg-primary/10 border border-primary/20 text-center text-sm font-medium hover:bg-primary/20 transition-colors">
-                    {format(date, 'MMM d')}
-                    <div className="text-xs text-muted-foreground">{format(date, 'EEE')}</div>
+                    {date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}
+                    <div className="text-xs text-muted-foreground">{date.toLocaleDateString('en-IN', { weekday: 'short' })}</div>
                   </div>
                 ))}
               </div>
@@ -204,7 +183,6 @@ export default function ConfirmationPage() {
           </Card>
         )}
 
-        {/* Booking Summary - Venue & Details */}
         <Card className="bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-2xl border-border/40 shadow-xl hover:shadow-lg transition-all duration-300">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -212,12 +190,7 @@ export default function ConfirmationPage() {
                 <MapPinIcon className="h-5 w-5 text-primary" />
                 <CardTitle>Venue & Event Details</CardTitle>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleEdit('details')}
-                className="gap-2 text-xs"
-              >
+              <Button variant="ghost" size="sm" onClick={() => handleEdit('details')} className="gap-2 text-xs">
                 <EditIcon className="h-4 w-4" />
                 Edit
               </Button>
@@ -242,15 +215,12 @@ export default function ConfirmationPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Capacity</p>
-                <p className="font-semibold text-green-600 dark:text-green-400">
-                  ✓ Within capacity ({selectedVenue.capacity} max)
-                </p>
+                <p className="font-semibold text-green-600 dark:text-green-400">✓ Within capacity ({selectedVenue.capacity} max)</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Payment Details */}
         <Card className="bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-2xl border-border/40 shadow-xl hover:shadow-lg transition-all duration-300">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -258,12 +228,7 @@ export default function ConfirmationPage() {
                 <CreditCardIcon className="h-5 w-5 text-primary" />
                 <CardTitle>Payment Details</CardTitle>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleEdit('payment')}
-                className="gap-2 text-xs"
-              >
+              <Button variant="ghost" size="sm" onClick={() => handleEdit('payment')} className="gap-2 text-xs">
                 <EditIcon className="h-4 w-4" />
                 Edit
               </Button>
@@ -288,58 +253,36 @@ export default function ConfirmationPage() {
 
             <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 text-sm">
               <p className="font-semibold text-foreground">Payment Method</p>
-              <p className="text-muted-foreground mt-1">
-                {paymentMethod === 'online' ? '💳 Online Payment (Razorpay)' : '💵 Cash at Venue'}
-              </p>
+              <p className="text-muted-foreground mt-1">{paymentMethod === 'online' ? '💳 Online Payment (Razorpay)' : '💵 Cash at Venue'}</p>
             </div>
           </CardContent>
         </Card>
 
-        {/* Terms & Conditions */}
         <Card className="bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-2xl border-border/40 shadow-xl">
           <CardContent className="pt-6 space-y-4">
             <div className="flex items-start gap-3">
-              <Checkbox
-                id="terms"
-                checked={termsAccepted}
-                onCheckedChange={(checked) => setTermsAccepted(checked as boolean)}
-                className="mt-1"
-              />
+              <Checkbox id="terms" checked={termsAccepted} onCheckedChange={(checked) => setTermsAccepted(checked as boolean)} className="mt-1" />
               <Label htmlFor="terms" className="text-sm cursor-pointer leading-relaxed">
-                I agree to the booking terms and conditions. I understand that this booking is subject to availability
-                and venue policies. Cancellations must be made at least 30 days in advance for a full refund.
+                I agree to the booking terms and conditions. I understand that this booking is subject to availability and venue policies. Cancellations must be made at least 30 days in advance for a full refund.
               </Label>
             </div>
 
             <Alert className="border-yellow-200 dark:border-yellow-800/40 bg-yellow-50 dark:bg-yellow-900/20">
               <InfoIcon className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
               <AlertDescription className="text-sm text-yellow-800 dark:text-yellow-200">
-                Your booking will be confirmed once payment is completed. You will receive a confirmation email with
-                all booking details and event guidelines.
+                Your booking will be confirmed once payment is completed. You will receive a confirmation email with all booking details and event guidelines.
               </AlertDescription>
             </Alert>
           </CardContent>
         </Card>
 
-        {/* Desktop: Sticky Action Bar */}
         <div className="lg:block hidden sticky bottom-4 z-50">
           <div className="bg-card/95 backdrop-blur-xl border border-border/60 rounded-xl shadow-lg p-4">
             <div className="flex gap-3">
-              <Button
-                onClick={handleBack}
-                variant="outline"
-                size="lg"
-                className="flex-1 h-12 border-2 hover:border-primary/30 hover:bg-muted/60 transition-all duration-300 font-medium rounded-xl"
-              >
+              <Button onClick={handleBack} variant="outline" size="lg" className="flex-1 h-12 border-2 hover:border-primary/30 hover:bg-muted/60 transition-all duration-300 font-medium rounded-xl">
                 Back
               </Button>
-              <Button
-                onClick={handleConfirm}
-                disabled={!termsAccepted || isLoading}
-                isLoading={isLoading}
-                size="lg"
-                className="flex-1 h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 shadow-lg transition-all duration-300 font-medium rounded-xl"
-              >
+              <Button onClick={handleConfirm} disabled={!termsAccepted || isLoading} isLoading={isLoading} size="lg" className="flex-1 h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 shadow-lg transition-all duration-300 font-medium rounded-xl">
                 <CheckCircleIcon className="mr-2 h-5 w-5" />
                 Confirm & Pay
               </Button>
@@ -347,24 +290,12 @@ export default function ConfirmationPage() {
           </div>
         </div>
 
-        {/* Mobile: Sticky Floating Action Bar */}
         <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-card/95 backdrop-blur-xl border-t border-border/60 z-50 shadow-2xl">
           <div className="flex gap-3">
-            <Button
-              onClick={handleBack}
-              variant="outline"
-              size="lg"
-              className="flex-1 h-12 border-2 hover:border-primary/30 hover:bg-muted/60 transition-all duration-300 font-medium rounded-xl"
-            >
+            <Button onClick={handleBack} variant="outline" size="lg" className="flex-1 h-12 border-2 hover:border-primary/30 hover:bg-muted/60 transition-all duration-300 font-medium rounded-xl">
               Back
             </Button>
-            <Button
-              onClick={handleConfirm}
-              disabled={!termsAccepted || isLoading}
-              isLoading={isLoading}
-              size="lg"
-              className="flex-1 h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 shadow-lg transition-all duration-300 font-medium rounded-xl"
-            >
+            <Button onClick={handleConfirm} disabled={!termsAccepted || isLoading} isLoading={isLoading} size="lg" className="flex-1 h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 shadow-lg transition-all duration-300 font-medium rounded-xl">
               <CheckCircleIcon className="mr-2 h-4 w-4" />
               Confirm
             </Button>
