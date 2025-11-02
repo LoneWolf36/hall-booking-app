@@ -1,0 +1,45 @@
+{
+  "meta": {
+    "agent": "Code-Review-Agent",
+    "repo": "hall-booking-app/backend",
+    "runAt": "2025-11-02T16:12:00Z",
+    "version": "v1.0"
+  },
+  "review": [
+    {
+      "id": "BE-CR-001",
+      "title": "Ensure /auth/verify-otp expects 'code' and supports DEV_OTP",
+      "status": "open",
+      "severity": "medium",
+      "files": [
+        "apps/api/src/auth/auth.controller.ts",
+        "apps/api/src/auth/auth.service.ts"
+      ],
+      "problem": "Frontend uses { phone, code } and shows dev hint for 000000. Backend must accept 'code' and optionally allow a DEV_OTP when NODE_ENV=development to avoid friction during local testing.",
+      "resolution": {
+        "actions": [
+          "Controller: DTO should be { phone: string; code: string }",
+          "Service: if (process.env.DEV_OTP && code === process.env.DEV_OTP) -> short-circuit success",
+          "Return consistent shape for success/error so UI can display field-specific messages"
+        ]
+      }
+    },
+    {
+      "id": "BE-CR-002",
+      "title": "Booking temp_hold lifecycle: document cron/TTL and conflict response",
+      "status": "open",
+      "severity": "low",
+      "files": [
+        "apps/api/src/bookings/bookings.controller.ts",
+        "apps/api/src/bookings/bookings.service.ts"
+      ],
+      "problem": "Schema already has status 'temp_hold' and holdExpiresAt. Document and expose conflictDates in create/confirm responses so the UI can highlight conflicting selections gracefully.",
+      "resolution": {
+        "actions": [
+          "Service: on conflict, return { success:false, conflictDates:[YYYY-MM-DD] }",
+          "Controller: map service errors to HTTP 409 with above shape"
+        ]
+      }
+    }
+  ]
+}
