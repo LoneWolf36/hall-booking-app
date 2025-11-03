@@ -1,10 +1,11 @@
+-- Fix for PostgreSQL syntax compatibility with Supabase
 -- Drop any legacy triggers/functions that tried to set tsRange
 DROP TRIGGER IF EXISTS booking_ts_range_trigger ON "public"."bookings";
 DROP TRIGGER IF EXISTS blackout_ts_range_trigger ON "public"."availability_blackouts";
 DROP FUNCTION IF EXISTS public.update_booking_ts_range();
 DROP FUNCTION IF EXISTS public.set_blackout_tsrange();
 
--- Recreate tsRange as a stored generated column (no triggers required)
+-- Recreate tsRange as a stored generated column (compatible with Supabase PostgreSQL)
 -- Bookings
 DO $$
 BEGIN
@@ -21,8 +22,7 @@ BEGIN
 END$$;
 
 ALTER TABLE "public"."bookings"
-  ADD COLUMN IF NOT EXISTS "tsRange"
-  tstzrange
+  ADD COLUMN "tsRange" tstzrange
   GENERATED ALWAYS AS (tstzrange("startTs", "endTs", '[)')) STORED;
 
 -- Availability blackouts
@@ -41,15 +41,21 @@ BEGIN
 END$$;
 
 ALTER TABLE "public"."availability_blackouts"
-  ADD COLUMN IF NOT EXISTS "tsRange"
-  tstzrange
+  ADD COLUMN "tsRange" tstzrange
   GENERATED ALWAYS AS (tstzrange("startTs", "endTs", '[)')) STORED;
 
--- Optional integrity guard to prevent inverted ranges
+-- Add integrity constraints to prevent inverted ranges
 ALTER TABLE "public"."bookings"
-  ADD CONSTRAINT IF NOT EXISTS bookings_start_before_end
+  ADD CONSTRAINT bookings_start_before_end
   CHECK ("startTs" < "endTs");
 
 ALTER TABLE "public"."availability_blackouts"
-  ADD CONSTRAINT IF NOT EXISTS availability_blackouts_start_before_end
+  ADD CONSTRAINT availability_blackouts_start_before_end
   CHECK ("startTs" < "endTs");
+
+-- Create GiST indexes for efficient range queries
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_bookings_tsrange
+  ON "public"."bookings" USING GIST ("tsRange");
+
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_blackouts_tsrange
+  ON "public"."availability_blackouts" USING GIST ("tsRange");
