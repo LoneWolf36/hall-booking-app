@@ -62,6 +62,21 @@ export interface VenueContact {
   rating?: number;
 }
 
+// Timeslot DTOs to match controller types
+export type VenueTimeslotMode = 'full_day' | 'fixed_sessions' | 'custom';
+export interface VenueSessionDto {
+  id: string;
+  label: string;
+  start: string; // HH:mm
+  end: string;   // HH:mm
+  priceMultiplier?: number;
+  active?: boolean;
+}
+export interface VenueTimeslotsDto {
+  mode: VenueTimeslotMode;
+  sessions: VenueSessionDto[];
+}
+
 @Injectable()
 export class VenuesService {
   constructor(private prisma: PrismaService) {}
@@ -105,29 +120,66 @@ export class VenuesService {
   }
 
   /**
-   * FEATURE 1: Calculate pricing with variable rates
-   * Supports weekend multiplier, Sunday multiplier, seasonal rates, surge pricing
-   * Public endpoint - no tenantId required
+   * FEATURE: Venue timeslots configuration stored in venue.settings.timeslots
+   * Provides get and update helpers used by VenueTimeslotsController
    */
-  async calculatePricing(dto: CalculatePricingDto): Promise<PricingCalculationResult> {
-    // Validate venueId is a valid UUID format
+  async getVenueTimeslots(tenantId: string | undefined, venueId: string): Promise<VenueTimeslotsDto> {
+    // For public access (no tenant), fetch venue by id only
+    const venue = await this.prisma.venue.findUnique({ where: { id: venueId, ...(tenantId ? { tenantId } : {}) } as any });
+    if (!venue) throw new NotFoundException(`Venue ${venueId} not found`);
+
+    const defaults: VenueTimeslotsDto = {
+      mode: 'fixed_sessions',
+      sessions: [
+        { id: 'morning', label: 'Morning (8 AM - 2 PM)', start: '08:00', end: '14:00', priceMultiplier: 0.6, active: true },
+        { id: 'evening', label: 'Evening (4 PM - 11 PM)', start: '16:00', end: '23:00', priceMultiplier: 0.7, active: true },
+        { id: 'full_day', label: 'Full Day (24h)', start: '00:00', end: '23:59', priceMultiplier: 1.0, active: true },
+      ],
+    };
+
+    const cfg = (venue as any).settings?.['timeslots'] as VenueTimeslotsDto | undefined;
+    return cfg && cfg.mode && Array.isArray(cfg.sessions) ? cfg : defaults;
+  }
+
+  async updateVenueTimeslots(
+    tenantId: string,
+    venueId: string,
+    dto: VenueTimeslotsDto,
+  ): Promise<VenueTimeslotsDto> {
+    // Validate input minimally
+    if (!dto || !dto.mode || !Array.isArray(dto.sessions)) {
+      throw new NotFoundException('Invalid timeslot configuration');
+    }
+
+    const venue = await this.getVenue(tenantId, venueId);
+
+    const updatedSettings = {
+      ...(venue.settings as any),
+      timeslots: dto,
+    };
+
+    await this.prisma.venue.update({
+      where: { id: venueId, tenantId },
+      data: { settings: updatedSettings },
+    });
+
+    return dto;
+  }
+
+  /**
+   * FEATURE 1: Calculate pricing with variable rates
+   */
+  async calculatePricing(dto: CalculatePricingDto) {
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!uuidRegex.test(dto.venueId)) {
       throw new Error(`Invalid venue ID format: ${dto.venueId}`);
     }
 
-    const venue = await this.prisma.venue.findUnique({
-      where: { id: dto.venueId },
-    });
-
-    if (!venue) {
-      throw new NotFoundException(`Venue ${dto.venueId} not found`);
-    }
+    const venue = await this.prisma.venue.findUnique({ where: { id: dto.venueId } });
+    if (!venue) throw new NotFoundException(`Venue ${dto.venueId} not found`);
 
     const basePrice = venue.basePriceCents;
-    
-    // Parse pricing config from venue settings
-    const pricingConfig: VenuePricingConfig = venue.settings?.['pricing'] || {};
+    const pricingConfig: VenuePricingConfig = (venue as any).settings?.['pricing'] || {};
 
     const breakdown: PricingBreakdownDay[] = dto.selectedDates.map((dateStr) => {
       const date = new Date(dateStr);
@@ -137,32 +189,26 @@ export class VenuesService {
       let multiplier = 1;
       const appliedRates: string[] = [];
 
-      // Apply weekend multiplier
       if (isWeekend(date) && pricingConfig.weekendMultiplier) {
         multiplier *= pricingConfig.weekendMultiplier;
         appliedRates.push(`Weekend ${pricingConfig.weekendMultiplier}x`);
       }
 
-      // Apply Sunday multiplier (overrides weekend if higher)
       if (isSunday(date) && pricingConfig.sundayMultiplier) {
         multiplier = pricingConfig.sundayMultiplier;
-        appliedRates.length = 0; // Clear weekend rate
+        appliedRates.length = 0;
         appliedRates.push(`Sunday ${pricingConfig.sundayMultiplier}x`);
       }
 
-      // Apply seasonal rates
       if (pricingConfig.seasonalRates) {
-        const month = date.getMonth() + 1; // 1-12
-        const seasonalRate = pricingConfig.seasonalRates.find(
-          (sr) => month >= sr.startMonth && month <= sr.endMonth
-        );
+        const month = date.getMonth() + 1;
+        const seasonalRate = pricingConfig.seasonalRates.find((sr) => month >= sr.startMonth && month <= sr.endMonth);
         if (seasonalRate) {
           multiplier *= seasonalRate.multiplier;
           appliedRates.push(`${seasonalRate.name} ${seasonalRate.multiplier}x`);
         }
       }
 
-      // Apply surge pricing
       if (pricingConfig.surgeMultiplier) {
         multiplier *= pricingConfig.surgeMultiplier;
         appliedRates.push(`Surge ${pricingConfig.surgeMultiplier}x`);
@@ -193,52 +239,28 @@ export class VenuesService {
     };
   }
 
-  /**
-   * FEATURE 2: Get furniture options for a venue
-   */
   async getFurnitureOptions(tenantId: string, venueId: string): Promise<FurnitureOption[]> {
     const venue = await this.getVenue(tenantId, venueId);
-    
-    // Furniture options stored in venue.settings.furniture
-    const furniture: FurnitureOption[] = venue.settings?.['furniture'] || [];
-    
-    return furniture;
+    return ((venue as any).settings?.['furniture'] || []) as FurnitureOption[];
   }
 
-  /**
-   * FEATURE 2: Add furniture option to venue (admin)
-   */
   async addFurnitureOption(
     tenantId: string,
     venueId: string,
     furniture: Omit<FurnitureOption, 'id'>
   ): Promise<FurnitureOption> {
     const venue = await this.getVenue(tenantId, venueId);
-    
-    const existingFurniture = venue.settings?.['furniture'] || [];
-    const newFurniture: FurnitureOption = {
-      ...furniture,
-      id: `furniture-${Date.now()}`,
-    };
-
-    const updatedFurniture = [...existingFurniture, newFurniture];
+    const existing = (venue as any).settings?.['furniture'] || [];
+    const newFurniture: FurnitureOption = { ...furniture, id: `furniture-${Date.now()}` };
 
     await this.prisma.venue.update({
       where: { id: venueId, tenantId },
-      data: {
-        settings: {
-          ...(venue.settings as any),
-          furniture: updatedFurniture,
-        },
-      },
+      data: { settings: { ...(venue.settings as any), furniture: [...existing, newFurniture] } },
     });
 
     return newFurniture;
   }
 
-  /**
-   * FEATURE 2: Update furniture option
-   */
   async updateFurnitureOption(
     tenantId: string,
     venueId: string,
@@ -246,97 +268,49 @@ export class VenuesService {
     updates: Partial<FurnitureOption>
   ): Promise<FurnitureOption> {
     const venue = await this.getVenue(tenantId, venueId);
-    
-    const existingFurniture = venue.settings?.['furniture'] || [];
-    const index = existingFurniture.findIndex((f: any) => f.id === furnitureId);
+    const existing = ((venue as any).settings?.['furniture'] || []) as FurnitureOption[];
+    const index = existing.findIndex((f) => f.id === furnitureId);
+    if (index === -1) throw new NotFoundException(`Furniture option ${furnitureId} not found`);
 
-    if (index === -1) {
-      throw new NotFoundException(`Furniture option ${furnitureId} not found`);
-    }
-
-    const updatedFurniture = [...existingFurniture];
-    updatedFurniture[index] = { ...updatedFurniture[index], ...updates };
+    const updated = [...existing];
+    updated[index] = { ...updated[index], ...updates } as FurnitureOption;
 
     await this.prisma.venue.update({
       where: { id: venueId, tenantId },
-      data: {
-        settings: {
-          ...(venue.settings as any),
-          furniture: updatedFurniture,
-        },
-      },
+      data: { settings: { ...(venue.settings as any), furniture: updated } },
     });
 
-    return updatedFurniture[index];
+    return updated[index];
   }
 
-  /**
-   * FEATURE 3: Get venue contacts (delegated services)
-   */
-  async getVenueContacts(tenantId: string, venueId: string, category?: string): Promise<VenueContact[]> {
+  async getVenueContacts(tenantId: string, venueId: string, category?: string) {
     const venue = await this.getVenue(tenantId, venueId);
-    
-    // Contacts stored in venue.settings.contacts
-    let contacts: VenueContact[] = venue.settings?.['contacts'] || [];
-
-    if (category) {
-      contacts = contacts.filter((c) => c.category === category);
-    }
-
+    let contacts: VenueContact[] = ((venue as any).settings?.['contacts'] || []) as VenueContact[];
+    if (category) contacts = contacts.filter((c) => c.category === category);
     return contacts;
   }
 
-  /**
-   * FEATURE 3: Add venue contact
-   */
-  async addVenueContact(
-    tenantId: string,
-    venueId: string,
-    contact: Omit<VenueContact, 'id'>
-  ): Promise<VenueContact> {
+  async addVenueContact(tenantId: string, venueId: string, contact: Omit<VenueContact, 'id'>) {
     const venue = await this.getVenue(tenantId, venueId);
-    
-    const existingContacts = venue.settings?.['contacts'] || [];
-    const newContact: VenueContact = {
-      ...contact,
-      id: `contact-${Date.now()}`,
-    };
-
-    const updatedContacts = [...existingContacts, newContact];
+    const existing = (venue as any).settings?.['contacts'] || [];
+    const newContact: VenueContact = { ...contact, id: `contact-${Date.now()}` };
 
     await this.prisma.venue.update({
       where: { id: venueId, tenantId },
-      data: {
-        settings: {
-          ...(venue.settings as any),
-          contacts: updatedContacts,
-        },
-      },
+      data: { settings: { ...(venue.settings as any), contacts: [...existing, newContact] } },
     });
 
     return newContact;
   }
 
-  /**
-   * FEATURE 4: Get venue pricing configuration including GST
-   */
   async getVenuePricingConfig(tenantId: string, venueId: string) {
     const venue = await this.getVenue(tenantId, venueId);
+    const pricingConfig: VenuePricingConfig = (venue as any).settings?.['pricing'] || {};
+    const gstRate = (venue as any).settings?.['gstRate'] || 0.18;
 
-    const pricingConfig: VenuePricingConfig = venue.settings?.['pricing'] || {};
-    const gstRate = venue.settings?.['gstRate'] || 0.18; // Default 18%
-
-    return {
-      basePriceCents: venue.basePriceCents,
-      currency: venue.currency,
-      gstRate,
-      ...pricingConfig,
-    };
+    return { basePriceCents: venue.basePriceCents, currency: venue.currency, gstRate, ...pricingConfig };
   }
 
-  /**
-   * FEATURE 4: Update venue pricing configuration (admin)
-   */
   async updateVenuePricingConfig(
     tenantId: string,
     venueId: string,
@@ -345,26 +319,14 @@ export class VenuesService {
     const venue = await this.getVenue(tenantId, venueId);
 
     const { gstRate, ...pricingConfig } = pricingUpdates;
-
     const updatedSettings = {
       ...(venue.settings as any),
-      pricing: {
-        ...(venue.settings?.['pricing'] || {}),
-        ...pricingConfig,
-      },
+      pricing: { ...(venue as any).settings?.['pricing'], ...pricingConfig },
       ...(gstRate !== undefined && { gstRate }),
-    };
+    } as any;
 
-    const updated = await this.prisma.venue.update({
-      where: { id: venueId, tenantId },
-      data: { settings: updatedSettings },
-    });
+    const updated = await this.prisma.venue.update({ where: { id: venueId, tenantId }, data: { settings: updatedSettings } });
 
-    return {
-      basePriceCents: updated.basePriceCents,
-      currency: updated.currency,
-      gstRate: updatedSettings.gstRate,
-      ...updatedSettings.pricing,
-    };
+    return { basePriceCents: updated.basePriceCents, currency: updated.currency, gstRate: updatedSettings.gstRate, ...updatedSettings.pricing };
   }
 }
