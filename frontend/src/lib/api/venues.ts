@@ -9,21 +9,24 @@ export interface VenueDto {
   id: string;
   name: string;
   description?: string;
-  city: string;
-  capacity: number;
+  city?: string;
+  address?: string;
+  capacity?: number;
   basePriceCents: number;
   currency: string;
+  timeZone?: string;
   isActive: boolean;
   imageUrl?: string;
   amenities?: string[];
-  createdAt: Date;
+  createdAt?: Date;
+  settings?: any;
 }
 
 export interface VenuePricingDto {
   venueId: string;
   basePriceCents: number;
-  weekdayMultiplier: number;
-  weekendMultiplier: number;
+  weekdayMultiplier?: number;
+  weekendMultiplier?: number;
   seasonalRates?: Array<{
     name: string;
     startDate: string;
@@ -84,6 +87,19 @@ export interface FurnitureOptionDto {
 }
 
 /**
+ * Normalize API responses to a consistent list shape
+ */
+function normalizeList<T>(resp: ApiResponse<any>): { list: T[]; raw: any } {
+  const payload = resp?.data as any;
+  const list = Array.isArray(payload?.data)
+    ? (payload.data as T[])
+    : Array.isArray(payload)
+    ? (payload as T[])
+    : [];
+  return { list, raw: payload };
+}
+
+/**
  * Get all venues
  */
 export async function listVenues(options?: {
@@ -92,23 +108,17 @@ export async function listVenues(options?: {
   maxCapacity?: number;
   page?: number;
   limit?: number;
-}, token?: string) {
+}, token?: string): Promise<ApiResponse<{ data: VenueDto[] }>> {
   const params = new URLSearchParams();
   if (options?.city) params.append('city', options.city);
-  if (options?.minCapacity) params.append('minCapacity', options.minCapacity.toString());
-  if (options?.maxCapacity) params.append('maxCapacity', options.maxCapacity.toString());
-  if (options?.page) params.append('page', options.page.toString());
-  if (options?.limit) params.append('limit', options.limit.toString());
+  if (options?.minCapacity) params.append('minCapacity', String(options.minCapacity));
+  if (options?.maxCapacity) params.append('maxCapacity', String(options.maxCapacity));
+  if (options?.page) params.append('page', String(options.page));
+  if (options?.limit) params.append('limit', String(options.limit));
 
-  return apiGet<{
-    data: VenueDto[];
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      totalPages: number;
-    };
-  }>(`/venues?${params.toString()}`, token);
+  const resp = await apiGet<any>(`/venues?${params.toString()}`, token);
+  const { list } = normalizeList<VenueDto>(resp);
+  return { success: true, data: { data: list } } as any;
 }
 
 /**
