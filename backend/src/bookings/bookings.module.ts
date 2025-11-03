@@ -12,6 +12,7 @@ import { ErrorHandlerService } from '../common/services/error-handler.service';
 import { CacheService } from '../common/services/cache.service';
 import { ValidationService } from '../common/services/validation.service';
 import { VenueBookingsController } from './controllers/venue-bookings.controller';
+import { AvailabilitySlotsController } from './controllers/availability-slots.controller';
 import { AvailabilityService } from './services/availability.service';
 
 /**
@@ -33,7 +34,7 @@ import { AvailabilityService } from './services/availability.service';
     UsersModule, // Customer management integration
     ScheduleModule.forRoot(), // Enable cron jobs
   ],
-  controllers: [BookingsController, VenueBookingsController],
+  controllers: [BookingsController, VenueBookingsController, AvailabilitySlotsController],
   providers: [
     // Core booking service
     BookingsService,
