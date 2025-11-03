@@ -1,8 +1,12 @@
 /**
- * Booking Page - SIMPLIFIED VERSION
+ * Booking Page - COMPLETE SERVER INTEGRATION
  * 
- * Removed all overengineered venue intelligence and complex timeslot logic.
- * Clean, simple, user-focused experience.
+ * Now fully integrated with server-configured timeslots:
+ * - Renders venue-specific sessions from backend
+ * - Per-date session availability checks
+ * - Server-side slot-aware pricing with applied rates
+ * - Session conflict detection and user feedback
+ * - Fallback to defaults for unconfigured venues
  */
 
 "use client";
@@ -13,14 +17,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BookingCalendar } from "@/components/booking/BookingCalendar";
 import { QuickDateShortcuts } from "@/components/booking/QuickDateShortcuts";
-import { TimeSlotSelector, getDefaultTimeSlot, getTimeSlotById, timeSlotToTimestamps, type TimeSlot } from "@/components/booking/TimeSlotSelector";
+import { TimeSlotSelector, getDefaultTimeSlot, type TimeSlot } from "@/components/booking/TimeSlotSelector";
 import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon, AlertCircleIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/stores";
 import { useStepGuard } from "@/hooks/useStepGuard";
 import { useRouter } from "next/navigation";
 import { formatDateRangeCompact } from "@/lib/dates";
-import { calculatePricing, listVenues } from "@/lib/api/venues";
+import { listVenues } from "@/lib/api/venues";
 import { getVenueAvailability } from "@/lib/api/bookings";
 import { useBookingPageSlots } from "@/hooks/useBookingPageSlots";
 import { format } from "date-fns";
@@ -46,8 +50,6 @@ export default function BookingPage() {
   const {
     selectedVenue,
     selectedDates: storedDates,
-    startTime: storedStartTime,
-    endTime: storedEndTime,
     setSelectedDates,
     setVenueDetails,
   } = useBookingStore();
@@ -57,10 +59,6 @@ export default function BookingPage() {
 
   // Local state  
   const [selectedDates, setSelectedDates_Local] = useState<Date[]>(normalizeDates(storedDates));
-  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
-  
-  const [isLoadingPricing, setIsLoadingPricing] = useState(false);
-  const [pricing, setPricing] = useState<any>(null);
   const [unavailableDates, setUnavailableDates] = useState<Date[]>([]);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(true);
   const [venues, setVenues] = useState<any[]>([]);
@@ -69,9 +67,9 @@ export default function BookingPage() {
   const [sessionAvailability, setSessionAvailability] = useState<Map<string, boolean>>(new Map());
   const [isLoadingSessionAvailability, setIsLoadingSessionAvailability] = useState(false);
 
-  // Wire up server-configured slots and pricing
+  // SERVER TIMESLOTS INTEGRATION - Use server-configured slots and pricing
   const basePrice = currentVenue?.basePriceCents ? currentVenue.basePriceCents / 100 : 0;
-  const { activeSlots, selectedSlot, setSelectedSlotId: setSlotFromHook, slotPricing } = useBookingPageSlots(
+  const { activeSlots, selectedSlot, setSelectedSlotId, slotPricing } = useBookingPageSlots(
     currentVenue?.id,
     selectedDates,
     basePrice
@@ -129,39 +127,51 @@ export default function BookingPage() {
     }
   }, [isVenueLoaded, currentVenue?.id]);
 
-  // Sync selectedSlotId with the wiring hook
+  // Check per-date session availability when dates or venue change
   useEffect(() => {
-    if (selectedSlot && !selectedSlotId) {
-      setSelectedSlotId(selectedSlot.id);
+    if (selectedDates.length === 0 || !currentVenue?.id || activeSlots.length === 0) {
+      setSessionAvailability(new Map());
+      return;
     }
-  }, [selectedSlot]);
 
-  // Check per-date session availability
-  useEffect(() => {
-    if (selectedDates.length === 0 || !currentVenue?.id) return;
-
-    const checkAvailability = async () => {
+    const checkSessionAvailability = async () => {
       setIsLoadingSessionAvailability(true);
+      
       try {
         const availability = new Map<string, boolean>();
+        
+        // Check each selected date for session availability
         for (const date of selectedDates) {
           const dateStr = format(date, 'yyyy-MM-dd');
-          // Call the endpoint for per-date session availability
-          const response = await fetch(
-            `/api/bookings/${currentVenue.id}/availability/slots?date=${dateStr}`,
-            { headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` } }
-          );
-          if (response.ok) {
-            const data = await response.json();
-            // Track which sessions are available for this date
-            if (data?.data?.sessions && Array.isArray(data.data.sessions)) {
-              data.data.sessions.forEach((session: any) => {
-                const key = `${dateStr}-${session.id}`;
-                availability.set(key, session.isAvailable !== false);
-              });
+          
+          try {
+            const response = await fetch(
+              `/api/v1/bookings/venue/${currentVenue.id}/availability/slots?date=${dateStr}`,
+              { 
+                headers: { 
+                  'Content-Type': 'application/json',
+                  ...(typeof window !== 'undefined' && localStorage.getItem('token') 
+                    ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                    : {}
+                  )
+                } 
+              }
+            );
+            
+            if (response.ok) {
+              const data = await response.json();
+              if (data?.success && data?.data?.sessions && Array.isArray(data.data.sessions)) {
+                data.data.sessions.forEach((session: any) => {
+                  const key = `${dateStr}-${session.id}`;
+                  availability.set(key, session.isAvailable !== false);
+                });
+              }
             }
+          } catch (err) {
+            console.warn(`Failed to check availability for ${dateStr}:`, err);
           }
         }
+        
         setSessionAvailability(availability);
       } catch (err) {
         console.error('Failed to check session availability:', err);
@@ -170,8 +180,8 @@ export default function BookingPage() {
       }
     };
 
-    void checkAvailability();
-  }, [debouncedSelectedDates, currentVenue?.id]);
+    void checkSessionAvailability();
+  }, [debouncedSelectedDates, currentVenue?.id, activeSlots]);
 
   const fetchVenueAvailability = async () => {
     if (!currentVenue?.id) return;
@@ -198,14 +208,6 @@ export default function BookingPage() {
     }
   };
 
-  // Update pricing from server response
-  useEffect(() => {
-    if (slotPricing?.data) {
-      setPricing(slotPricing.data);
-      setIsLoadingPricing(false);
-    }
-  }, [slotPricing]);
-
   // Handle date selection with store sync
   const handleDateSelect = useCallback((dates: Date[]) => {
     setSelectedDates_Local(dates);
@@ -218,27 +220,28 @@ export default function BookingPage() {
     }
   }, [setSelectedDates]);
 
-  // Handle time slot change
+  // Handle time slot change - use the wiring hook
   const handleTimeSlotChange = useCallback((timeSlot: TimeSlot) => {
     setSelectedSlotId(timeSlot.id);
     toast.success(`${timeSlot.label} selected`);
-  }, []);
-
-
+  }, [setSelectedSlotId]);
 
   // Check if any selected date has an unavailable session
   const getConflictingDates = useCallback((): Date[] => {
-    if (!selectedSlot) return [];
+    if (!selectedSlot || activeSlots.length === 0) return [];
+    
     const conflicts: Date[] = [];
     for (const date of selectedDates) {
       const dateStr = format(date, 'yyyy-MM-dd');
       const key = `${dateStr}-${selectedSlot.id}`;
+      
+      // If we have availability data for this date/session and it's unavailable
       if (sessionAvailability.has(key) && !sessionAvailability.get(key)) {
         conflicts.push(date);
       }
     }
     return conflicts;
-  }, [selectedSlot, selectedDates, sessionAvailability]);
+  }, [selectedSlot, selectedDates, sessionAvailability, activeSlots]);
 
   // Handle continue to next step
   const handleContinue = useCallback(() => {
@@ -260,14 +263,20 @@ export default function BookingPage() {
     const conflicts = getConflictingDates();
     if (conflicts.length > 0) {
       const conflictDates = conflicts.map(d => format(d, 'MMM d')).join(', ');
-      toast.error(`Session unavailable on: ${conflictDates}`);
+      toast.error(`${selectedSlot.label} unavailable on: ${conflictDates}`);
       return;
     }
     
     const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
     
-    // Persist slotId along with start/end times
-    setVenueDetails(venueInfo, sorted, selectedSlot.startTime, selectedSlot.endTime);
+    // Persist venue details with slotId for downstream pages
+    setVenueDetails(
+      venueInfo, 
+      sorted, 
+      selectedSlot.startTime, 
+      selectedSlot.endTime,
+      { slotId: selectedSlot.id } // Additional metadata
+    );
     
     toast.success(
       `Proceeding with ${sorted.length} day${sorted.length !== 1 ? 's' : ''} • ${selectedSlot.label}`
@@ -275,10 +284,11 @@ export default function BookingPage() {
     router.push("/event-details");
   }, [selectedDates, selectedSlot, venueInfo, setVenueDetails, router, getConflictingDates]);
 
-  // Determine display pricing
-  const displayPrice = slotPricing?.data?.averagePricePerDay || Math.round(basePrice * (selectedSlot?.priceMultiplier || 1));
-  const totalPrice = slotPricing?.data?.totalPrice || selectedDates.length * displayPrice;
-  const appliedRates = slotPricing?.data?.breakdown?.[0]?.appliedRates || [];
+  // Use server pricing when available, fallback to local calculation
+  const serverPricing = slotPricing?.data;
+  const displayPrice = serverPricing?.averagePricePerDay || (selectedSlot ? Math.round(basePrice * selectedSlot.priceMultiplier) : basePrice);
+  const totalPrice = serverPricing?.totalPrice || selectedDates.length * displayPrice;
+  const appliedRates = serverPricing?.breakdown?.[0]?.appliedRates || [];
   
   // Loading states
   if (isLoadingVenues) {
@@ -390,7 +400,7 @@ export default function BookingPage() {
                 </Card>
               </motion.div>
 
-              {/* Time Slot Selection - SIMPLIFIED */}
+              {/* Time Slot Selection - SERVER INTEGRATED */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -398,37 +408,63 @@ export default function BookingPage() {
               >
                 <Card className="border-2 shadow-xl bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-sm">
                   <CardHeader>
-                    <CardTitle className="text-xl">Choose Duration & Save Money</CardTitle>
+                    <CardTitle className="text-xl">
+                      {activeSlots.length > 0 ? 'Choose Your Session' : 'Choose Duration & Save Money'}
+                    </CardTitle>
                     <CardDescription>
-                      Save up to 40% with shorter sessions, or get full venue control with 24-hour access
+                      {activeSlots.length > 0 
+                        ? 'Select from venue-configured time sessions'
+                        : 'Save up to 40% with shorter sessions, or get full venue control with 24-hour access'
+                      }
                     </CardDescription>
                   </CardHeader>
                   
                   <CardContent>
-                      {/* Use server-configured slots if available, fallback to defaults */}
+                    {/* Render server slots or fallback to defaults */}
                     <TimeSlotSelector
                       items={activeSlots.length > 0 ? activeSlots : undefined}
                       value={selectedSlot?.id || ''}
                       onChange={handleTimeSlotChange}
                       basePrice={basePrice}
                       disabled={isLoadingVenues || isLoadingSessionAvailability}
+                      // Show availability status per session
+                      sessionAvailability={sessionAvailability}
+                      selectedDates={selectedDates}
                     />
+                    
+                    {activeSlots.length === 0 && (
+                      <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <p className="text-sm text-blue-700">
+                          ℹ️ Using default sessions. Admin can configure custom sessions for this venue.
+                        </p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
 
-              {/* Simple Booking Tips */}
+              {/* Enhanced Booking Tips */}
               <Card className="bg-blue-50 border-blue-200">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2 text-blue-800">
                     <InfoIcon className="h-5 w-5" />
-                    Pro Tips
+                    {activeSlots.length > 0 ? 'Venue Sessions' : 'Pro Tips'}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm text-blue-700">
-                  <p>• Morning & Evening sessions offer great savings</p>
-                  <p>• Full Day gives you complete control and setup time</p>
-                  <p>• You can modify your selection in the next step</p>
+                  {activeSlots.length > 0 ? (
+                    <>
+                      <p>• Sessions are configured by the venue owner</p>
+                      <p>• Pricing includes venue-specific multipliers</p>
+                      <p>• Unavailable sessions are automatically disabled</p>
+                    </>
+                  ) : (
+                    <>
+                      <p>• Morning & Evening sessions offer great savings</p>
+                      <p>• Full Day gives you complete control and setup time</p>
+                      <p>• You can modify your selection in the next step</p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -448,9 +484,9 @@ export default function BookingPage() {
                   {selectedSlot && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-muted-foreground">Selected Duration</span>
+                        <span className="text-sm font-medium text-muted-foreground">Selected Session</span>
                         <Badge variant="outline" className="text-xs">
-                          {selectedSlot.duration || 'Session'}h
+                          {selectedSlot.duration ? `${selectedSlot.duration}h` : 'Session'}
                         </Badge>
                       </div>
                       
@@ -464,7 +500,7 @@ export default function BookingPage() {
                             </p>
                           </div>
                         </div>
-                        {selectedSlot.priceMultiplier < 1 && (
+                        {selectedSlot.priceMultiplier && selectedSlot.priceMultiplier < 1 && (
                           <Badge className="bg-green-100 text-green-700 text-[10px] mt-2">
                             {Math.round((1 - selectedSlot.priceMultiplier) * 100)}% savings
                           </Badge>
@@ -527,17 +563,19 @@ export default function BookingPage() {
                   {selectedDates.length > 0 && selectedSlot && (
                     <>
                       {isLoadingSessionAvailability && (
-                        <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
+                        <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700 flex items-center gap-2">
+                          <LoaderIcon className="h-3 w-3 animate-spin" />
                           Checking session availability...
                         </div>
                       )}
-                      {getConflictingDates().length > 0 && (
+                      {!isLoadingSessionAvailability && getConflictingDates().length > 0 && (
                         <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
                           <div className="flex gap-2 items-start">
                             <AlertCircleIcon className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
                             <div className="text-xs text-red-700">
-                              <p className="font-medium">Session unavailable on selected dates:</p>
+                              <p className="font-medium">{selectedSlot.label} unavailable on:</p>
                               <p>{getConflictingDates().map(d => format(d, 'MMM d')).join(', ')}</p>
+                              <p className="mt-1 text-red-600">Please choose different dates or session.</p>
                             </div>
                           </div>
                         </div>
@@ -545,21 +583,22 @@ export default function BookingPage() {
                     </>
                   )}
 
-                  {/* Pricing Section */}
+                  {/* Pricing Section - SERVER INTEGRATED */}
                   {selectedDates.length > 0 && isVenueLoaded && selectedSlot && (
                     <>
                       <Separator />
                       <div className="space-y-4">
-                        {/* Display applied rate multipliers */}
+                        {/* Display server-computed applied rate multipliers */}
                         {appliedRates.length > 0 && (
                           <div className="space-y-2 text-xs">
                             <p className="font-medium text-muted-foreground">Applied Rates:</p>
-                            {appliedRates.map((rate: any, idx: number) => (
-                              <div key={idx} className="flex justify-between text-muted-foreground">
-                                <span>{rate.name || 'Rate'}</span>
-                                <span>{rate.multiplier}x</span>
-                              </div>
-                            ))}
+                            <div className="space-y-1">
+                              {appliedRates.map((rate: string, idx: number) => (
+                                <div key={idx} className="flex justify-between text-muted-foreground">
+                                  <span>{rate}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
 
@@ -569,7 +608,7 @@ export default function BookingPage() {
                           </span>
                           <span className="font-medium">
                             ₹{displayPrice.toLocaleString()}
-                            {selectedSlot.priceMultiplier !== 1 && (
+                            {selectedSlot.priceMultiplier && selectedSlot.priceMultiplier !== 1 && (
                               <span className="text-xs text-muted-foreground ml-1">
                                 (was ₹{basePrice.toLocaleString()})
                               </span>
@@ -585,7 +624,7 @@ export default function BookingPage() {
                         </div>
                         
                         <p className="text-xs text-muted-foreground text-center">
-                          *Final amount includes taxes and may vary based on add-ons
+                          {serverPricing ? '*Pricing computed with all applicable rates' : '*Final amount includes taxes and may vary based on add-ons'}
                         </p>
                       </div>
                     </>
@@ -595,7 +634,12 @@ export default function BookingPage() {
                   <div className="pt-4">
                     <Button
                       onClick={handleContinue}
-                      disabled={selectedDates.length === 0 || isLoadingPricing || !selectedSlot || getConflictingDates().length > 0}
+                      disabled={
+                        selectedDates.length === 0 || 
+                        !selectedSlot || 
+                        isLoadingSessionAvailability ||
+                        getConflictingDates().length > 0
+                      }
                       className="w-full h-12 text-base bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                       size="lg"
                     >
@@ -606,6 +650,12 @@ export default function BookingPage() {
                     {selectedDates.length === 0 && (
                       <p className="text-xs text-center text-muted-foreground mt-2">
                         Select at least one date to continue
+                      </p>
+                    )}
+                    
+                    {getConflictingDates().length > 0 && (
+                      <p className="text-xs text-center text-red-600 mt-2">
+                        Session conflicts with selected dates - choose different dates or session
                       </p>
                     )}
                   </div>
