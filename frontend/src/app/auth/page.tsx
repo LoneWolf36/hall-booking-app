@@ -7,6 +7,7 @@
  * - Step guard integration
  * - Back navigation support
  * - Error handling with specific messages
+ * - FIXED: Better contrast and visibility for light theme
  */
 
 'use client';
@@ -162,18 +163,18 @@ function AuthPageContent() {
   if (!isValid) return null; // useStepGuard handles redirect
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-3 sm:px-4 py-8 sm:py-12 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 overflow-x-hidden">
-      <Card className="w-full max-w-md backdrop-blur-xl bg-slate-900/40 border-slate-700/30 shadow-2xl">
+    <div className="min-h-screen flex items-center justify-center px-3 sm:px-4 py-8 sm:py-12 bg-gradient-to-br from-slate-100 via-slate-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 overflow-x-hidden">
+      <Card className="w-full max-w-md backdrop-blur-xl bg-white/95 dark:bg-slate-900/40 border-slate-300/50 dark:border-slate-700/30 shadow-2xl">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-500/20 backdrop-blur-md border border-indigo-400/30">
-            <ShieldCheckIcon className="h-6 w-6 text-indigo-400" />
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-500/20 backdrop-blur-md border border-indigo-300 dark:border-indigo-400/30">
+            <ShieldCheckIcon className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <CardTitle className="text-2xl">
+          <CardTitle className="text-2xl text-slate-900 dark:text-white">
             {step === 'phone' && 'Login Required'}
             {step === 'otp' && 'Verify Phone'}
             {step === 'name' && 'Complete Registration'}
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-slate-600 dark:text-slate-300">
             {step === 'phone' && 'Enter your phone number to continue booking'}
             {step === 'otp' && 'Enter the 6-digit code we sent you'}
             {step === 'name' && 'Tell us your name to complete setup'}
@@ -187,7 +188,7 @@ function AuthPageContent() {
               onClick={handleBackToPrevious}
               variant="ghost"
               size="sm"
-              className="w-full text-muted-foreground hover:text-foreground"
+              className="w-full text-slate-600 dark:text-muted-foreground hover:text-slate-900 dark:hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Booking
@@ -196,8 +197,8 @@ function AuthPageContent() {
 
           {/* Error Alert */}
           {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
+            <Alert variant="destructive" className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
+              <AlertDescription className="text-red-800 dark:text-red-200">{error}</AlertDescription>
             </Alert>
           )}
 
@@ -213,18 +214,17 @@ function AuthPageContent() {
               />
               
               {/* Dev hint */}
-              <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground text-center">
-                💡 Development: Use any 10-digit number, then enter <code className="bg-muted px-1 rounded">000000</code> as OTP
+              <div className="bg-amber-50 dark:bg-muted/50 border border-amber-200 dark:border-muted p-3 rounded-lg text-xs text-amber-800 dark:text-muted-foreground text-center">
+                💡 Development: Use any 10-digit number, then enter <code className="bg-amber-100 dark:bg-muted px-1 rounded text-amber-900 dark:text-muted-foreground">000000</code> as OTP
               </div>
 
               <Button
                 onClick={handleRequestOtp}
                 disabled={!isPhoneValid || isLoading}
-                isLoading={isLoading}
-                className="w-full"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-primary dark:hover:bg-primary/90"
                 size="lg"
               >
-                Send OTP
+                {isLoading ? 'Sending...' : 'Send OTP'}
               </Button>
             </>
           )}
@@ -244,8 +244,8 @@ function AuthPageContent() {
               />
               
               {/* Dev hint */}
-              <div className="bg-muted/50 p-3 rounded-lg text-xs text-muted-foreground text-center">
-                💡 Development: Enter <code className="bg-muted px-1 rounded">000000</code> to bypass SMS
+              <div className="bg-amber-50 dark:bg-muted/50 border border-amber-200 dark:border-muted p-3 rounded-lg text-xs text-amber-800 dark:text-muted-foreground text-center">
+                💡 Development: Enter <code className="bg-amber-100 dark:bg-muted px-1 rounded text-amber-900 dark:text-muted-foreground">000000</code> to bypass SMS
               </div>
 
               <div className="flex gap-2">
@@ -253,17 +253,16 @@ function AuthPageContent() {
                   variant="outline"
                   onClick={handleBackToPhone}
                   disabled={isLoading}
-                  className="flex-1"
+                  className="flex-1 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   Change Number
                 </Button>
                 <Button
                   onClick={handleVerifyOtp}
                   disabled={otp.length !== 6 || isLoading}
-                  isLoading={isLoading}
-                  className="flex-1"
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-primary dark:hover:bg-primary/90"
                 >
-                  Verify
+                  {isLoading ? 'Verifying...' : 'Verify'}
                 </Button>
               </div>
             </>
@@ -273,9 +272,9 @@ function AuthPageContent() {
           {step === 'name' && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
+                <Label htmlFor="name" className="text-slate-700 dark:text-slate-300">Full Name</Label>
                 <div className="relative">
-                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 dark:text-muted-foreground" />
                   <Input
                     id="name"
                     type="text"
@@ -284,7 +283,7 @@ function AuthPageContent() {
                     placeholder="Enter your full name"
                     autoFocus
                     disabled={isLoading}
-                    className="pl-10"
+                    className="pl-10 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400"
                   />
                 </div>
               </div>
@@ -292,17 +291,16 @@ function AuthPageContent() {
               <Button
                 onClick={handleCompleteRegistration}
                 disabled={!name.trim() || isLoading}
-                isLoading={isLoading}
-                className="w-full"
+                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white dark:bg-primary dark:hover:bg-primary/90"
                 size="lg"
               >
-                Complete Setup
+                {isLoading ? 'Setting up...' : 'Complete Setup'}
               </Button>
             </>
           )}
 
           {/* Terms */}
-          <p className="text-xs text-center text-muted-foreground">
+          <p className="text-xs text-center text-slate-600 dark:text-muted-foreground">
             By continuing, you agree to our Terms of Service and Privacy Policy
           </p>
         </CardContent>
@@ -314,8 +312,8 @@ function AuthPageContent() {
 export default function AuthPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-indigo-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-600 dark:border-primary"></div>
       </div>
     }>
       <AuthPageContent />
