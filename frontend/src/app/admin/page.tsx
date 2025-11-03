@@ -16,14 +16,16 @@ import { ListSkeleton, CardSkeleton } from '@/components/ui/loading-skeleton';
 import { useAdminDashboard, useAdminBookings, useApproveBooking, useRejectBooking } from '@/hooks/useAdmin';
 import { BookingTable } from '@/components/admin/BookingTable';
 import { ApprovalDialog } from '@/components/admin/ApprovalDialog';
+import { VenueTimeslotAdmin } from '@/components/admin/VenueTimeslotAdmin';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InfoIcon, AlertTriangleIcon } from 'lucide-react';
 
 function AdminDashboardContent() {
-  const [selectedTab, setSelectedTab] = useState<'pending' | 'confirmed' | 'rejected'>('pending');
+  const [selectedTab, setSelectedTab] = useState<'pending' | 'confirmed' | 'rejected' | 'venues'>('pending');
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
   
   // Dialog state
   const [approvalDialog, setApprovalDialog] = useState<{
@@ -179,6 +181,9 @@ function AdminDashboardContent() {
               <TabsTrigger value="rejected">
                 Rejected ({stats?.rejectedBookings || 0})
               </TabsTrigger>
+              <TabsTrigger value="venues">
+                Venue Settings
+              </TabsTrigger>
             </TabsList>
 
             {/* Filters */}
@@ -202,7 +207,7 @@ function AdminDashboardContent() {
             </div>
 
             {/* Booking Lists */}
-            <TabsContent value={selectedTab} className="space-y-4 mt-6">
+            <TabsContent value="pending" className="space-y-4 mt-6">
               {bookingsLoading ? (
                 <ListSkeleton rows={3} />
               ) : bookingsData && bookingsData.data.length > 0 ? (
@@ -245,7 +250,7 @@ function AdminDashboardContent() {
               ) : (
                 <div className="text-center py-12">
                   <InfoIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">No {selectedTab} bookings found</p>
+                  <p className="text-muted-foreground">No pending bookings found</p>
                   {searchQuery && (
                     <p className="text-sm text-muted-foreground mt-2">
                       Try adjusting your search or filters
@@ -253,6 +258,150 @@ function AdminDashboardContent() {
                   )}
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="confirmed" className="space-y-4 mt-6">
+              {bookingsLoading ? (
+                <ListSkeleton rows={3} />
+              ) : bookingsData && bookingsData.data.length > 0 ? (
+                <div className="space-y-4">
+                  <BookingTable
+                    bookings={bookingsData.data}
+                    onViewDetails={(id) => console.log('View details:', id)}
+                    onApprove={(id) => {
+                      const booking = bookingsData.data.find(b => b.id === id);
+                      setApprovalDialog({
+                        open: true,
+                        mode: 'approve',
+                        bookingId: id,
+                        bookingNumber: booking?.bookingNumber || null,
+                      });
+                    }}
+                    onReject={(id) => {
+                      const booking = bookingsData.data.find(b => b.id === id);
+                      setApprovalDialog({
+                        open: true,
+                        mode: 'reject',
+                        bookingId: id,
+                        bookingNumber: booking?.bookingNumber || null,
+                      });
+                    }}
+                  />
+
+                  {/* Pagination Info */}
+                  <div className="flex justify-between items-center pt-4">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {bookingsData.data.length} of {bookingsData.total} bookings
+                    </p>
+                    {bookingsData.total > 10 && (
+                      <div className="text-sm text-muted-foreground">
+                        Page {bookingsData.page} of {Math.ceil(bookingsData.total / 10)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <InfoIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No confirmed bookings found</p>
+                  {searchQuery && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Try adjusting your search or filters
+                    </p>
+                  )}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="rejected" className="space-y-4 mt-6">
+              {bookingsLoading ? (
+                <ListSkeleton rows={3} />
+              ) : bookingsData && bookingsData.data.length > 0 ? (
+                <div className="space-y-4">
+                  <BookingTable
+                    bookings={bookingsData.data}
+                    onViewDetails={(id) => console.log('View details:', id)}
+                    onApprove={(id) => {
+                      const booking = bookingsData.data.find(b => b.id === id);
+                      setApprovalDialog({
+                        open: true,
+                        mode: 'approve',
+                        bookingId: id,
+                        bookingNumber: booking?.bookingNumber || null,
+                      });
+                    }}
+                    onReject={(id) => {
+                      const booking = bookingsData.data.find(b => b.id === id);
+                      setApprovalDialog({
+                        open: true,
+                        mode: 'reject',
+                        bookingId: id,
+                        bookingNumber: booking?.bookingNumber || null,
+                      });
+                    }}
+                  />
+
+                  {/* Pagination Info */}
+                  <div className="flex justify-between items-center pt-4">
+                    <p className="text-sm text-muted-foreground">
+                      Showing {bookingsData.data.length} of {bookingsData.total} bookings
+                    </p>
+                    {bookingsData.total > 10 && (
+                      <div className="text-sm text-muted-foreground">
+                        Page {bookingsData.page} of {Math.ceil(bookingsData.total / 10)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <InfoIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground">No rejected bookings found</p>
+                  {searchQuery && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      Try adjusting your search or filters
+                    </p>
+                  )}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Venue Settings Tab */}
+            <TabsContent value="venues" className="space-y-4 mt-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <h3 className="text-lg font-semibold">Venue Timeslot Configuration</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Configure hall timings and session pricing for each venue
+                  </p>
+                </div>
+
+                {/* Venue Selector */}
+                <Select value={selectedVenueId || ''} onValueChange={setSelectedVenueId}>
+                  <SelectTrigger className="w-full sm:w-80">
+                    <SelectValue placeholder="Select a venue to configure" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* This should be populated from venues API - for now showing placeholder */}
+                    <SelectItem value="demo-venue-1">Grand Hall - Downtown</SelectItem>
+                    <SelectItem value="demo-venue-2">Premium Banquet - Uptown</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Timeslot Admin Component */}
+                {selectedVenueId && (
+                  <div className="mt-6">
+                    <VenueTimeslotAdmin venueId={selectedVenueId} />
+                  </div>
+                )}
+
+                {!selectedVenueId && (
+                  <div className="text-center py-12">
+                    <InfoIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Select a venue to configure timeslots</p>
+                  </div>
+                )}
+              </div>
             </TabsContent>
           </Tabs>
         </CardContent>

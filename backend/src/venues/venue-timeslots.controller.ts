@@ -2,6 +2,7 @@ import { Controller, Get, Patch, Body, Param, ParseUUIDPipe } from '@nestjs/comm
 import { ApiTags, ApiOperation, ApiParam, ApiResponse } from '@nestjs/swagger';
 import { VenuesService } from './venues.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -28,6 +29,7 @@ export interface VenueTimeslotsDto {
 export class VenueTimeslotsController {
   constructor(private readonly venuesService: VenuesService) {}
 
+  @Public()
   @Get(':id/timeslots')
   @ApiOperation({ summary: 'Get venue timeslot config' })
   @ApiParam({ name: 'id', description: 'Venue UUID' })

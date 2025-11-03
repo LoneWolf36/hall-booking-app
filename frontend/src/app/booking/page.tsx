@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { BookingCalendar } from "@/components/booking/BookingCalendar";
 import { QuickDateShortcuts } from "@/components/booking/QuickDateShortcuts";
 import { TimeSlotSelector, getDefaultTimeSlot, getTimeSlotById, timeSlotToTimestamps, type TimeSlot } from "@/components/booking/TimeSlotSelector";
-import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon } from "lucide-react";
+import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon, AlertCircleIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/stores";
 import { useStepGuard } from "@/hooks/useStepGuard";
@@ -22,6 +22,7 @@ import { useRouter } from "next/navigation";
 import { formatDateRangeCompact } from "@/lib/dates";
 import { calculatePricing, listVenues } from "@/lib/api/venues";
 import { getVenueAvailability } from "@/lib/api/bookings";
+import { useBookingPageSlots } from "@/hooks/useBookingPageSlots";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { motion } from "framer-motion";
@@ -56,18 +57,7 @@ export default function BookingPage() {
 
   // Local state  
   const [selectedDates, setSelectedDates_Local] = useState<Date[]>(normalizeDates(storedDates));
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot>(() => {
-    // Simple restoration - no complex logic
-    if (storedStartTime && storedEndTime) {
-      if (storedStartTime === '09:00' && storedEndTime === '15:00') {
-        return getTimeSlotById('morning_session') || getDefaultTimeSlot();
-      }
-      if (storedStartTime === '16:00' && storedEndTime === '22:00') {
-        return getTimeSlotById('evening_session') || getDefaultTimeSlot();
-      }
-    }
-    return getDefaultTimeSlot();
-  });
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   
   const [isLoadingPricing, setIsLoadingPricing] = useState(false);
   const [pricing, setPricing] = useState<any>(null);
@@ -76,9 +66,18 @@ export default function BookingPage() {
   const [venues, setVenues] = useState<any[]>([]);
   const [currentVenue, setCurrentVenue] = useState<any>(selectedVenue);
   const [isLoadingVenues, setIsLoadingVenues] = useState(true);
+  const [sessionAvailability, setSessionAvailability] = useState<Map<string, boolean>>(new Map());
+  const [isLoadingSessionAvailability, setIsLoadingSessionAvailability] = useState(false);
+
+  // Wire up server-configured slots and pricing
+  const basePrice = currentVenue?.basePriceCents ? currentVenue.basePriceCents / 100 : 0;
+  const { activeSlots, selectedSlot, setSelectedSlotId: setSlotFromHook, slotPricing } = useBookingPageSlots(
+    currentVenue?.id,
+    selectedDates,
+    basePrice
+  );
 
   const debouncedSelectedDates = useDebounce(selectedDates, 300);
-  const debouncedTimeSlot = useDebounce(selectedTimeSlot, 300);
   const isVenueLoaded = !!currentVenue;
   const venueInfo = currentVenue;
   
@@ -98,9 +97,9 @@ export default function BookingPage() {
         setIsLoadingVenues(true);
         const response = await listVenues();
         
-        if (response.success && response.data && response.data.length > 0) {
-          setVenues(response.data);
-          const venue = selectedVenue || response.data[0];
+        if (response.success && response.data?.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
+          setVenues(response.data.data);
+          const venue = selectedVenue || response.data.data[0];
           setCurrentVenue(venue);
         } else {
           toast.error(response.message || 'No venues available');
@@ -130,12 +129,49 @@ export default function BookingPage() {
     }
   }, [isVenueLoaded, currentVenue?.id]);
 
-  // Calculate pricing when dates or time slot change (debounced)
+  // Sync selectedSlotId with the wiring hook
   useEffect(() => {
-    if (debouncedSelectedDates.length > 0 && isVenueLoaded && currentVenue?.id) {
-      void calculatePricingForDates(debouncedSelectedDates, debouncedTimeSlot);
+    if (selectedSlot && !selectedSlotId) {
+      setSelectedSlotId(selectedSlot.id);
     }
-  }, [debouncedSelectedDates, debouncedTimeSlot, isVenueLoaded, currentVenue?.id]);
+  }, [selectedSlot]);
+
+  // Check per-date session availability
+  useEffect(() => {
+    if (selectedDates.length === 0 || !currentVenue?.id) return;
+
+    const checkAvailability = async () => {
+      setIsLoadingSessionAvailability(true);
+      try {
+        const availability = new Map<string, boolean>();
+        for (const date of selectedDates) {
+          const dateStr = format(date, 'yyyy-MM-dd');
+          // Call the endpoint for per-date session availability
+          const response = await fetch(
+            `/api/bookings/${currentVenue.id}/availability/slots?date=${dateStr}`,
+            { headers: { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` } }
+          );
+          if (response.ok) {
+            const data = await response.json();
+            // Track which sessions are available for this date
+            if (data?.data?.sessions && Array.isArray(data.data.sessions)) {
+              data.data.sessions.forEach((session: any) => {
+                const key = `${dateStr}-${session.id}`;
+                availability.set(key, session.isAvailable !== false);
+              });
+            }
+          }
+        }
+        setSessionAvailability(availability);
+      } catch (err) {
+        console.error('Failed to check session availability:', err);
+      } finally {
+        setIsLoadingSessionAvailability(false);
+      }
+    };
+
+    void checkAvailability();
+  }, [debouncedSelectedDates, currentVenue?.id]);
 
   const fetchVenueAvailability = async () => {
     if (!currentVenue?.id) return;
@@ -162,58 +198,16 @@ export default function BookingPage() {
     }
   };
 
-  const calculatePricingForDates = async (dates: Date[], timeSlot: TimeSlot) => {
-    if (dates.length === 0 || !isVenueLoaded || !venueInfo?.id) return;
-    
-    try {
-      setIsLoadingPricing(true);
-      const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
-      
-      // Simple pricing calculation
-      const basePricePerDay = (venueInfo.basePriceCents || 0) / 100;
-      const adjustedPricePerDay = Math.round(basePricePerDay * timeSlot.priceMultiplier);
-      
-      const response = await calculatePricing({
-        venueId: venueInfo.id,
-        selectedDates: sortedDates.map(d => format(d, 'yyyy-MM-dd')),
-        timeSlot: timeSlot.id,
-        duration: timeSlot.duration,
-      });
-
-      if (response.success && response.data) {
-        setPricing({ 
-          ...response.data,
-          timeSlot: timeSlot.id,
-          adjustedPricePerDay,
-        });
-      } else {
-        // Fallback pricing
-        setPricing({
-          venueId: venueInfo!.id,
-          totalPrice: adjustedPricePerDay * dates.length,
-          averagePricePerDay: adjustedPricePerDay,
-          timeSlot: timeSlot.id,
-          adjustedPricePerDay,
-        });
-      }
-    } catch (error) {
-      console.error('Pricing calculation error:', error);
-      const basePricePerDay = (venueInfo?.basePriceCents || 0) / 100;
-      const adjustedPricePerDay = Math.round(basePricePerDay * timeSlot.priceMultiplier);
-      setPricing({
-        venueId: venueInfo!.id,
-        totalPrice: adjustedPricePerDay * dates.length,
-        averagePricePerDay: adjustedPricePerDay,
-        timeSlot: timeSlot.id,
-        adjustedPricePerDay,
-      });
-    } finally {
+  // Update pricing from server response
+  useEffect(() => {
+    if (slotPricing?.data) {
+      setPricing(slotPricing.data);
       setIsLoadingPricing(false);
     }
-  };
+  }, [slotPricing]);
 
   // Handle date selection with store sync
-  const handleDateSelect = useCallback(async (dates: Date[]) => {
+  const handleDateSelect = useCallback((dates: Date[]) => {
     setSelectedDates_Local(dates);
     setSelectedDates(dates);
     
@@ -226,9 +220,25 @@ export default function BookingPage() {
 
   // Handle time slot change
   const handleTimeSlotChange = useCallback((timeSlot: TimeSlot) => {
-    setSelectedTimeSlot(timeSlot);
+    setSelectedSlotId(timeSlot.id);
     toast.success(`${timeSlot.label} selected`);
   }, []);
+
+
+
+  // Check if any selected date has an unavailable session
+  const getConflictingDates = useCallback((): Date[] => {
+    if (!selectedSlot) return [];
+    const conflicts: Date[] = [];
+    for (const date of selectedDates) {
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const key = `${dateStr}-${selectedSlot.id}`;
+      if (sessionAvailability.has(key) && !sessionAvailability.get(key)) {
+        conflicts.push(date);
+      }
+    }
+    return conflicts;
+  }, [selectedSlot, selectedDates, sessionAvailability]);
 
   // Handle continue to next step
   const handleContinue = useCallback(() => {
@@ -241,21 +251,34 @@ export default function BookingPage() {
       toast.error("Please wait for venue information to load");
       return;
     }
+
+    if (!selectedSlot) {
+      toast.error("Please select a time slot");
+      return;
+    }
+    
+    const conflicts = getConflictingDates();
+    if (conflicts.length > 0) {
+      const conflictDates = conflicts.map(d => format(d, 'MMM d')).join(', ');
+      toast.error(`Session unavailable on: ${conflictDates}`);
+      return;
+    }
     
     const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
     
-    // Update store with venue details and time slot
-    setVenueDetails(venueInfo, sorted, selectedTimeSlot.startTime, selectedTimeSlot.endTime);
+    // Persist slotId along with start/end times
+    setVenueDetails(venueInfo, sorted, selectedSlot.startTime, selectedSlot.endTime);
     
     toast.success(
-      `Proceeding with ${sorted.length} day${sorted.length !== 1 ? 's' : ''} • ${selectedTimeSlot.label}`
+      `Proceeding with ${sorted.length} day${sorted.length !== 1 ? 's' : ''} • ${selectedSlot.label}`
     );
     router.push("/event-details");
-  }, [selectedDates, selectedTimeSlot, venueInfo, setVenueDetails, router]);
+  }, [selectedDates, selectedSlot, venueInfo, setVenueDetails, router, getConflictingDates]);
 
-  const basePrice = venueInfo?.basePriceCents ? venueInfo.basePriceCents / 100 : 0;
-  const adjustedPrice = Math.round(basePrice * selectedTimeSlot.priceMultiplier);
-  const totalPrice = selectedDates.length * adjustedPrice;
+  // Determine display pricing
+  const displayPrice = slotPricing?.data?.averagePricePerDay || Math.round(basePrice * (selectedSlot?.priceMultiplier || 1));
+  const totalPrice = slotPricing?.data?.totalPrice || selectedDates.length * displayPrice;
+  const appliedRates = slotPricing?.data?.breakdown?.[0]?.appliedRates || [];
   
   // Loading states
   if (isLoadingVenues) {
@@ -382,11 +405,13 @@ export default function BookingPage() {
                   </CardHeader>
                   
                   <CardContent>
+                      {/* Use server-configured slots if available, fallback to defaults */}
                     <TimeSlotSelector
-                      value={selectedTimeSlot.id}
+                      items={activeSlots.length > 0 ? activeSlots : undefined}
+                      value={selectedSlot?.id || ''}
                       onChange={handleTimeSlotChange}
                       basePrice={basePrice}
-                      disabled={isLoadingVenues}
+                      disabled={isLoadingVenues || isLoadingSessionAvailability}
                     />
                   </CardContent>
                 </Card>
@@ -420,31 +445,33 @@ export default function BookingPage() {
                 
                 <CardContent className="space-y-6">
                   {/* Time Slot Summary */}
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-muted-foreground">Selected Duration</span>
-                      <Badge variant="outline" className="text-xs">
-                        {selectedTimeSlot.duration}h
-                      </Badge>
-                    </div>
-                    
-                    <div className="p-3 rounded-lg bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
-                      <div className="flex items-center gap-2">
-                        <selectedTimeSlot.icon className="h-4 w-4 text-primary" />
-                        <div>
-                          <p className="text-sm font-semibold text-primary">{selectedTimeSlot.label}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {selectedTimeSlot.startTime} - {selectedTimeSlot.endTime}
-                          </p>
-                        </div>
-                      </div>
-                      {selectedTimeSlot.priceMultiplier < 1 && (
-                        <Badge className="bg-green-100 text-green-700 text-[10px] mt-2">
-                          {Math.round((1 - selectedTimeSlot.priceMultiplier) * 100)}% savings
+                  {selectedSlot && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-muted-foreground">Selected Duration</span>
+                        <Badge variant="outline" className="text-xs">
+                          {selectedSlot.duration || 'Session'}h
                         </Badge>
-                      )}
+                      </div>
+                      
+                      <div className="p-3 rounded-lg bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20">
+                        <div className="flex items-center gap-2">
+                          {selectedSlot.icon && <selectedSlot.icon className="h-4 w-4 text-primary" />}
+                          <div>
+                            <p className="text-sm font-semibold text-primary">{selectedSlot.label}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {selectedSlot.startTime} - {selectedSlot.endTime}
+                            </p>
+                          </div>
+                        </div>
+                        {selectedSlot.priceMultiplier < 1 && (
+                          <Badge className="bg-green-100 text-green-700 text-[10px] mt-2">
+                            {Math.round((1 - selectedSlot.priceMultiplier) * 100)}% savings
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                   
                   <Separator />
 
@@ -496,18 +523,53 @@ export default function BookingPage() {
                     )}
                   </div>
 
+                  {/* Session Availability Alerts */}
+                  {selectedDates.length > 0 && selectedSlot && (
+                    <>
+                      {isLoadingSessionAvailability && (
+                        <div className="p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-700">
+                          Checking session availability...
+                        </div>
+                      )}
+                      {getConflictingDates().length > 0 && (
+                        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <div className="flex gap-2 items-start">
+                            <AlertCircleIcon className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                            <div className="text-xs text-red-700">
+                              <p className="font-medium">Session unavailable on selected dates:</p>
+                              <p>{getConflictingDates().map(d => format(d, 'MMM d')).join(', ')}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
                   {/* Pricing Section */}
-                  {selectedDates.length > 0 && isVenueLoaded && (
+                  {selectedDates.length > 0 && isVenueLoaded && selectedSlot && (
                     <>
                       <Separator />
                       <div className="space-y-4">
+                        {/* Display applied rate multipliers */}
+                        {appliedRates.length > 0 && (
+                          <div className="space-y-2 text-xs">
+                            <p className="font-medium text-muted-foreground">Applied Rates:</p>
+                            {appliedRates.map((rate: any, idx: number) => (
+                              <div key={idx} className="flex justify-between text-muted-foreground">
+                                <span>{rate.name || 'Rate'}</span>
+                                <span>{rate.multiplier}x</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">
-                            Price per day ({selectedTimeSlot.label})
+                            Price per day ({selectedSlot.label})
                           </span>
                           <span className="font-medium">
-                            ₹{adjustedPrice.toLocaleString()}
-                            {selectedTimeSlot.priceMultiplier !== 1 && (
+                            ₹{displayPrice.toLocaleString()}
+                            {selectedSlot.priceMultiplier !== 1 && (
                               <span className="text-xs text-muted-foreground ml-1">
                                 (was ₹{basePrice.toLocaleString()})
                               </span>
@@ -533,7 +595,7 @@ export default function BookingPage() {
                   <div className="pt-4">
                     <Button
                       onClick={handleContinue}
-                      disabled={selectedDates.length === 0 || isLoadingPricing}
+                      disabled={selectedDates.length === 0 || isLoadingPricing || !selectedSlot || getConflictingDates().length > 0}
                       className="w-full h-12 text-base bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                       size="lg"
                     >

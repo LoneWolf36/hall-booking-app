@@ -70,6 +70,7 @@ interface TimeSlotSelectorProps {
   basePrice: number;
   className?: string;
   disabled?: boolean;
+  items?: TimeSlot[]; // Optional custom slots
 }
 
 export function TimeSlotSelector({ 
@@ -77,12 +78,17 @@ export function TimeSlotSelector({
   onChange, 
   basePrice, 
   className, 
-  disabled = false 
+  disabled = false,
+  items // Custom slots
 }: TimeSlotSelectorProps) {
   const [selectedSlot, setSelectedSlot] = useState<string>(value || 'full_day');
 
+  // Use custom slots if provided, otherwise fallback to hardcoded TIME_SLOTS
+  const slotOptions = items && items.length > 0 ? items : TIME_SLOTS;
+
   const handleSlotChange = (slotId: string) => {
-    const slot = TIME_SLOTS.find(s => s.id === slotId);
+    // Look up slot in custom slots if provided, otherwise fallback to TIME_SLOTS
+    const slot = slotOptions.find(s => s.id === slotId);
     if (slot) {
       setSelectedSlot(slotId);
       onChange(slot);
@@ -102,7 +108,7 @@ export function TimeSlotSelector({
         disabled={disabled}
         className="space-y-3"
       >
-        {TIME_SLOTS.map((slot) => {
+        {slotOptions.map((slot) => {
           const adjustedPrice = Math.round(basePrice * slot.priceMultiplier);
           const savings = basePrice - adjustedPrice;
           const isSelected = selectedSlot === slot.id;
