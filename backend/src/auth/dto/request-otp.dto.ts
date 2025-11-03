@@ -21,12 +21,12 @@ export class RequestOtpDto {
 
   @ApiProperty({
     description: 'Tenant ID (venue identifier)',
-    example: 'tenant-uuid-here',
+    example: 'tenant-1',
     required: true,
   })
   @IsString()
   @IsNotEmpty({ message: 'Tenant ID is required' })
-  @MinLength(10, { message: 'Tenant ID must be at least 10 characters' })
+  @MinLength(6, { message: 'Tenant ID must be at least 6 characters' })
   @MaxLength(100, { message: 'Tenant ID must not exceed 100 characters' })
   tenantId: string;
 }
