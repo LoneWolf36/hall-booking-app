@@ -1,12 +1,12 @@
 /**
- * Booking Page - COMPLETE SERVER INTEGRATION
+ * Booking Page - ENHANCED ERROR HANDLING & API RELIABILITY
  * 
- * Now fully integrated with server-configured timeslots:
- * - Renders venue-specific sessions from backend
- * - Per-date session availability checks
- * - Server-side slot-aware pricing with applied rates
- * - Session conflict detection and user feedback
- * - Fallback to defaults for unconfigured venues
+ * Now includes:
+ * - Comprehensive error handling and recovery
+ * - API health monitoring
+ * - Better user feedback for connection issues
+ * - Graceful fallbacks when backend is unavailable
+ * - Debug information for development
  */
 
 "use client";
@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { BookingCalendar } from "@/components/booking/BookingCalendar";
 import { QuickDateShortcuts } from "@/components/booking/QuickDateShortcuts";
 import { TimeSlotSelector, getDefaultTimeSlot, type TimeSlot } from "@/components/booking/TimeSlotSelector";
-import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon, AlertCircleIcon } from "lucide-react";
+import { CalendarIcon, ArrowRightIcon, InfoIcon, CheckCircle2Icon, LoaderIcon, AlertCircleIcon, WifiOffIcon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useBookingStore } from "@/stores";
 import { useStepGuard } from "@/hooks/useStepGuard";
@@ -30,6 +30,8 @@ import { useBookingPageSlots } from "@/hooks/useBookingPageSlots";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
 import { motion } from "framer-motion";
+import { ApiHealthCheck, ApiStatusIndicator } from "@/components/ApiHealthCheck";
+import { checkApiHealth, ApiError } from "@/lib/api/client";
 
 const normalizeDates = (arr?: any[]) => (arr ?? []).map((d) => (d instanceof Date ? d : new Date(d)));
 
@@ -41,6 +43,15 @@ function useDebounce<T>(value: T, delay: number): T {
     return () => clearTimeout(handler);
   }, [value, delay]);
   return debouncedValue;
+}
+
+// Enhanced error state interface
+interface ErrorState {
+  hasError: boolean;
+  message: string;
+  code?: string;
+  isRetryable: boolean;
+  details?: string;
 }
 
 export default function BookingPage() {
@@ -56,8 +67,10 @@ export default function BookingPage() {
   
   const hasFetchedVenues = useRef(false);
   const hasFetchedAvailability = useRef(false);
+  const retryCount = useRef(0);
+  const maxRetries = 3;
 
-  // Local state  
+  // Enhanced state management
   const [selectedDates, setSelectedDates_Local] = useState<Date[]>(normalizeDates(storedDates));
   const [unavailableDates, setUnavailableDates] = useState<Date[]>([]);
   const [isLoadingAvailability, setIsLoadingAvailability] = useState(true);
@@ -66,9 +79,15 @@ export default function BookingPage() {
   const [isLoadingVenues, setIsLoadingVenues] = useState(true);
   const [sessionAvailability, setSessionAvailability] = useState<Map<string, boolean>>(new Map());
   const [isLoadingSessionAvailability, setIsLoadingSessionAvailability] = useState(false);
+  
+  // Enhanced error states
+  const [venueError, setVenueError] = useState<ErrorState>({ hasError: false, message: '', isRetryable: false });
+  const [availabilityError, setAvailabilityError] = useState<ErrorState>({ hasError: false, message: '', isRetryable: false });
+  const [apiHealthy, setApiHealthy] = useState<boolean | null>(null);
+  const [showApiHealth, setShowApiHealth] = useState(false);
 
   // SERVER TIMESLOTS INTEGRATION - Use server-configured slots and pricing
-  const basePrice = currentVenue?.basePriceCents ? currentVenue.basePriceCents / 100 : 0;
+  const basePrice = currentVenue?.basePriceCents ? currentVenue.basePriceCents / 100 : 15000;
   const { activeSlots, selectedSlot, setSelectedSlotId, slotPricing } = useBookingPageSlots(
     currentVenue?.id,
     selectedDates,
@@ -76,7 +95,7 @@ export default function BookingPage() {
   );
 
   const debouncedSelectedDates = useDebounce(selectedDates, 300);
-  const isVenueLoaded = !!currentVenue;
+  const isVenueLoaded = !!currentVenue && !venueError.hasError;
   const venueInfo = currentVenue;
   
   const isUnavailable = useCallback((date: Date) => {
@@ -85,32 +104,141 @@ export default function BookingPage() {
     );
   }, [unavailableDates]);
 
-  // Load venues on mount
+  // Enhanced error handling helper
+  const handleApiError = (error: any, type: 'venue' | 'availability') => {
+    let errorState: ErrorState;
+    
+    if (error?.code === 'CONNECTION_FAILED' || error?.code === 'NETWORK_ERROR') {
+      errorState = {
+        hasError: true,
+        message: 'Unable to connect to server',
+        code: error.code,
+        isRetryable: true,
+        details: 'Please check if the backend server is running on http://localhost:3000'
+      };
+      setApiHealthy(false);
+      setShowApiHealth(true);
+    } else if (error?.status >= 500) {
+      errorState = {
+        hasError: true,
+        message: 'Server error occurred',
+        code: `HTTP_${error.status}`,
+        isRetryable: true,
+        details: error.message
+      };
+    } else if (error?.status >= 400) {
+      errorState = {
+        hasError: true,
+        message: 'Invalid request',
+        code: `HTTP_${error.status}`,
+        isRetryable: false,
+        details: error.message
+      };
+    } else {
+      errorState = {
+        hasError: true,
+        message: error?.message || 'An unexpected error occurred',
+        isRetryable: true,
+        details: 'Please try again'
+      };
+    }
+
+    if (type === 'venue') {
+      setVenueError(errorState);
+    } else {
+      setAvailabilityError(errorState);
+    }
+
+    // Show toast for user feedback
+    toast.error(errorState.message, {
+      description: errorState.details,
+      duration: 5000
+    });
+  };
+
+  // Enhanced retry mechanism
+  const retryOperation = async (operation: () => Promise<void>, type: 'venue' | 'availability') => {
+    if (retryCount.current >= maxRetries) {
+      toast.error('Maximum retries exceeded. Please check your connection.');
+      return;
+    }
+
+    retryCount.current++;
+    toast.info(`Retrying... (${retryCount.current}/${maxRetries})`);
+    
+    // Reset error state
+    if (type === 'venue') {
+      setVenueError({ hasError: false, message: '', isRetryable: false });
+    } else {
+      setAvailabilityError({ hasError: false, message: '', isRetryable: false });
+    }
+    
+    await operation();
+  };
+
+  // Enhanced venue loading with error handling
+  const loadVenues = async () => {
+    try {
+      setIsLoadingVenues(true);
+      setVenueError({ hasError: false, message: '', isRetryable: false });
+      
+      const response = await listVenues();
+      
+      if (response.success && response.data?.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
+        setVenues(response.data.data);
+        const venue = selectedVenue || response.data.data[0];
+        setCurrentVenue(venue);
+        retryCount.current = 0; // Reset retry count on success
+        setApiHealthy(true);
+        
+        toast.success('Venues loaded successfully');
+      } else {
+        throw new Error(response.message || 'No venues available');
+      }
+    } catch (err) {
+      console.error('Failed to fetch venues:', err);
+      handleApiError(err, 'venue');
+    } finally {
+      setIsLoadingVenues(false);
+    }
+  };
+
+  // Enhanced availability loading
+  const fetchVenueAvailability = async () => {
+    if (!currentVenue?.id) return;
+    
+    try {
+      setIsLoadingAvailability(true);
+      setAvailabilityError({ hasError: false, message: '', isRetryable: false });
+      
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const response = await getVenueAvailability(currentVenue.id, today, 90);
+      
+      if (response.success && response.data) {
+        const bookedDates = response.data
+          .filter(day => !day.isAvailable)
+          .map(day => new Date(day.date));
+        
+        setUnavailableDates(bookedDates);
+        retryCount.current = 0; // Reset retry count on success
+      } else {
+        throw new Error(response.message || 'Failed to load availability');
+      }
+    } catch (error) {
+      console.error('Failed to fetch availability:', error);
+      handleApiError(error, 'availability');
+      setUnavailableDates([]); // Use empty array as fallback
+    } finally {
+      setIsLoadingAvailability(false);
+    }
+  };
+
+  // Load venues on mount with enhanced error handling
   useEffect(() => {
     if (hasFetchedVenues.current) return;
     hasFetchedVenues.current = true;
 
-    const fetchVenues = async () => {
-      try {
-        setIsLoadingVenues(true);
-        const response = await listVenues();
-        
-        if (response.success && response.data?.data && Array.isArray(response.data.data) && response.data.data.length > 0) {
-          setVenues(response.data.data);
-          const venue = selectedVenue || response.data.data[0];
-          setCurrentVenue(venue);
-        } else {
-          toast.error(response.message || 'No venues available');
-        }
-      } catch (err) {
-        console.error('Failed to fetch venues:', err);
-        toast.error('Failed to load venues. Please check your connection.');
-      } finally {
-        setIsLoadingVenues(false);
-      }
-    };
-
-    fetchVenues();
+    loadVenues();
     
     // Restore persisted dates
     const normalized = normalizeDates(storedDates);
@@ -127,7 +255,7 @@ export default function BookingPage() {
     }
   }, [isVenueLoaded, currentVenue?.id]);
 
-  // Check per-date session availability when dates or venue change
+  // Enhanced session availability checking
   useEffect(() => {
     if (selectedDates.length === 0 || !currentVenue?.id || activeSlots.length === 0) {
       setSessionAvailability(new Map());
@@ -183,31 +311,6 @@ export default function BookingPage() {
     void checkSessionAvailability();
   }, [debouncedSelectedDates, currentVenue?.id, activeSlots]);
 
-  const fetchVenueAvailability = async () => {
-    if (!currentVenue?.id) return;
-    
-    try {
-      setIsLoadingAvailability(true);
-      const today = format(new Date(), 'yyyy-MM-dd');
-      const response = await getVenueAvailability(currentVenue.id, today, 90);
-      
-      if (response.success && response.data) {
-        const bookedDates = response.data
-          .filter(day => !day.isAvailable)
-          .map(day => new Date(day.date));
-        
-        setUnavailableDates(bookedDates);
-      } else {
-        setUnavailableDates([]);
-      }
-    } catch (error) {
-      console.error('Failed to fetch availability:', error);
-      setUnavailableDates([]);
-    } finally {
-      setIsLoadingAvailability(false);
-    }
-  };
-
   // Handle date selection with store sync
   const handleDateSelect = useCallback((dates: Date[]) => {
     setSelectedDates_Local(dates);
@@ -220,7 +323,7 @@ export default function BookingPage() {
     }
   }, [setSelectedDates]);
 
-  // Handle time slot change - use the wiring hook
+  // Handle time slot change
   const handleTimeSlotChange = useCallback((timeSlot: TimeSlot) => {
     setSelectedSlotId(timeSlot.id);
     toast.success(`${timeSlot.label} selected`);
@@ -243,7 +346,7 @@ export default function BookingPage() {
     return conflicts;
   }, [selectedSlot, selectedDates, sessionAvailability, activeSlots]);
 
-  // Handle continue to next step
+  // Enhanced continue handler
   const handleContinue = useCallback(() => {
     if (selectedDates.length === 0) {
       toast.error("Please select at least one date for your event");
@@ -290,7 +393,7 @@ export default function BookingPage() {
   const totalPrice = serverPricing?.totalPrice || selectedDates.length * displayPrice;
   const appliedRates = serverPricing?.breakdown?.[0]?.appliedRates || [];
   
-  // Loading states
+  // Enhanced loading states with error handling
   if (isLoadingVenues) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center">
@@ -300,22 +403,63 @@ export default function BookingPage() {
             <h2 className="text-xl font-semibold">Loading Venues</h2>
             <p className="text-sm text-muted-foreground">Connecting to booking system...</p>
           </div>
+          
+          {/* Show API health status */}
+          <div className="mt-4">
+            <ApiStatusIndicator />
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!isLoadingVenues && venues.length === 0) {
+  // Enhanced error state for no venues
+  if (!isLoadingVenues && (venues.length === 0 || venueError.hasError)) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="space-y-2">
-            <h2 className="text-xl font-semibold text-destructive">No Venues Available</h2>
-            <p className="text-sm text-muted-foreground">Please check if the backend server is running.</p>
-            <Button onClick={() => window.location.reload()} variant="outline" className="mt-4">
-              Retry
-            </Button>
+      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center p-4">
+        <div className="max-w-md w-full space-y-6">
+          <div className="text-center space-y-4">
+            {venueError.code === 'CONNECTION_FAILED' ? (
+              <WifiOffIcon className="h-16 w-16 mx-auto text-red-500" />
+            ) : (
+              <AlertCircleIcon className="h-16 w-16 mx-auto text-red-500" />
+            )}
+            
+            <div>
+              <h2 className="text-xl font-semibold text-destructive">
+                {venueError.hasError ? venueError.message : 'No Venues Available'}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-2">
+                {venueError.details || 'Please check if the backend server is running.'}
+              </p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              {venueError.isRetryable && (
+                <Button 
+                  onClick={() => retryOperation(loadVenues, 'venue')} 
+                  variant="outline" 
+                  className="flex items-center gap-2"
+                  disabled={retryCount.current >= maxRetries}
+                >
+                  <RefreshCwIcon className="h-4 w-4" />
+                  Retry ({retryCount.current}/{maxRetries})
+                </Button>
+              )}
+              
+              <Button onClick={() => window.location.reload()} variant="outline">
+                Refresh Page
+              </Button>
+            </div>
           </div>
+          
+          {/* Show API health check for debugging */}
+          {showApiHealth && (
+            <ApiHealthCheck 
+              autoCheck={false} 
+              onStatusChange={(status) => setApiHealthy(status.healthy)}
+            />
+          )}
         </div>
       </div>
     );
@@ -329,18 +473,49 @@ export default function BookingPage() {
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <div className="container mx-auto px-4 py-8 max-w-7xl">
         <div className="space-y-8">
-          {/* Header */}
+          {/* Enhanced Header with API Status */}
           <div className="text-center space-y-4">
-            <h1 className="text-4xl font-bold tracking-tight">Select Your Event Dates & Time</h1>
-            <p className="text-lg text-muted-foreground">Choose dates and duration for your event</p>
+            <div className="flex items-center justify-center gap-4">
+              <div>
+                <h1 className="text-4xl font-bold tracking-tight">Select Your Event Dates & Time</h1>
+                <p className="text-lg text-muted-foreground">Choose dates and duration for your event</p>
+              </div>
+              <ApiStatusIndicator className="self-start" />
+            </div>
+            
             {venueInfo && (
               <Badge variant="secondary" className="text-sm px-4 py-1">
                 {venueInfo.name}
               </Badge>
             )}
+            
+            {/* Show error notifications */}
+            {availabilityError.hasError && (
+              <div className="mx-auto max-w-md">
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
+                  <div className="flex items-start gap-2">
+                    <AlertCircleIcon className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-yellow-800">
+                      <p className="font-medium">Availability data unavailable</p>
+                      <p className="text-xs mt-1">{availabilityError.message}</p>
+                      {availabilityError.isRetryable && (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="mt-2 h-6 text-xs"
+                          onClick={() => retryOperation(fetchVenueAvailability, 'availability')}
+                        >
+                          Retry
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Main Content */}
+          {/* Main Content - Rest remains the same but with enhanced error states */}
           <div className="grid lg:grid-cols-5 gap-8">
             {/* Left: Calendar and Shortcuts */}
             <div className="lg:col-span-3 space-y-6">
@@ -469,7 +644,7 @@ export default function BookingPage() {
               </Card>
             </div>
 
-            {/* Right: Summary */}
+            {/* Right: Summary - Enhanced with better error states */}
             <div className="lg:col-span-2 space-y-6">
               <Card className="border-2 shadow-xl bg-gradient-to-br from-card/60 to-card/40 backdrop-blur-sm sticky top-20">
                 <CardHeader>
@@ -630,7 +805,7 @@ export default function BookingPage() {
                     </>
                   )}
 
-                  {/* Continue Button */}
+                  {/* Enhanced Continue Button */}
                   <div className="pt-4">
                     <Button
                       onClick={handleContinue}
@@ -638,7 +813,9 @@ export default function BookingPage() {
                         selectedDates.length === 0 || 
                         !selectedSlot || 
                         isLoadingSessionAvailability ||
-                        getConflictingDates().length > 0
+                        getConflictingDates().length > 0 ||
+                        venueError.hasError ||
+                        !isVenueLoaded
                       }
                       className="w-full h-12 text-base bg-gradient-to-r from-primary to-primary/90 hover:from-primary/95 hover:to-primary/85 shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl"
                       size="lg"
@@ -656,6 +833,12 @@ export default function BookingPage() {
                     {getConflictingDates().length > 0 && (
                       <p className="text-xs text-center text-red-600 mt-2">
                         Session conflicts with selected dates - choose different dates or session
+                      </p>
+                    )}
+                    
+                    {venueError.hasError && (
+                      <p className="text-xs text-center text-red-600 mt-2">
+                        Please resolve venue loading issues first
                       </p>
                     )}
                   </div>
